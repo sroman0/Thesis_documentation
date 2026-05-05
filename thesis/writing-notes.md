@@ -18,12 +18,31 @@ Tracee rappresenta un riferimento production-grade per runtime security basata s
 
 Una parte rilevante dell'implementazione e' stata guidata dal verifier eBPF. Alcune strutture dati logicamente corrette sono state adattate per rendere espliciti al verifier i limiti di memoria e le dimensioni delle copie.
 
+### Decoder userspace
+
+Il decoder userspace rappresenta il punto di incontro tra il formato binario
+prodotto dai programmi eBPF e una rappresentazione Go utilizzabile dal resto
+della pipeline. A differenza di Tracee, il progetto usa un `EventContext` piu'
+piccolo e non include campi di policy; per questo il decoder e' stato
+reimplementato in forma custom, pur mantenendo lo stesso principio generale di
+lettura sequenziale da buffer.
+
+### Output JSON raw
+
+La stampa JSON raw degli eventi decodificati e' un passaggio intermedio utile:
+non costituisce ancora un sistema di alert, ma dimostra che la pipeline kernel
+-> ring buffer -> userspace -> decoder e' funzionante. Questo permette di
+separare il problema del trasporto eventi dal problema successivo di enrichment,
+filtering e detection.
+
 ## Dettagli da approfondire
 
 - Differenza tra sicurezza logica del codice C e dimostrabilita' per il verifier.
 - Trade-off tra formato eventi compatto e formato verifier-friendly.
 - Scelta di ring buffer invece di perf event array.
 - Scelta di `cilium/ebpf` rispetto a `libbpfgo`.
+- Differenza tra decoder completo Tracee e decoder MVP custom del progetto.
+- Ruolo dello schema statico eventi in `protocol.go`.
 
 ## Collegamenti
 

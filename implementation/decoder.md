@@ -30,6 +30,41 @@ File:
 - `eventsreader.go`: decodifica evento completo e argomenti;
 - `eventsreader_test.go`: test minimi per eventi scalari e stringa.
 
+## Responsabilita' dei file
+
+### `protocol.go`
+
+Definisce il contratto semantico tra eBPF e Go:
+
+- dimensioni degli slot;
+- ID eventi;
+- tipi argomento;
+- `EventContext`;
+- schema statico `EventID -> nome evento + argomenti`.
+
+### `decoder.go`
+
+E' il lettore binario di basso livello. Mantiene un cursore interno e legge
+valori little-endian dal buffer:
+
+- interi a 8/16/32/64 bit;
+- byte array;
+- `EventContext`.
+
+Non decide quali argomenti appartengono a un evento: fornisce solo primitive di
+lettura sicure.
+
+### `eventsreader.go`
+
+E' il livello semantico:
+
+- crea un `EbpfDecoder`;
+- legge il context;
+- legge `argnum`;
+- usa lo schema evento da `protocol.go`;
+- decodifica slot scalari o stringa;
+- produce un `Event` completo.
+
 ## `EventContext`
 
 Il context Go e' allineato al `event_context_t` eBPF del progetto, non a quello
@@ -156,3 +191,4 @@ echo test
 - [Overview implementazione](overview.md)
 - [Protocollo eventi e buffer eBPF](event-buffer.md)
 - [Userspace Go e lifecycle eBPF](userspace-lifecycle.md)
+- [Diario 2026-05-04](../daily/2026-05-04.md)

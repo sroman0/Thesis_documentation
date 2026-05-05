@@ -15,6 +15,7 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 ### Diario giornaliero
 
 - [2026-04-29 - Loader eBPF, verifier e struttura documentazione](daily/2026-04-29.md)
+- [2026-05-04 - Decoder userspace e output JSON raw](daily/2026-05-04.md)
 
 ### Implementazione
 
@@ -82,7 +83,11 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [Userspace Go e lifecycle eBPF](implementation/userspace-lifecycle.md)
 - [Decoder Go degli eventi eBPF](implementation/decoder.md)
 
-**Aggiornamento successivo - decoder MVP:**
+### 2026-05-04
+
+**Tema principale:** integrazione del decoder userspace e primo output JSON raw.
+
+**Attivita' svolte:**
 
 - Aggiunto package `demo_project/pkg/bufferdecoder`.
 - Introdotto `protocol.go` con `EventContext` Go da 128 byte.
@@ -99,6 +104,13 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - `demo_project/pkg/bufferdecoder/eventsreader.go`
 - `demo_project/pkg/bufferdecoder/eventsreader_test.go`
 - `demo_project/pkg/ebpf/project.go`
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-05-04.md)
+- [Decoder Go degli eventi eBPF](implementation/decoder.md)
+- [Userspace Go e lifecycle eBPF](implementation/userspace-lifecycle.md)
+- [Protocollo eventi e buffer eBPF](implementation/event-buffer.md)
 
 **Prossimo passo consigliato:**
 
