@@ -464,9 +464,9 @@ Questo indica che il programma e' riuscito a superare le fasi precedenti che fal
 - ingresso nel loop runtime.
 
 Il fatto che non vengano stampati alert non e' un errore in questa fase: gli
-alert richiedono ancora detection logic. Dopo l'ultimo aggiornamento, pero', il
-runtime Go non scarta piu' i record della ring buffer: li decodifica e li stampa
-come JSON raw.
+alert richiedono ancora detection logic. Dopo gli ultimi aggiornamenti, pero',
+il runtime Go non scarta piu' i record della ring buffer: li decodifica, applica
+la selezione eventi e li passa al layer `pkg/output`.
 
 Loop aggiornato in `pkg/ebpf/project.go`:
 
@@ -475,21 +475,26 @@ record, err := p.events.Read()
 if err == nil {
     event, err := bufferdecoder.DecodeEvent(record.RawSample)
     ...
-    encoded, err := json.Marshal(event)
-    ...
-    fmt.Println(string(encoded))
+    if !p.eventEnabled(event.EventName) {
+        continue
+    }
+    if err := p.printer.Print(event); err != nil {
+        ...
+    }
 }
 ```
 
 Quindi, se un evento arriva, `Read()` ritorna correttamente, il record viene
-decodificato e viene emessa una riga JSON.
+decodificato e viene emessa una riga nel formato configurato (`json` o
+`table`).
 
 Conclusione dello stato corrente:
 
 - il loader eBPF e' arrivato a uno stato operativo;
 - la pipeline userspace minimale degli eventi e' presente;
-- gli hook producono eventi raw decodificati in JSON;
-- per ottenere alert servono ancora output stabile, enrichment e detection logic.
+- gli hook producono eventi decodificati e stampabili;
+- l'output e' separato dal runtime eBPF;
+- per ottenere alert servono ancora enrichment piu' ampio e detection logic.
 
 ## 10. Limitazioni attuali
 
@@ -506,18 +511,17 @@ Il decoder implementa:
 - parsing di `event_context_t` da 128 byte;
 - parsing di `argnum`;
 - parsing degli argomenti taggati a slot fissi (`INT_T`, `UINT_T`, `STR_T`, ecc.);
-- output JSON raw su stdout.
+- produzione di `bufferdecoder.Event`, poi passato al layer `pkg/output`.
 
-Esempio osservato:
+Esempio JSON normalizzato:
 
 ```json
-{"event_name":"cap_capable","args":[{"name":"cap","type":1,"value":2}]}
+{"timestamp":4074609472044753,"event_name":"cap_capable","process":{"pid":1374462,"tid":1374462,"ppid":1348641,"uid":1000,"comm":"cpuUsage.sh","uts_name":"security-thesis"},"host":{"pid":1374462,"tid":1374462,"ppid":1348641},"kernel":{"syscall":56,"processor_id":0,"mnt_id":4026531840,"pid_id":4026531836},"args":[{"name":"cap","type":1,"value":21,"label":"CAP_SYS_ADMIN"}]}
 ```
 
 Limitazioni residue:
 
-- `comm` e `uts_name` sono ancora array di byte nel JSON;
-- le capability sono numeriche, non ancora convertite in nomi;
+- syscall, resource limit e opzioni `prctl` sono ancora numeriche;
 - nuovi hook richiedono aggiornamento dello schema statico in `protocol.go`.
 
 ### 10.2 Attach kprobe semplificato
@@ -619,4 +623,3 @@ Sono stati limitati i possibili valori di offset sul buffer, in entrambe le funz
 
 ## 15. common.h
 Aggiunta la funzione barrier, che aiuta a mantenere più prevedibile l'ordine delle operazioni, è più una nota al compilatore per non fare ottimizzazioni troppo creative attraverso questo punto.
-

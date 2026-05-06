@@ -27,13 +27,17 @@ piccolo e non include campi di policy; per questo il decoder e' stato
 reimplementato in forma custom, pur mantenendo lo stesso principio generale di
 lettura sequenziale da buffer.
 
-### Output JSON raw
+### Output layer
 
-La stampa JSON raw degli eventi decodificati e' un passaggio intermedio utile:
-non costituisce ancora un sistema di alert, ma dimostra che la pipeline kernel
--> ring buffer -> userspace -> decoder e' funzionante. Questo permette di
-separare il problema del trasporto eventi dal problema successivo di enrichment,
-filtering e detection.
+La separazione del layer output consente di distinguere il problema del
+trasporto eventi dal problema della presentazione. Il runtime eBPF produce
+eventi decodificati, mentre `pkg/output` decide se stamparli come JSON
+machine-readable o come righe table per debug manuale.
+
+Il passaggio da JSON raw a JSON normalizzato rende l'evento piu' utile per
+analisi successive: campi C-style come `comm` e `uts_name` diventano stringhe e
+valori numerici come le Linux capabilities possono essere arricchiti con label
+simboliche.
 
 ## Dettagli da approfondire
 

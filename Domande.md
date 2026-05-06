@@ -1,1 +1,1 @@
-L'analogia con Tracee deve essere 1:1 oppure possiamo permetterci nuove scelte architetturali
+L'analogia con Tracee deve essere 1:1 oppure possiamo permetterci nuove scelte architetturali? Non è un vincolo obbligatorio.

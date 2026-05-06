@@ -13,10 +13,13 @@ main.go
   -> appcmd.NewProjectRunner(cfg)
   -> runner.Run(ctx)
   -> ebpf.New(cfg)
+  -> selectProbes(cfg.Events.Include, cfg.Events.Exclude)
   -> project.Init(ctx)
+  -> attach selected probes
   -> project.Run(ctx)
   -> bufferdecoder.DecodeEvent(record.RawSample)
-  -> json.Marshal(event)
+  -> event selection guard
+  -> output.Printer.Print(event)
   -> stdout
 ```
 
@@ -34,6 +37,15 @@ Questo separa:
 - risoluzione filesystem;
 - runtime eBPF.
 
+La config contiene anche `Events.Include` e `Events.Exclude`, popolati dalle
+flag CLI:
+
+- `--events`: eventi da abilitare, separati da virgola;
+- `--drop-events`: eventi da disabilitare dopo la selezione iniziale.
+
+Se `--events` non viene passato, il runtime abilita tutti gli eventi supportati.
+`--drop-events cap_capable` e' utile per ridurre il rumore durante i test.
+
 ## Load e attach
 
 In `Project.Init()`:
@@ -43,7 +55,10 @@ In `Project.Init()`:
 3. load BTF;
 4. creazione collection;
 5. apertura ring buffer;
-6. attach programmi.
+6. attach dei soli programmi selezionati.
+
+La selezione dei programmi vive in `pkg/ebpf/probes/probes.go`. Ogni probe collega il
+nome evento decodificato al programma eBPF e all'hook kernel da usare.
 
 ## Lettura e decoding eventi
 
@@ -52,8 +67,9 @@ In `Project.Run()`:
 1. il runtime legge `ringbuf.Record` da `events`;
 2. prende `record.RawSample`;
 3. chiama `bufferdecoder.DecodeEvent(...)`;
-4. converte l'evento in JSON;
-5. stampa una riga su stdout.
+4. scarta eventi non abilitati dalla selezione runtime;
+5. passa l'evento al printer configurato;
+6. stampa una riga su stdout.
 
 Questo sostituisce il loop precedente che drenava la ring buffer e scartava i
 record.
@@ -66,6 +82,26 @@ Esempio di output osservato:
 
 `cap_capable` e' un hook molto rumoroso: vedere molte righe ripetute e'
 normale.
+
+## Output layer
+
+La stampa degli eventi non vive piu' direttamente in `Project.Run()`. Il runtime
+usa `pkg/output` tramite l'interfaccia `Printer`.
+
+Formati attuali:
+
+- `json`: mantiene una riga JSON per evento, adatta a parsing automatico, ma
+  usa una vista normalizzata invece del formato raw del decoder;
+- `table`: produce una riga compatta leggibile a terminale, con `event`, `pid`,
+  `tid`, `uid`, `comm` e argomenti.
+
+Nel formato JSON, campi C-style come `comm` e `uts_name` vengono convertiti in
+stringhe. Gli argomenti `cap` vengono arricchiti con una label simbolica, ad
+esempio `CAP_SYS_ADMIN`.
+
+Questa scelta segue il ruolo del `sink` di Tracee in forma semplificata: il
+runtime legge e decodifica, mentre il layer output decide come presentare
+l'evento.
 
 ## Cleanup
 
@@ -86,7 +122,9 @@ Tracee usa un sistema `ProbeGroup` piu' ricco, con:
 - fallback per kprobe;
 - compatibilita' kernel.
 
-Il progetto usa una lista statica di programmi, sufficiente per MVP.
+Il progetto usa un registry statico di probe selezionabili, sufficiente per MVP.
+Questa e' una deviazione intenzionale: mantiene il design vicino a Tracee, ma
+riduce complessita' e rischio sul kernel Rocky Linux 4.18.
 
 ## Collegamenti
 
@@ -94,3 +132,4 @@ Il progetto usa una lista statica di programmi, sufficiente per MVP.
 - [Decision log](../decisions/decision-log.md)
 - [Comandi utili](../debugging/commands.md)
 - [Decoder Go](decoder.md)
+- [Output layer](output.md)

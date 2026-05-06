@@ -133,13 +133,14 @@ In `demo_project/pkg/ebpf/project.go`, il loop runtime:
 
 1. legge un record dalla ring buffer;
 2. chiama `bufferdecoder.DecodeEvent(record.RawSample)`;
-3. serializza l'evento con `json.Marshal`;
-4. stampa una riga su stdout.
+3. applica il filtro eventi runtime;
+4. passa l'evento al printer configurato in `pkg/output`;
+5. stampa una riga su stdout.
 
 Esempio osservato:
 
 ```json
-{"event_name":"cap_capable","args":[{"name":"cap","type":1,"value":2}]}
+{"timestamp":4074609472044753,"event_name":"cap_capable","process":{"pid":1374462,"tid":1374462,"ppid":1348641,"uid":1000,"comm":"cpuUsage.sh","uts_name":"security-thesis"},"host":{"pid":1374462,"tid":1374462,"ppid":1348641},"kernel":{"syscall":56,"processor_id":0,"mnt_id":4026531840,"pid_id":4026531836},"args":[{"name":"cap","type":1,"value":21,"label":"CAP_SYS_ADMIN"}]}
 ```
 
 Questo conferma la pipeline:
@@ -149,13 +150,13 @@ kprobe/cap_capable
   -> evento eBPF
   -> ring buffer
   -> decoder Go
-  -> JSON
+  -> output layer
 ```
 
 ## Limitazioni
 
-- `Comm` e `UtsName` sono ancora serializzati come array di byte nel JSON.
-- `cap` viene stampato come numero, non ancora come nome capability.
+- Il decoder resta responsabile del formato binario, non della presentazione.
+- `comm`, `uts_name` e capability vengono normalizzati nel package `output`.
 - `cap_capable` e' molto rumoroso e puo' generare molte righe.
 - Il decoder supporta gli eventi attuali; nuovi hook richiedono una voce nello
   schema statico in `protocol.go`.
