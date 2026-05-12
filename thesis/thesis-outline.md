@@ -1,7 +1,6 @@
 # Mappa capitoli tesi
 
 Questa e' una bozza viva della struttura della tesi. Va aggiornata man mano che il progetto matura.
-
 ## 1. Introduzione
 
 - Motivazione: runtime security e bisogno di visibilita' kernel-level.
@@ -16,13 +15,11 @@ Questa e' una bozza viva della struttura della tesi. Va aggiornata man mano che 
 - CO-RE e BTF.
 - Ring buffer.
 - Tracepoint, raw tracepoint, kprobe, LSM hook.
-
 ## 3. Stato dell'arte
 
 - Tracee come riferimento principale.
 - Altri strumenti runtime security.
 - Differenze tra tool production-grade e MVP di ricerca.
-
 ## 4. Requisiti e ambiente target
 
 - Rocky Linux 8.10.

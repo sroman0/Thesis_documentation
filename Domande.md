@@ -1,1 +1,3 @@
-L'analogia con Tracee deve essere 1:1 oppure possiamo permetterci nuove scelte architetturali? Non è un vincolo obbligatorio.
+- L'analogia con Tracee deve essere 1:1 oppure possiamo permetterci nuove scelte architetturali? Non è un vincolo obbligatorio.
+- Per la comunicazione tra userspace e kernel space, conviene utilizzare un ring buffer oppure un perf buffer?
+- Chiedere se è necessario implementare un file .yaml su .github per le github actions, cosi che ad ogni push viene effettuato un test sul codice.
