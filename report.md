@@ -8,9 +8,12 @@ L'obiettivo operativo e' stato portare il progetto al punto in cui:
 2. lo userspace Go legge l'oggetto compilato;
 3. la collection eBPF viene caricata nel kernel;
 4. i programmi eBPF vengono attaccati ai rispettivi hook;
-5. la ring buffer `events` viene drenata dallo userspace.
+5. la ring buffer `events_ringbuf` viene drenata dallo userspace.
 
-Il lavoro e' ispirato a Tracee, ma adattato a un MVP piu' piccolo e alla libreria Go `github.com/cilium/ebpf`, mentre Tracee usa `libbpfgo`.
+Il lavoro e' ispirato a Tracee, ma adattato a un MVP piu' piccolo. La prima
+versione del runtime usava `github.com/cilium/ebpf`; dopo il merge con il
+branch networking il runtime e' stato migrato verso
+`github.com/aquasecurity/libbpfgo`, piu' vicino alla struttura di Tracee.
 
 ## 2. Contesto tecnico
 
@@ -21,7 +24,9 @@ Target principale:
 - Feature eBPF disponibili sul target: BTF/CO-RE, raw tracepoint, kprobe, ring buffer
 - BTF nativo atteso in: `/sys/kernel/btf/vmlinux`
 
-Il progetto mantiene l'oggetto eBPF come file esterno, invece di embeddarlo nel binario Go. Il path puo' essere passato via CLI o tramite variabile d'ambiente.
+Il progetto genera l'oggetto eBPF in `dist/project.bpf.o` e lo include nel
+binario Go tramite `go:embed`. Il path esplicito resta disponibile per debug
+tramite CLI o variabile d'ambiente.
 
 ## 3. Startup userspace
 
@@ -42,24 +47,24 @@ La validazione statica controlla solo valori come output format e log level. La 
 E' stato introdotto `pkg/cmd/initialize/bpfobject.go`, che:
 
 - legge `PROJECT_BPF_OBJECT`, se impostata;
-- altrimenti usa il path CLI/config;
-- se il path e' relativo, prova anche `pkg/ebpf/c/<basename>`;
-- legge i byte dell'oggetto con `os.ReadFile`;
+- altrimenti usa il path CLI/config, se fornito;
+- se non viene fornito nessun path, usa l'oggetto embedded;
+- legge i byte dell'oggetto eBPF;
 - risolve il BTF path usando `PROJECT_BTF_FILE`, configurazione o default `/sys/kernel/btf/vmlinux`.
 
 Questo permette di lanciare il programma dalla root del repository con:
 
 ```bash
-sudo go run ./cmd/project --bpf-object pkg/ebpf/c/project.bpf.o
+make run
 ```
 
-oppure usando il fallback:
+oppure, dopo la build:
 
 ```bash
-sudo go run ./cmd/project --bpf-object project.bpf.o
+sudo ./dist/project
 ```
 
-se l'oggetto esiste in `pkg/ebpf/c/project.bpf.o`.
+Il path esplicito resta supportato per debug.
 
 ## 4. Runtime eBPF Go
 
@@ -78,7 +83,7 @@ Prima del load della collection viene chiamato:
 rlimit.RemoveMemlock()
 ```
 
-Questo e' il pattern idiomatico con `cilium/ebpf` per evitare errori come:
+Questo evita errori come:
 
 ```text
 map create: operation not permitted (MEMLOCK may be too low)
@@ -104,14 +109,17 @@ Sono stati aggiunti due gruppi:
   - `trace_security_settime64` -> `security_settime64`
   - `trace_security_task_prctl` -> `security_task_prctl`
 
-Nel codice Go gli attach usano:
+Nel codice Go gli attach passano ora dal registry in
+`pkg/ebpf/probes/probes.go` e dalle API `libbpfgo`.
+
+Nella prima versione gli attach usavano:
 
 ```go
 link.AttachRawTracepoint(...)
 link.Kprobe(...)
 ```
 
-I link ritornati vengono conservati in `Project.links` e chiusi in `Close()`.
+Ora il concetto resta lo stesso, ma gli handle sono gestiti tramite `libbpfgo`.
 
 ## 5. Confronto con Tracee
 
@@ -142,12 +150,14 @@ Il nostro codice replica lo stesso concetto, ma senza introdurre ancora un siste
 
 ### 5.2 Differenze importanti
 
-Tracee usa `libbpfgo`, mentre il progetto usa `cilium/ebpf`. Di conseguenza:
+La differenza iniziale era che Tracee usava `libbpfgo`, mentre il progetto
+usava `cilium/ebpf`. Questa distanza e' stata ridotta con la migrazione del
+runtime verso `libbpfgo`. Restano comunque differenze importanti:
 
-- Tracee usa metodi come `prog.AttachRawTracepoint(...)`;
-- il progetto usa `link.AttachRawTracepoint(...)`;
+- Tracee ha una pipeline eventi e policy piu' completa;
 - Tracee gestisce i kprobe tramite symbol table e puo' attaccarsi per address se un simbolo ha piu' indirizzi;
-- il progetto usa per ora `link.Kprobe(symbol, prog, nil)`, piu' semplice ma meno robusto.
+- il progetto usa ancora un registry statico piu' semplice;
+- il progetto deve ancora decidere come uniformare ring buffer e perf buffer.
 
 Tracee usa inoltre un'infrastruttura molto piu' ampia:
 
@@ -429,30 +439,28 @@ Trade-off:
 Verifiche locali completate:
 
 ```bash
-clang -g -O2 -target bpf -D__TARGET_ARCH_x86 -I pkg/ebpf/c \
-  -c pkg/ebpf/c/project.bpf.c -o pkg/ebpf/c/project.bpf.o
+make bpf
 ```
 
 Risultato: compilazione riuscita.
 
 ```bash
-GOCACHE=/tmp/go-build go test ./...
+make build
 ```
 
-Risultato: test/build Go riusciti.
+Risultato: build Go riuscita con `libbpfgo` e oggetto eBPF in `dist/`.
 
 Il comando da eseguire sulla VM e':
 
 ```bash
 cd /home/simone/project/demo_project
-sudo go run ./cmd/project --bpf-object pkg/ebpf/c/project.bpf.o
+make run
 ```
 
 Ultimo esito osservato sulla VM:
 
 ```text
-Starting project with bpf-object=pkg/ebpf/c/project.bpf.o, btf=/sys/kernel/btf/vmlinux, output=json, log-level=info
-project runtime started with bpf-object=/home/simone/project/demo_project/pkg/ebpf/c/project.bpf.o btf=/sys/kernel/btf/vmlinux output=json log-level=info
+event=sched_process_exec pid=... tid=... uid=1000 comm=ls args=filename=/usr/bin/ls
 ```
 
 Questo indica che il programma e' riuscito a superare le fasi precedenti che fallivano:
@@ -546,60 +554,62 @@ Le stringhe serializzate sono limitate a 512 byte per evitare errori del verifie
 
 Per l'MVP e' accettabile, ma per exec path completi e argv/env sara' necessario un meccanismo migliore.
 
-### 10.4 Nessuna selezione dinamica eventi
+### 10.4 Selezione eventi ancora semplice
 
-Tutti i programmi presenti nella lista vengono attaccati.
+La CLI permette di usare `--events` e `--drop-events`, ma non esiste ancora un
+policy manager completo.
 
 Tracee invece abilita/disabilita probe in base agli eventi richiesti e alla configurazione.
 
-### 10.5 Output JSON ancora raw
+### 10.5 Output arricchito ma non completo
 
-Il runtime stampa eventi JSON decodificati, ma l'output e' ancora pensato per
-debugging:
+Il runtime stampa eventi JSON o table decodificati. L'output e' piu' leggibile
+rispetto al JSON raw iniziale, ma resta pensato per debugging:
 
 - una riga per evento;
-- nessun filtro sugli hook rumorosi;
-- nessun formato table;
-- nessun enrichment di capability, syscall o nomi processo.
+- filtri ancora limitati a include/exclude eventi;
+- enrichment presente per capability;
+- mapping ancora mancante per `prctl`, socket family/type, resource limit e
+  syscall.
 
 ## 11. Prossimi step consigliati
 
-1. Rendere `comm` e `uts_name` leggibili come stringhe nel JSON.
-2. Convertire capability numeriche in nomi (`CAP_SYS_PTRACE`, ecc.).
-3. Aggiungere un filtro o flag debug per hook rumorosi come `cap_capable`.
-4. Rifattorizzare l'attach in un piccolo `ProbeGroup` Tracee-like.
-5. Aggiungere test Go per:
+1. Decidere il canale eventi unico: ring buffer, perf buffer o entrambi.
+2. Aggiungere un perf-buffer reader se si mantengono gli hook networking
+   correnti.
+3. In alternativa, migrare gli hook networking a `events_ringbuf_submit`.
+4. Aggiungere mapping human-readable per `prctl`, socket family/type, resource
+   limit e syscall.
+5. Aggiungere filtri per UID, PID, comm o processo padre.
+6. Aggiungere test Go per:
    - risoluzione path BPF/BTF;
    - validazione config;
    - decoder del wire format.
-9. Valutare se mantenere ring buffer o aggiungere astrazione per perf buffer/ring buffer.
 
 ## 12. Comandi utili
 
 Compilazione eBPF:
 
 ```bash
-clang -g -O2 -target bpf -D__TARGET_ARCH_x86 -I pkg/ebpf/c \
-  -c pkg/ebpf/c/project.bpf.c -o pkg/ebpf/c/project.bpf.o
+make bpf
 ```
 
 Build/test Go:
 
 ```bash
-GOCACHE=/tmp/go-build go test ./...
+make build
 ```
 
 Run:
 
 ```bash
-sudo go run ./cmd/project --bpf-object pkg/ebpf/c/project.bpf.o
+make run
 ```
 
 Build binario:
 
 ```bash
-go build -o /tmp/project ./cmd/project
-sudo /tmp/project --bpf-object pkg/ebpf/c/project.bpf.o
+sudo ./dist/project --events sched_process_exec --output table
 ```
 
 ## 13. Sintesi
@@ -607,15 +617,17 @@ sudo /tmp/project --bpf-object pkg/ebpf/c/project.bpf.o
 Il progetto e' passato da uno userspace che restava semplicemente in attesa a un runtime che:
 
 - prepara la config;
-- legge l'oggetto eBPF;
+- legge l'oggetto eBPF embedded o da path esplicito;
 - carica la collection;
-- apre la ring buffer;
+- apre la ring buffer tramite `libbpfgo`;
 - attacca i programmi eBPF;
 - gestisce cleanup ordinato.
 
 Le modifiche sono coerenti con l'architettura di Tracee a livello di pattern, ma restano volutamente piu' semplici per l'MVP della tesi.
 
-Il punto raggiunto e' importante: il problema non e' piu' il caricamento dell'eBPF, ma la mancanza della pipeline userspace che trasforma record raw in eventi leggibili e poi in alert.
+Il punto raggiunto e' importante: il problema non e' piu' solo il caricamento
+dell'eBPF, ma l'allineamento tra canale kernel/userspace, decoder, output
+human-readable e futuri alert.
 
 ## 14. Buffer.h
 

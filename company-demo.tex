@@ -1,0 +1,291 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[italian]{babel}
+\usepackage[a4paper,margin=2.2cm]{geometry}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric}
+
+\definecolor{projectblue}{HTML}{1F4E79}
+\definecolor{projectgreen}{HTML}{3A7D44}
+\definecolor{projectgray}{HTML}{F3F5F7}
+\definecolor{codegray}{HTML}{F7F7F7}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=projectblue,
+  urlcolor=projectblue
+}
+
+\lstdefinestyle{terminal}{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codegray},
+  frame=single,
+  framerule=0.2pt,
+  breaklines=true,
+  columns=fullflexible
+}
+
+\setlist[itemize]{leftmargin=1.2em,itemsep=0.25em}
+\setlist[enumerate]{leftmargin=1.4em,itemsep=0.25em}
+
+\title{\textbf{Project eBPF Runtime Monitor}\\
+\large Stato MVP, demo operativa e prossimi passi}
+\author{Simone Romano}
+\date{Maggio 2026}
+
+\begin{document}
+
+\maketitle
+
+\section{Obiettivo}
+
+Il progetto realizza un runtime security monitor basato su eBPF, ispirato a
+Tracee ma ridotto a un MVP piu' piccolo e controllabile. L'obiettivo attuale e'
+dimostrare una pipeline end-to-end funzionante:
+
+\begin{center}
+\textit{build/embed oggetto eBPF $\rightarrow$ inizializzazione config
+$\rightarrow$ selezione probe $\rightarrow$ load/attach $\rightarrow$ ring buffer
+$\rightarrow$ decoder $\rightarrow$ event guard $\rightarrow$ output leggibile}
+\end{center}
+
+Il target principale di sviluppo e test e' Rocky Linux 8.10 con kernel
+\texttt{4.18.0-553.109.1.el8\_10.x86\_64}. Dove Tracee introduce componenti
+production-grade piu' estesi, il progetto mantiene una struttura essenziale per
+rendere chiaro il funzionamento dei blocchi fondamentali.
+
+\section{Architettura attuale}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=0.42cm,
+  box/.style={
+    rectangle,
+    rounded corners=2pt,
+    draw=projectblue,
+    fill=projectgray,
+    text width=8.8cm,
+    align=center,
+    minimum height=0.78cm,
+    font=\small
+  },
+  arrow/.style={-{Latex[length=2.2mm]}, thick, draw=projectblue}
+]
+
+\node[box] (build) {
+  \textbf{Build artifact}\\
+  \texttt{make bpf} genera \texttt{dist/project.bpf.o}; \texttt{go:embed} lo
+  include nel binario Go
+};
+\node[box, below=of build] (init) {
+  \textbf{CLI + initialize}\\
+  \texttt{BPFObject()}: override da env/CLI oppure oggetto embedded; risolve
+  anche il path BTF
+};
+\node[box, below=of init] (selection) {
+  \textbf{Probe selection}\\
+  \texttt{probes.Select(--events, --drop-events)} produce
+  \texttt{selectedProbes} ed \texttt{eventSet}
+};
+\node[box, below=of selection] (runtime) {
+  \textbf{Load + attach: \texttt{pkg/ebpf}}\\
+  carica collection, apre la ring buffer e attacca solo i probe selezionati
+};
+\node[box, below=of runtime] (kernel) {
+  \textbf{Kernel data path}\\
+  gli hook eBPF selezionati emettono eventi nella mappa \texttt{events}
+};
+\node[box, below=of kernel] (decoder) {
+  \textbf{Read + decode}\\
+  \texttt{ringbuf.Read()} $\rightarrow$ \texttt{bufferdecoder.DecodeEvent()}:
+  raw bytes in contesto, nome evento e argomenti
+};
+\node[box, below=of decoder] (guard) {
+  \textbf{Event guard userspace}\\
+  \texttt{eventEnabled(event.EventName)} scarta eventuali eventi non abilitati
+};
+\node[box, below=of guard] (output) {
+  \textbf{Output layer: \texttt{pkg/output}}\\
+  \texttt{Printer}: formati \texttt{json} e \texttt{table}, JSON normalizzato,
+  capability labels
+};
+
+\draw[arrow] (build) -- (init);
+\draw[arrow] (init) -- (selection);
+\draw[arrow] (selection) -- (runtime);
+\draw[arrow] (runtime) -- (kernel);
+\draw[arrow] (kernel) -- (decoder);
+\draw[arrow] (decoder) -- (guard);
+\draw[arrow] (guard) -- (output);
+
+\end{tikzpicture}
+\caption{Pipeline di inizializzazione e data path del tool.}
+\end{figure}
+
+La selezione eventi avviene in due momenti diversi. Prima dell'attach,
+\texttt{probes.Select} decide quali programmi eBPF collegare al kernel. Dopo la
+decodifica, \texttt{eventEnabled} resta come guardia userspace per evitare di
+stampare eventi fuori dalla selezione configurata.
+
+\section{Funzionalita' implementate}
+
+\subsection{Loader e runtime eBPF}
+
+Il runtime Go carica l'oggetto eBPF, apre la ring buffer e mantiene i link agli
+hook kernel. Dopo il merge con il branch networking, l'implementazione usa
+\texttt{github.com/aquasecurity/libbpfgo}, quindi il Makefile prepara anche
+\texttt{libbpf} e i flag CGO necessari. I link vengono chiusi in modo ordinato
+durante il cleanup.
+
+\subsection{Probe registry e selezione eventi}
+
+La lista degli hook supportati e' stata spostata in
+\texttt{pkg/ebpf/probes/probes.go}. Ogni entry collega:
+
+\begin{itemize}
+  \item nome evento decodificato;
+  \item nome del programma eBPF nell'oggetto compilato;
+  \item hook kernel;
+  \item tipo di attach, per esempio raw tracepoint o kprobe.
+\end{itemize}
+
+La CLI supporta:
+
+\begin{lstlisting}[style=terminal]
+--events sched_process_exec
+--drop-events cap_capable
+\end{lstlisting}
+
+Questo permette di ridurre il rumore generato da hook molto frequenti come
+\texttt{cap\_capable}.
+
+\subsection{Decoder userspace}
+
+Il package \texttt{pkg/bufferdecoder} trasforma i record binari prodotti dagli
+hook eBPF in eventi Go. Il decoder conosce il protocollo condiviso con il lato C:
+\texttt{event\_context\_t}, numero di argomenti e slot tipizzati per scalari e
+stringhe.
+
+\subsection{Output layer}
+
+Il runtime non serializza piu' direttamente gli eventi. Invece usa
+l'interfaccia \texttt{Printer} in \texttt{pkg/output}. Sono presenti due formati:
+
+\begin{itemize}
+  \item \texttt{json}: output machine-readable, una riga JSON per evento;
+  \item \texttt{table}: output compatto per debug manuale da terminale.
+\end{itemize}
+
+Il JSON non espone piu' direttamente campi raw come array di byte. Campi come
+\texttt{comm} e \texttt{uts\_name} vengono convertiti in stringhe. Gli argomenti
+di tipo capability vengono arricchiti con label simboliche, ad esempio:
+
+\begin{lstlisting}[style=terminal]
+"value": 21, "label": "CAP_SYS_ADMIN"
+\end{lstlisting}
+
+\subsection{Oggetto eBPF embedded}
+
+Seguendo il pattern di Tracee, l'oggetto \texttt{project.bpf.o} viene generato
+in \texttt{dist/project.bpf.o} e incluso nel binario Go tramite
+\texttt{go:embed}. Il path esplicito resta disponibile per debug, ma il comando
+standard non richiede piu' \texttt{--bpf-object}.
+
+\section{Demo operativa}
+
+\subsection{Build}
+
+\begin{lstlisting}[style=terminal]
+cd demo_project
+make build
+\end{lstlisting}
+
+Il target compila prima l'oggetto eBPF in \texttt{dist/project.bpf.o} e poi
+costruisce il binario Go con l'oggetto embedded.
+
+\subsection{Esecuzione con output compatto}
+
+\begin{lstlisting}[style=terminal]
+sudo ./dist/project --events sched_process_exec --output table
+\end{lstlisting}
+
+In un secondo terminale:
+
+\begin{lstlisting}[style=terminal]
+ls
+whoami
+bash -c 'echo demo'
+\end{lstlisting}
+
+Output atteso:
+
+\begin{lstlisting}[style=terminal]
+event=sched_process_exec pid=1234 tid=1234 uid=1000 comm=bash args=filename=/usr/bin/bash
+\end{lstlisting}
+
+\subsection{Esecuzione JSON normalizzata}
+
+\begin{lstlisting}[style=terminal]
+sudo ./dist/project --events cap_capable --output json
+\end{lstlisting}
+
+Esempio di output:
+
+\begin{lstlisting}[style=terminal]
+{"timestamp":4074609472044753,"event_name":"cap_capable","process":{"pid":1374462,"tid":1374462,"ppid":1348641,"uid":1000,"comm":"cpuUsage.sh","uts_name":"security-thesis"},"host":{"pid":1374462,"tid":1374462,"ppid":1348641},"kernel":{"syscall":56,"processor_id":0,"mnt_id":4026531840,"pid_id":4026531836},"args":[{"name":"cap","type":1,"value":21,"label":"CAP_SYS_ADMIN"}]}
+\end{lstlisting}
+
+Per ridurre il rumore:
+
+\begin{lstlisting}[style=terminal]
+sudo ./dist/project --drop-events cap_capable --output table
+\end{lstlisting}
+
+\section{Differenze rispetto a Tracee}
+
+Tracee e' un progetto production-grade con policy engine, filtering lato kernel,
+pipeline eventi completa, enrichment, detection e supporto kernel piu' ampio.
+Questo progetto riprende alcuni pattern, ma li mantiene in forma MVP:
+
+\begin{itemize}
+  \item registry statico dei probe invece di un sistema completo di
+  \texttt{ProbeGroup};
+  \item selezione eventi iniziale invece di policy engine completo;
+  \item decoder custom per il protocollo ridotto del progetto;
+  \item runtime basato su \texttt{libbpfgo}, ma senza ancora tutta
+  l'infrastruttura di Tracee per policy, enrichment e detection;
+  \item output layer semplificato, ispirato al ruolo del sink stage;
+  \item oggetto eBPF embedded nel binario, come in Tracee.
+\end{itemize}
+
+\section{Prossimi passi}
+
+Dalla call del 7 maggio e dallo stato tecnico attuale emergono questi step:
+
+\begin{enumerate}
+  \item tornare sulla parte eBPF e completare gli hook;
+  \item studiare il filtering lato kernel usato da Tracee, in particolare policy
+  mask e mappe eBPF di configurazione;
+  \item analizzare gli hook asincroni e la correlazione tra evento e processo;
+  \item arricchire l'output con mapping di syscall, resource limit e opzioni
+  \texttt{prctl};
+  \item introdurre una prima detection logic sopra la pipeline eventi.
+\end{enumerate}
+
+\section{Comandi di verifica}
+
+\begin{lstlisting}[style=terminal]
+make test
+go run ./cmd/project --help
+make run_table
+\end{lstlisting}
+
+\end{document}

@@ -15,6 +15,29 @@ Questo file raccoglie le decisioni architetturali importanti. Ogni decisione dov
 - attach e load diversi da Tracee;
 - alcune feature Tracee vanno reimplementate manualmente.
 
+**Stato aggiornato al 2026-05-12:** questa decisione e' stata superata dalla
+migrazione verso `libbpfgo`, necessaria per allinearsi meglio alla versione
+finale del tool e al branch collaboratore con hook networking.
+
+## 2026-05-12 - Migrazione runtime verso `libbpfgo`
+
+**Contesto:** il branch collaboratore e la direzione finale del progetto usano
+`libbpfgo`, piu' vicino a Tracee. Il codice basato su `cilium/ebpf` era piu'
+semplice, ma avrebbe richiesto adattamenti crescenti per integrare hook e mappe
+derivati dal modello Tracee.
+
+**Decisione:** usare `github.com/aquasecurity/libbpfgo` nel runtime Go e
+compilare `libbpf` dal submodule `3rdparty/libbpfgo`.
+
+**Conseguenze:**
+
+- il Makefile deve costruire `libbpf.a`;
+- i comandi Go richiedono `PKG_CONFIG_PATH`, `CGO_CFLAGS` e `CGO_LDFLAGS`;
+- `make build`, `make run`, `make run_table` e `make help` diventano il modo
+  consigliato per eseguire il tool;
+- l'attach dei probe passa attraverso API `libbpfgo`;
+- la build diventa piu' vicina a Tracee, ma meno "pure Go".
+
 ## 2026-04-29 - Oggetto eBPF letto da filesystem
 
 **Contesto:** Tracee embedda l'oggetto eBPF, ma per il debugging e' piu' comodo compilare e sostituire `project.bpf.o`.
@@ -26,6 +49,25 @@ Questo file raccoglie le decisioni architetturali importanti. Ogni decisione dov
 - sviluppo piu' rapido;
 - CLI deve ricevere `--bpf-object`;
 - in futuro si potra' valutare embedding.
+
+## 2026-05-06 - Oggetto eBPF embedded nel binario Go
+
+**Contesto:** Tracee non cerca `tracee.bpf.o` a runtime: lo genera in `dist/`
+durante la build e lo include nel binario Go con `go:embed`. Il progetto aveva
+ancora bisogno di passare `--bpf-object` o un path via configurazione.
+
+**Decisione:** aggiungere `embedded-ebpf.go` e usare `go:embed` per includere
+`dist/project.bpf.o` nel binario. `BPFObjPath` vuoto ora significa "usa
+l'oggetto embedded". `--bpf-object` e `PROJECT_BPF_OBJECT` restano disponibili
+come override espliciti da filesystem.
+
+**Conseguenze:**
+
+- i target `make build`, `make test` e `make run` generano prima l'oggetto BPF;
+- il comando standard non richiede piu' `--bpf-object`;
+- il binario contiene i byte dell'oggetto eBPF;
+- `dist/project.bpf.o` deve esistere al momento della compilazione Go;
+- il comportamento resta compatibile con override manuale del path.
 
 ## 2026-04-29 - Attach esplicito con lista statica
 
@@ -106,6 +148,25 @@ leggibilita' da terminale.
 - le capability vengono arricchite con label come `CAP_SYS_ADMIN`;
 - nuovi formati o arricchimenti possono essere aggiunti senza toccare il
   runtime eBPF.
+
+## 2026-05-12 - Canale eventi da uniformare: ring buffer vs perf buffer
+
+**Contesto:** gli hook process/security del progetto inviano eventi tramite
+`events_ringbuf_submit` e il runtime Go legge `events_ringbuf`. Gli hook
+networking importati dal branch collaboratore usano ancora in gran parte
+`events_perf_submit`.
+
+**Decisione attuale:** non forzare subito una sostituzione globale. Mantenere
+entrambi i percorsi nel codice C, documentando pero' che il runtime standard
+legge solo la ring buffer.
+
+**Conseguenze:**
+
+- gli eventi process/security sono visibili nell'output attuale;
+- gli eventi networking possono essere compilati e attaccati, ma quelli inviati
+  su perf buffer richiedono lavoro userspace aggiuntivo;
+- la prossima decisione tecnica sara' scegliere se aggiungere un perf-buffer
+  reader oppure migrare gli hook networking a ring buffer.
 
 ## Collegamenti
 

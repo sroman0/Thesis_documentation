@@ -17,6 +17,8 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [2026-04-29 - Loader eBPF, verifier e struttura documentazione](daily/2026-04-29.md)
 - [2026-05-04 - Decoder userspace e output JSON raw](daily/2026-05-04.md)
 - [2026-05-05 - Selezione eventi e probe registry Tracee-light](daily/2026-05-05.md)
+- [2026-05-06 - Oggetto eBPF embedded nel binario Go](daily/2026-05-06.md)
+- [2026-05-12 - Merge libbpfgo, hook networking e output operativo](daily/2026-05-12.md)
 
 ### Implementazione
 
@@ -166,3 +168,90 @@ Tracee usa un sistema piu' completo basato su definizioni evento, probe group e 
 - [Output layer e formati eventi](implementation/output.md)
 - [Decision log](decisions/decision-log.md)
 - [Comandi utili](debugging/commands.md)
+
+### 2026-05-06
+
+**Tema principale:** embedding dell'oggetto eBPF nel binario Go, seguendo il
+pattern usato da Tracee.
+
+**Attivita' svolte:**
+
+- Aggiunto `demo_project/embedded-ebpf.go` con `go:embed`.
+- Spostato l'output eBPF di default a `demo_project/dist/project.bpf.o`.
+- Aggiornato `Makefile`: `build`, `test` e `run` dipendono da `bpf`.
+- Aggiornato `initialize.BPFObject()` per usare l'oggetto embedded quando non
+  viene passato un path esplicito.
+- Lasciati disponibili `--bpf-object` e `PROJECT_BPF_OBJECT` come override.
+- Impostato `config.Default().BPFObjPath` a stringa vuota per indicare uso
+  dell'embedded object.
+
+**File tecnici aggiunti/toccati:**
+
+- `demo_project/embedded-ebpf.go`
+- `demo_project/Makefile`
+- `demo_project/pkg/cmd/initialize/bpfobject.go`
+- `demo_project/pkg/config/config.go`
+
+**Verifiche:**
+
+- `make bpf`
+- `GOCACHE=/tmp/go-build go test ./...`
+- `go run ./cmd/project --help`
+- `go build -o /tmp/project ./cmd/project`
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-05-06.md)
+- [Decision log](decisions/decision-log.md)
+- [Comandi utili](debugging/commands.md)
+
+### 2026-05-12
+
+**Tema principale:** consolidamento post-merge con `libbpfgo`, integrazione
+degli hook networking del branch collaboratore e chiarimento dei limiti attuali
+tra ring buffer e perf buffer.
+
+**Attivita' svolte:**
+
+- Confermato `cmd/project` come entrypoint ufficiale del tool.
+- Aggiornato il Makefile per buildare con `libbpfgo` e `libbpf` statico.
+- Aggiunto target `filtered` per test rapidi di `security_socket_connect`.
+- Esteso il registry probe con gli hook networking:
+  `security_socket_create`, `security_socket_listen`,
+  `security_socket_connect`, `security_socket_accept`,
+  `security_socket_bind`, `security_socket_setsockopt`,
+  `security_socket_recvmsg`, `security_socket_sendmsg`.
+- Esteso `protocol.go` con gli schemi di decoding per gli eventi socket
+  principali.
+- Ripristinata `events_ringbuf_submit` per gli hook che inviano eventi sulla
+  ring buffer.
+- Corretto l'indice degli argomenti salvati dagli hook process/security, evitando
+  errori come `argument index 1 out of range for event cap_capable`.
+- Verificato output `table` leggibile per process lifecycle e security hooks.
+- Chiarito come testare `security_settime64`, `security_task_prctl` e
+  `security_socket_connect`.
+
+**Decisione/nota tecnica:**
+
+Il runtime Go legge attualmente solo `events_ringbuf`, mentre diversi hook
+networking importati usano ancora `events_perf_submit`. Per questo motivo gli
+hook possono essere compilati e attaccati, ma gli eventi networking su perf
+buffer richiedono un prossimo intervento: aggiungere un perf-buffer reader o
+migrare quegli hook a `events_ringbuf_submit`.
+
+**File tecnici principali:**
+
+- `demo_project/Makefile`
+- `demo_project/pkg/ebpf/project.go`
+- `demo_project/pkg/ebpf/probes/probes.go`
+- `demo_project/pkg/bufferdecoder/protocol.go`
+- `demo_project/pkg/ebpf/c/project.bpf.c`
+- `demo_project/pkg/ebpf/c/common/buffer.h`
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-05-12.md)
+- [Hook implementati](implementation/hooks.md)
+- [Userspace lifecycle](implementation/userspace-lifecycle.md)
+- [Comandi utili](debugging/commands.md)
+- [Decision log](decisions/decision-log.md)

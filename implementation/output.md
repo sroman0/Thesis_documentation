@@ -72,6 +72,29 @@ Il mapping simbolico e' presente per le Linux capabilities. Altri valori
 numerici, come syscall, resource limit o opzioni `prctl`, sono ancora stampati
 come numeri e potranno essere arricchiti nello stesso layer.
 
+Esempio:
+
+```text
+event=security_task_prctl pid=... comm=ls args=option=23,arg2=32,arg3=0,arg4=...,arg5=...
+```
+
+In questo caso `option=23` e' una costante `prctl` e dovrebbe essere mostrata
+come label simbolica, ad esempio `PR_SET_VMA`, quando verra' aggiunto il mapping
+dedicato.
+
+Per i test interattivi conviene ridurre il rumore selezionando solo gli eventi
+necessari:
+
+```bash
+make run ARGS="--events task_rename,sched_process_exec,sched_process_exit --output table"
+```
+
+Oppure escludere eventi rumorosi:
+
+```bash
+make run ARGS="--drop-events cap_capable --output table"
+```
+
 ## Collegamenti
 
 - [Userspace lifecycle](userspace-lifecycle.md)

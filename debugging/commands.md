@@ -5,20 +5,21 @@
 Da `demo_project`:
 
 ```bash
-clang -g -O2 -target bpf -D__TARGET_ARCH_x86 -I pkg/ebpf/c \
-  -c pkg/ebpf/c/project.bpf.c -o pkg/ebpf/c/project.bpf.o
+make bpf
 ```
+
+Il target genera `dist/project.bpf.o`, che viene embedded nel binario Go.
 
 ## Eseguire userspace
 
 ```bash
-sudo go run ./cmd/project --bpf-object pkg/ebpf/c/project.bpf.o
+make run
 ```
 
 Formato table per debug manuale:
 
 ```bash
-sudo go run ./cmd/project --bpf-object pkg/ebpf/c/project.bpf.o --output table
+make run_table
 ```
 
 ## Eseguire solo alcuni eventi
@@ -26,19 +27,19 @@ sudo go run ./cmd/project --bpf-object pkg/ebpf/c/project.bpf.o --output table
 Abilitare solo `sched_process_exec`:
 
 ```bash
-sudo go run ./cmd/project --bpf-object pkg/ebpf/c/project.bpf.o --events sched_process_exec
+sudo go run ./cmd/project --events sched_process_exec
 ```
 
 Disabilitare `cap_capable`, che e' molto rumoroso:
 
 ```bash
-sudo go run ./cmd/project --bpf-object pkg/ebpf/c/project.bpf.o --drop-events cap_capable
+sudo go run ./cmd/project --drop-events cap_capable
 ```
 
 Combinare include ed exclude:
 
 ```bash
-sudo go run ./cmd/project --bpf-object pkg/ebpf/c/project.bpf.o \
+sudo go run ./cmd/project \
   --events cap_capable,sched_process_exec \
   --drop-events cap_capable
 ```
@@ -46,14 +47,33 @@ sudo go run ./cmd/project --bpf-object pkg/ebpf/c/project.bpf.o \
 ## Build binario
 
 ```bash
-go build -o /tmp/project ./cmd/project
-sudo /tmp/project --bpf-object pkg/ebpf/c/project.bpf.o
+make build
+sudo ./dist/project
+```
+
+`make build` compila prima l'oggetto eBPF e poi costruisce il binario Go con
+`dist/project.bpf.o` embedded.
+
+## Help CLI
+
+Con `libbpfgo`, il comando diretto `go run` richiede i flag CGO corretti. Usare
+il target dedicato:
+
+```bash
+make help
+```
+
+Oppure buildare il binario:
+
+```bash
+make build
+sudo ./dist/project --help
 ```
 
 ## Test Go
 
 ```bash
-GOCACHE=/tmp/go-build go test ./...
+make test
 ```
 
 ## Test decoder
@@ -87,6 +107,57 @@ echo test
 
 Questi comandi dovrebbero generare almeno eventi `sched_process_exec`.
 
+## Testare `security_settime64`
+
+Terminale 1:
+
+```bash
+make run ARGS="--events security_settime64 --output table"
+```
+
+Terminale 2:
+
+```bash
+sudo date -s "$(date '+%Y-%m-%d %H:%M:%S')"
+```
+
+Nota: questo evento richiede privilegi per modificare l'orologio di sistema
+(`CAP_SYS_TIME`). Su macchine condivise va usato con cautela.
+
+## Testare `security_socket_connect`
+
+Target rapido:
+
+```bash
+make filtered
+```
+
+Generare traffico locale:
+
+```bash
+python3 -m http.server 18080 --bind 127.0.0.1
+curl http://127.0.0.1:18080
+```
+
+Nota: gli hook networking importati usano ancora in gran parte perf buffer,
+mentre il runtime Go legge la ring buffer. Se non compare output, non significa
+automaticamente che il kprobe non venga raggiunto: puo' mancare il reader del
+canale corretto.
+
+## Installare il binario come comando locale
+
+```bash
+make build
+sudo cp ./dist/project /usr/local/bin/project
+```
+
+Se `sudo project --help` non trova il comando, verificare il `secure_path` di
+sudo oppure usare il path assoluto:
+
+```bash
+sudo /usr/local/bin/project --help
+```
+
 ## Output atteso
 
 Con `--output json`, il programma stampa una riga JSON per ogni evento
@@ -104,6 +175,11 @@ Con `--output table`, l'output e' piu' compatto:
 ```text
 event=cap_capable pid=1374462 tid=1374462 uid=1000 comm=cpuUsage.sh args=cap=CAP_SYS_ADMIN(21)
 ```
+
+Gli `args` sono il payload specifico dell'evento kernel. Alcuni sono gia'
+leggibili, ad esempio `filename=/usr/bin/ls` o `exit_code=0`. Altri restano
+numerici perche' rappresentano costanti o puntatori kernel/userspace, ad esempio
+gli argomenti di `security_task_prctl`.
 
 ## Collegamenti
 

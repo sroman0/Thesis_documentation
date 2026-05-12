@@ -111,6 +111,122 @@ Scopo:
 - intercettare chiamate `prctl` passate dal security hook;
 - utile per future detection su manipolazioni di processo.
 
+Argomenti attuali:
+
+- `option`: operazione `prctl` richiesta;
+- `arg2`, `arg3`, `arg4`, `arg5`: significato variabile in base a `option`.
+
+Nota: questi valori sono ancora stampati in forma numerica. Un miglioramento
+futuro sara' mappare costanti come `PR_SET_VMA`, `PR_SET_NAME`,
+`PR_SET_NO_NEW_PRIVS` e `PR_SET_SECCOMP`.
+
+## Networking hooks
+
+Gli hook networking sono stati integrati dal branch collaboratore e registrati
+in `pkg/ebpf/probes/probes.go`.
+
+### `security_socket_create`
+
+Tipo attach:
+
+```text
+kprobe/security_socket_create
+```
+
+Scopo:
+
+- intercettare la creazione di socket;
+- salvare family, type, protocol e flag `kern`.
+
+### `security_socket_listen`
+
+Tipo attach:
+
+```text
+kprobe/security_socket_listen
+```
+
+Scopo:
+
+- intercettare socket messi in ascolto;
+- salvare file descriptor, indirizzo locale e backlog.
+
+### `security_socket_connect`
+
+Tipo attach:
+
+```text
+kprobe/security_socket_connect
+```
+
+Scopo:
+
+- intercettare tentativi di connessione;
+- salvare file descriptor, tipo socket e indirizzo remoto.
+
+### `security_socket_accept`
+
+Tipo attach:
+
+```text
+kprobe/security_socket_accept
+```
+
+Scopo:
+
+- intercettare accept su socket server;
+- salvare file descriptor e indirizzo locale.
+
+### `security_socket_bind`
+
+Tipo attach:
+
+```text
+kprobe/security_socket_bind
+```
+
+Scopo:
+
+- intercettare bind su socket;
+- salvare file descriptor e indirizzo locale.
+
+### `security_socket_setsockopt`
+
+Tipo attach:
+
+```text
+kprobe/security_socket_setsockopt
+```
+
+Scopo:
+
+- intercettare modifiche alle opzioni socket;
+- salvare file descriptor, level, optname e indirizzo locale.
+
+### `security_socket_recvmsg` e `security_socket_sendmsg`
+
+Tipo attach:
+
+```text
+kprobe/security_socket_recvmsg
+kprobe/security_socket_sendmsg
+```
+
+Scopo:
+
+- associare socket e contesto task tramite inode map;
+- preparare informazioni utili per eventi networking piu' completi.
+
+## Nota su ring buffer e perf buffer
+
+Gli hook process/security usano `events_ringbuf_submit` e sono letti dal runtime
+Go tramite `InitRingBuf("events_ringbuf", ...)`.
+
+Gli hook networking importati usano ancora in gran parte `events_perf_submit`.
+Finche' il runtime non aggiunge un perf-buffer reader, oppure finche' questi
+hook non vengono migrati a `events_ringbuf_submit`, gli eventi socket possono
+essere attaccati ma non comparire nell'output standard.
+
 ## Collegamenti
 
 - [Timeline](../timeline.md)

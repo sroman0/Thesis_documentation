@@ -23,6 +23,10 @@ main.go
   -> stdout
 ```
 
+Nota: l'entrypoint operativo e' `demo_project/cmd/project`. Il vecchio
+`main.go` nella root non deve essere usato come riferimento per il comando
+principale.
+
 ## Preparazione config
 
 `initialize.BpfObject()` prepara:
@@ -51,11 +55,10 @@ Se `--events` non viene passato, il runtime abilita tutti gli eventi supportati.
 In `Project.Init()`:
 
 1. rimozione limite memlock;
-2. load collection spec da `BPFObjBytes`;
-3. load BTF;
-4. creazione collection;
-5. apertura ring buffer;
-6. attach dei soli programmi selezionati.
+2. apertura del modulo eBPF con `libbpfgo`;
+3. caricamento dell'oggetto eBPF;
+4. apertura ring buffer `events_ringbuf`;
+5. attach dei soli programmi selezionati.
 
 La selezione dei programmi vive in `pkg/ebpf/probes/probes.go`. Ogni probe collega il
 nome evento decodificato al programma eBPF e all'hook kernel da usare.
@@ -64,8 +67,8 @@ nome evento decodificato al programma eBPF e all'hook kernel da usare.
 
 In `Project.Run()`:
 
-1. il runtime legge `ringbuf.Record` da `events`;
-2. prende `record.RawSample`;
+1. il runtime riceve eventi dalla callback ring buffer di `libbpfgo`;
+2. prende i byte raw dell'evento;
 3. chiama `bufferdecoder.DecodeEvent(...)`;
 4. scarta eventi non abilitati dalla selezione runtime;
 5. passa l'evento al printer configurato;
@@ -82,6 +85,45 @@ Esempio di output osservato:
 
 `cap_capable` e' un hook molto rumoroso: vedere molte righe ripetute e'
 normale.
+
+## Nota su libbpfgo e CGO
+
+Il runtime e' stato migrato verso `github.com/aquasecurity/libbpfgo`, in linea
+con la direzione architetturale di Tracee. Questo richiede CGO e un `libbpf`
+compilato localmente dal submodule:
+
+```text
+3rdparty/libbpfgo/libbpf/src
+```
+
+Il Makefile prepara le variabili:
+
+- `PKG_CONFIG_PATH`;
+- `PROJECT_CGO_CFLAGS`;
+- `PROJECT_CGO_LDFLAGS`.
+
+Per questo motivo comandi diretti come:
+
+```bash
+sudo go run ./cmd/project --help
+```
+
+possono fallire se non ricevono gli stessi flag CGO. I target Makefile
+incapsulano questa configurazione.
+
+## Nota su eventi networking
+
+Il runtime attuale legge solo `events_ringbuf`. Gli hook networking integrati
+dal branch collaboratore usano ancora in gran parte `events_perf_submit`.
+Questa differenza spiega perche' un probe socket puo' essere registrato e
+attaccato, ma non produrre ancora righe nell'output standard.
+
+Opzioni future:
+
+- aggiungere un perf-buffer reader in userspace;
+- migrare gli hook networking a `events_ringbuf_submit`;
+- mantenere entrambi i canali, ma documentando chiaramente quali eventi usano
+  quale canale.
 
 ## Output layer
 
