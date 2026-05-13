@@ -19,6 +19,7 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [2026-05-05 - Selezione eventi e probe registry Tracee-light](daily/2026-05-05.md)
 - [2026-05-06 - Oggetto eBPF embedded nel binario Go](daily/2026-05-06.md)
 - [2026-05-12 - Merge libbpfgo, hook networking e output operativo](daily/2026-05-12.md)
+- [2026-05-13 - Reader duale ring buffer/perf buffer e filtro per comm](daily/2026-05-13.md)
 
 ### Implementazione
 
@@ -233,11 +234,12 @@ tra ring buffer e perf buffer.
 
 **Decisione/nota tecnica:**
 
-Il runtime Go legge attualmente solo `events_ringbuf`, mentre diversi hook
-networking importati usano ancora `events_perf_submit`. Per questo motivo gli
-hook possono essere compilati e attaccati, ma gli eventi networking su perf
-buffer richiedono un prossimo intervento: aggiungere un perf-buffer reader o
-migrare quegli hook a `events_ringbuf_submit`.
+Al 2026-05-12 il runtime Go leggeva solo `events_ringbuf`, mentre diversi hook
+networking importati usavano ancora `events_perf_submit`. Per questo motivo gli
+hook potevano essere compilati e attaccati, ma gli eventi networking su perf
+buffer richiedevano un prossimo intervento: aggiungere un perf-buffer reader o
+migrare quegli hook a `events_ringbuf_submit`. Questa limitazione e' stata
+superata il 2026-05-13 con l'aggiunta di `InitPerfBuf("events", ...)`.
 
 **File tecnici principali:**
 
@@ -253,5 +255,52 @@ migrare quegli hook a `events_ringbuf_submit`.
 - [Diario dettagliato del giorno](daily/2026-05-12.md)
 - [Hook implementati](implementation/hooks.md)
 - [Userspace lifecycle](implementation/userspace-lifecycle.md)
+- [Comandi utili](debugging/commands.md)
+- [Decision log](decisions/decision-log.md)
+
+### 2026-05-13
+
+**Tema principale:** aggiornamento del runtime alla nuova versione con lettura
+sia da ring buffer sia da perf buffer, piu' filtro userspace per `comm`.
+
+**Attivita' svolte:**
+
+- Analizzato `demo_project/pkg/ebpf/project.go` aggiornato.
+- Verificato che `Project.Init()` apre:
+  - `events_ringbuf` tramite `InitRingBuf`;
+  - `events` tramite `InitPerfBuf`.
+- Verificato che `Project.Run()` ascolta entrambi i canali e passa i record
+  raw a `handleRawEvent`.
+- Documentato il nuovo handler comune per decode, filtro eventi, filtro comm e
+  output.
+- Documentato il nuovo filtro CLI `--comms`, basato su
+  `cfg.Events.FilterComms`.
+- Aggiornata la nota precedente: gli eventi networking su perf buffer non sono
+  piu' bloccati dalla mancanza di reader userspace.
+- Registrato il target Makefile `filtered` per test veloci di
+  `security_socket_connect`.
+
+**Decisione/nota tecnica:**
+
+Il progetto e' entrato in una fase di transizione con doppio canale:
+ring buffer per gli hook gia' migrati a `events_ringbuf_submit` e perf buffer
+per gli hook networking compatibili con il modello Tracee. A breve andra'
+scelta una strategia stabile: mantenere entrambi, migrare tutto a perf buffer
+o migrare tutto a ring buffer.
+
+**File tecnici principali:**
+
+- `demo_project/pkg/ebpf/project.go`
+- `demo_project/pkg/config/config.go`
+- `demo_project/pkg/cmd/cobra/cobra.go`
+- `demo_project/pkg/ebpf/c/maps.h`
+- `demo_project/pkg/ebpf/c/common/buffer.h`
+- `demo_project/Makefile`
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-05-13.md)
+- [Userspace lifecycle](implementation/userspace-lifecycle.md)
+- [Protocollo eventi e buffer eBPF](implementation/event-buffer.md)
 - [Comandi utili](debugging/commands.md)
 - [Decision log](decisions/decision-log.md)

@@ -95,6 +95,15 @@ Oppure escludere eventi rumorosi:
 make run ARGS="--drop-events cap_capable --output table"
 ```
 
+La versione attuale supporta anche un filtro userspace sul campo `comm`:
+
+```bash
+make run ARGS="--events task_rename,sched_process_exec,sched_process_exit --comms ls,whoami --output table"
+```
+
+Il filtro viene applicato dopo il decode, quindi migliora la leggibilita'
+dell'output ma non riduce ancora il numero di eventi prodotti lato kernel.
+
 ## Collegamenti
 
 - [Userspace lifecycle](userspace-lifecycle.md)

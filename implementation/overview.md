@@ -9,7 +9,7 @@ La pipeline desiderata e':
 ```text
 kernel hook eBPF
   -> costruzione evento
-  -> ring buffer
+  -> ring buffer / perf buffer
   -> userspace Go
   -> decoder
   -> output
@@ -21,10 +21,11 @@ Stato raggiunto per l'MVP:
 ```text
 kernel hook eBPF
   -> costruzione evento
-  -> ring buffer
+  -> ring buffer / perf buffer
   -> userspace Go
   -> decoder
   -> event selection
+  -> comm filter
   -> output printer
 ```
 
@@ -59,10 +60,12 @@ Responsabilita':
 - caricare BTF;
 - creare collection eBPF;
 - aprire ring buffer;
+- aprire perf buffer;
 - selezionare quali eventi/probe abilitare;
 - attaccare programmi agli hook selezionati;
 - leggere eventi;
-- decodificare record raw dalla ring buffer;
+- decodificare record raw da ring buffer o perf buffer;
+- applicare filtro eventi e filtro `comm`;
 - inviare eventi decodificati al printer configurato.
 
 ### Decoder
@@ -109,13 +112,14 @@ Responsabilita':
 - parsing flag;
 - costruzione config;
 - selezione eventi tramite `--events` e `--drop-events`;
+- filtro command name tramite `--comms`;
 - avvio runner;
 - gestione segnali `SIGINT` / `SIGTERM`.
 
 ## Stato attuale
 
-Il loader eBPF arriva al runtime loop, legge la ring buffer, decodifica gli
-eventi raw e li passa a un printer configurabile.
+Il loader eBPF arriva al runtime loop, legge sia ring buffer sia perf buffer,
+decodifica gli eventi raw e li passa a un printer configurabile.
 
 Completato per MVP:
 
@@ -123,8 +127,10 @@ Completato per MVP:
 - attach raw tracepoint e kprobe;
 - registry selezionabile degli eventi/probe;
 - ring buffer reader;
+- perf buffer reader;
 - decoder Go per context e argomenti attuali;
 - output layer separato con formato `json` normalizzato e `table`.
+- filtro userspace per `comm`.
 
 Manca ancora:
 

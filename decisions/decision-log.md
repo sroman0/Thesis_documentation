@@ -63,7 +63,7 @@ come override espliciti da filesystem.
 
 **Conseguenze:**
 
-- i target `make build`, `make test` e `make run` generano prima l'oggetto BPF;
+- i target Makefile principali generano prima l'oggetto BPF quando necessario;
 - il comando standard non richiede piu' `--bpf-object`;
 - il binario contiene i byte dell'oggetto eBPF;
 - `dist/project.bpf.o` deve esistere al momento della compilazione Go;
@@ -167,6 +167,53 @@ legge solo la ring buffer.
   su perf buffer richiedono lavoro userspace aggiuntivo;
 - la prossima decisione tecnica sara' scegliere se aggiungere un perf-buffer
   reader oppure migrare gli hook networking a ring buffer.
+
+**Stato aggiornato al 2026-05-13:** il runtime ora apre anche il perf buffer
+`events` con `InitPerfBuf`, quindi il blocco userspace sugli eventi networking
+e' stato rimosso. Rimane aperta la decisione architetturale sul canale unico.
+
+## 2026-05-13 - Reader duale per ring buffer e perf buffer
+
+**Contesto:** Tracee usa perf buffer come canale principale. Il progetto aveva
+gia' hook process/security su ring buffer e hook networking su perf buffer.
+La versione precedente leggeva solo ring buffer, impedendo agli eventi
+networking di raggiungere la pipeline Go.
+
+**Decisione:** inizializzare entrambi i reader in `Project.Init()`:
+
+- `InitRingBuf("events_ringbuf", ...)`;
+- `InitPerfBuf("events", ..., 1024)`.
+
+Entrambi i canali inviano i byte raw a `handleRawEvent`, che centralizza
+decoding, filtro evento, filtro `comm` e output.
+
+**Conseguenze:**
+
+- gli eventi ring buffer e perf buffer attraversano la stessa pipeline
+  userspace;
+- gli hook networking possono essere testati senza migrare subito il C code;
+- la struttura resta temporanea: bisognera' scegliere se mantenere due canali
+  oppure convergere verso perf buffer, piu' vicino a Tracee e piu' conservativo
+  su Rocky Linux 4.18;
+- il perf buffer non ha ancora un lost channel configurato, quindi i drop non
+  sono osservabili lato userspace.
+
+## 2026-05-13 - Filtro userspace per `comm`
+
+**Contesto:** durante demo e test manuali, il tool produce eventi globali del
+sistema. Per osservare comandi come `ls` o `whoami` serviva un filtro piu'
+pratico rispetto al solo `--events`.
+
+**Decisione:** aggiungere `Events.FilterComms` e la flag CLI `--comms`.
+Il filtro viene applicato in userspace dopo la decodifica, usando il campo
+`comm` dell'`EventContext`.
+
+**Conseguenze:**
+
+- e' piu' semplice mostrare eventi generati da specifici comandi;
+- il filtro non riduce ancora il costo lato kernel;
+- in futuro si potra' valutare un filtro equivalente in mappa eBPF, piu'
+  simile al policy/filtering model di Tracee.
 
 ## Collegamenti
 

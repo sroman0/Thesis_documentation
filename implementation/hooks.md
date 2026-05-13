@@ -223,9 +223,14 @@ Gli hook process/security usano `events_ringbuf_submit` e sono letti dal runtime
 Go tramite `InitRingBuf("events_ringbuf", ...)`.
 
 Gli hook networking importati usano ancora in gran parte `events_perf_submit`.
-Finche' il runtime non aggiunge un perf-buffer reader, oppure finche' questi
-hook non vengono migrati a `events_ringbuf_submit`, gli eventi socket possono
-essere attaccati ma non comparire nell'output standard.
+La versione attuale del runtime apre anche `InitPerfBuf("events", ...)`, quindi
+questi eventi possono arrivare allo userspace senza doverli prima migrare a
+ring buffer.
+
+Resta comunque una scelta architetturale aperta: mantenere due canali oppure
+uniformare tutti gli hook su un solo meccanismo. Tracee usa perf buffer come
+canale principale; per questo, su Rocky Linux 4.18, il perf buffer resta la
+direzione piu' conservativa.
 
 ## Collegamenti
 

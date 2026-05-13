@@ -12,8 +12,13 @@ argnum
 args buffer
 ```
 
-Nel runtime userspace il record viene letto come `ringbuf.Record.RawSample`.
-Il decoder Go interpreta il buffer con questo layout:
+Nel runtime userspace il record puo' arrivare da due canali:
+
+- ring buffer `events_ringbuf`;
+- perf buffer `events`.
+
+Entrambi trasportano lo stesso payload logico. Il decoder Go interpreta i byte
+raw con questo layout:
 
 ```text
 [event_context_t:128][argnum:u8][args...]
@@ -114,8 +119,45 @@ E' stato osservato output JSON da eventi reali, ad esempio `cap_capable`:
 {"event_name":"cap_capable","args":[{"name":"cap","type":1,"value":2}]}
 ```
 
-Questo conferma che la pipeline kernel -> ring buffer -> decoder Go -> JSON e'
-operativa.
+Questo conferma che la pipeline kernel -> buffer eventi -> decoder Go -> JSON
+e' operativa.
+
+## Canali kernel/userspace
+
+La versione attuale mantiene due mappe eventi:
+
+```c
+struct events_ringbuf {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+} events_ringbuf SEC(".maps");
+
+struct events {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+} events SEC(".maps");
+```
+
+Lato C sono disponibili due funzioni di submit:
+
+- `events_ringbuf_submit`: usa `bpf_ringbuf_output`;
+- `events_perf_submit`: usa `bpf_perf_event_output`.
+
+Lato Go, `Project.Init()` apre entrambe:
+
+```go
+module.InitRingBuf("events_ringbuf", ...)
+module.InitPerfBuf("events", ..., 1024)
+```
+
+Entrambi i canali finiscono in `handleRawEvent(raw []byte)`, che esegue:
+
+1. decode del payload;
+2. filtro evento;
+3. filtro `comm`;
+4. output.
+
+Questa architettura e' transitoria ma utile: permette di supportare gli hook
+process/security gia' su ring buffer e gli hook networking che seguono ancora
+il pattern perf buffer di Tracee.
 
 ## Collegamenti
 

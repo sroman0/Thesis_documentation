@@ -8,7 +8,8 @@ L'obiettivo operativo e' stato portare il progetto al punto in cui:
 2. lo userspace Go legge l'oggetto compilato;
 3. la collection eBPF viene caricata nel kernel;
 4. i programmi eBPF vengono attaccati ai rispettivi hook;
-5. la ring buffer `events_ringbuf` viene drenata dallo userspace.
+5. ring buffer `events_ringbuf` e perf buffer `events` vengono drenati dallo
+   userspace.
 
 Il lavoro e' ispirato a Tracee, ma adattato a un MVP piu' piccolo. La prima
 versione del runtime usava `github.com/cilium/ebpf`; dopo il merge con il
@@ -21,7 +22,8 @@ Target principale:
 
 - OS: Rocky Linux 8.10 / RHEL-compatible
 - Kernel: `4.18.0-553.109.1.el8_10.x86_64`
-- Feature eBPF disponibili sul target: BTF/CO-RE, raw tracepoint, kprobe, ring buffer
+- Feature eBPF disponibili/usate sul target: BTF/CO-RE, raw tracepoint, kprobe,
+  ring buffer, perf event array
 - BTF nativo atteso in: `/sys/kernel/btf/vmlinux`
 
 Il progetto genera l'oggetto eBPF in `dist/project.bpf.o` e lo include nel
@@ -38,6 +40,7 @@ La struct `config.Config` contiene ora:
 - `BTFObjPath`: path del file BTF;
 - `BPFObjBytes`: contenuto dell'oggetto eBPF letto da disco;
 - `Output`;
+- `Events`, incluse selezione eventi e filtro `comm`;
 - `LogLevel`.
 
 La validazione statica controlla solo valori come output format e log level. La risoluzione dei path avviene in una fase successiva.
@@ -71,9 +74,9 @@ Il path esplicito resta supportato per debug.
 E' stato introdotto `pkg/ebpf/project.go`, che contiene il ciclo di vita eBPF:
 
 1. `New(cfg)` valida che la config sia pronta;
-2. `Init(ctx)` carica la collection e apre la ring buffer;
-3. `Run(ctx)` legge dalla ring buffer finche' il contesto viene cancellato;
-4. `Close()` chiude link, ring buffer e collection.
+2. `Init(ctx)` carica la collection e apre ring buffer e perf buffer;
+3. `Run(ctx)` legge da entrambi i canali finche' il contesto viene cancellato;
+4. `Close()` chiude link, ring buffer, perf buffer e modulo eBPF.
 
 ### 4.1 Rimozione del limite memlock
 
@@ -467,40 +470,36 @@ Questo indica che il programma e' riuscito a superare le fasi precedenti che fal
 
 - lettura dell'oggetto eBPF;
 - load della collection;
-- apertura della ring buffer;
+- apertura di ring buffer e perf buffer;
 - attach dei programmi eBPF;
 - ingresso nel loop runtime.
 
 Il fatto che non vengano stampati alert non e' un errore in questa fase: gli
 alert richiedono ancora detection logic. Dopo gli ultimi aggiornamenti, pero',
-il runtime Go non scarta piu' i record della ring buffer: li decodifica, applica
-la selezione eventi e li passa al layer `pkg/output`.
+il runtime Go non scarta piu' i record: li riceve sia da ring buffer sia da perf
+buffer, li decodifica, applica la selezione eventi, applica l'eventuale filtro
+`comm` e li passa al layer `pkg/output`.
 
 Loop aggiornato in `pkg/ebpf/project.go`:
 
 ```go
-record, err := p.events.Read()
-if err == nil {
-    event, err := bufferdecoder.DecodeEvent(record.RawSample)
-    ...
-    if !p.eventEnabled(event.EventName) {
-        continue
-    }
-    if err := p.printer.Print(event); err != nil {
-        ...
-    }
+select {
+case raw := <-p.ringBufChannel:
+    p.handleRawEvent(raw)
+case raw := <-p.perfBufChannel:
+    p.handleRawEvent(raw)
 }
 ```
 
-Quindi, se un evento arriva, `Read()` ritorna correttamente, il record viene
-decodificato e viene emessa una riga nel formato configurato (`json` o
-`table`).
+Quindi, se un evento arriva da uno dei due canali, viene decodificato e viene
+emessa una riga nel formato configurato (`json` o `table`).
 
 Conclusione dello stato corrente:
 
 - il loader eBPF e' arrivato a uno stato operativo;
 - la pipeline userspace minimale degli eventi e' presente;
 - gli hook producono eventi decodificati e stampabili;
+- il runtime riceve sia eventi ring buffer sia eventi perf buffer;
 - l'output e' separato dal runtime eBPF;
 - per ottenere alert servono ancora enrichment piu' ampio e detection logic.
 
@@ -567,7 +566,7 @@ Il runtime stampa eventi JSON o table decodificati. L'output e' piu' leggibile
 rispetto al JSON raw iniziale, ma resta pensato per debugging:
 
 - una riga per evento;
-- filtri ancora limitati a include/exclude eventi;
+- filtri disponibili per include/exclude eventi e `comm`;
 - enrichment presente per capability;
 - mapping ancora mancante per `prctl`, socket family/type, resource limit e
   syscall.
@@ -575,12 +574,12 @@ rispetto al JSON raw iniziale, ma resta pensato per debugging:
 ## 11. Prossimi step consigliati
 
 1. Decidere il canale eventi unico: ring buffer, perf buffer o entrambi.
-2. Aggiungere un perf-buffer reader se si mantengono gli hook networking
-   correnti.
-3. In alternativa, migrare gli hook networking a `events_ringbuf_submit`.
+2. Aggiungere lost channel e metriche per il perf buffer.
+3. Decidere se migrare gli hook networking a `events_ringbuf_submit` oppure
+   convergere tutto verso perf buffer in stile Tracee.
 4. Aggiungere mapping human-readable per `prctl`, socket family/type, resource
    limit e syscall.
-5. Aggiungere filtri per UID, PID, comm o processo padre.
+5. Aggiungere filtri per UID, PID o processo padre.
 6. Aggiungere test Go per:
    - risoluzione path BPF/BTF;
    - validazione config;
@@ -620,6 +619,7 @@ Il progetto e' passato da uno userspace che restava semplicemente in attesa a un
 - legge l'oggetto eBPF embedded o da path esplicito;
 - carica la collection;
 - apre la ring buffer tramite `libbpfgo`;
+- apre il perf buffer `events` tramite `libbpfgo`;
 - attacca i programmi eBPF;
 - gestisce cleanup ordinato.
 

@@ -52,7 +52,7 @@ dimostrare una pipeline end-to-end funzionante:
 
 \begin{center}
 \textit{build/embed oggetto eBPF $\rightarrow$ inizializzazione config
-$\rightarrow$ selezione probe $\rightarrow$ load/attach $\rightarrow$ ring buffer
+$\rightarrow$ selezione probe $\rightarrow$ load/attach $\rightarrow$ ring/perf buffer
 $\rightarrow$ decoder $\rightarrow$ event guard $\rightarrow$ output leggibile}
 \end{center}
 
@@ -97,15 +97,15 @@ rendere chiaro il funzionamento dei blocchi fondamentali.
 };
 \node[box, below=of selection] (runtime) {
   \textbf{Load + attach: \texttt{pkg/ebpf}}\\
-  carica collection, apre la ring buffer e attacca solo i probe selezionati
+  carica collection, apre ring buffer e perf buffer, poi attacca solo i probe selezionati
 };
 \node[box, below=of runtime] (kernel) {
   \textbf{Kernel data path}\\
-  gli hook eBPF selezionati emettono eventi nella mappa \texttt{events}
+  gli hook eBPF selezionati emettono eventi in \texttt{events\_ringbuf} o \texttt{events}
 };
 \node[box, below=of kernel] (decoder) {
   \textbf{Read + decode}\\
-  \texttt{ringbuf.Read()} $\rightarrow$ \texttt{bufferdecoder.DecodeEvent()}:
+  \texttt{InitRingBuf}/\texttt{InitPerfBuf} $\rightarrow$ \texttt{bufferdecoder.DecodeEvent()}:
   raw bytes in contesto, nome evento e argomenti
 };
 \node[box, below=of decoder] (guard) {
@@ -139,11 +139,11 @@ stampare eventi fuori dalla selezione configurata.
 
 \subsection{Loader e runtime eBPF}
 
-Il runtime Go carica l'oggetto eBPF, apre la ring buffer e mantiene i link agli
-hook kernel. Dopo il merge con il branch networking, l'implementazione usa
-\texttt{github.com/aquasecurity/libbpfgo}, quindi il Makefile prepara anche
-\texttt{libbpf} e i flag CGO necessari. I link vengono chiusi in modo ordinato
-durante il cleanup.
+Il runtime Go carica l'oggetto eBPF, apre sia la ring buffer sia il perf buffer
+e mantiene i link agli hook kernel. Dopo il merge con il branch networking,
+l'implementazione usa \texttt{github.com/aquasecurity/libbpfgo}, quindi il
+Makefile prepara anche \texttt{libbpf} e i flag CGO necessari. I link vengono
+chiusi in modo ordinato durante il cleanup.
 
 \subsection{Probe registry e selezione eventi}
 
@@ -283,9 +283,10 @@ Dalla call del 7 maggio e dallo stato tecnico attuale emergono questi step:
 \section{Comandi di verifica}
 
 \begin{lstlisting}[style=terminal]
-make test
-go run ./cmd/project --help
+make build
+make help
 make run_table
+make filtered
 \end{lstlisting}
 
 \end{document}

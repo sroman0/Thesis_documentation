@@ -43,8 +43,8 @@ simboliche.
 
 - Differenza tra sicurezza logica del codice C e dimostrabilita' per il verifier.
 - Trade-off tra formato eventi compatto e formato verifier-friendly.
-- Scelta di ring buffer invece di perf event array.
-- Scelta di `cilium/ebpf` rispetto a `libbpfgo`.
+- Evoluzione da ring buffer only a reader duale ring buffer/perf buffer.
+- Evoluzione da `cilium/ebpf` a `libbpfgo`.
 - Differenza tra decoder completo Tracee e decoder MVP custom del progetto.
 - Ruolo dello schema statico eventi in `protocol.go`.
 

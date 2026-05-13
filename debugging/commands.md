@@ -27,21 +27,25 @@ make run_table
 Abilitare solo `sched_process_exec`:
 
 ```bash
-sudo go run ./cmd/project --events sched_process_exec
+make run ARGS="--events sched_process_exec"
 ```
 
 Disabilitare `cap_capable`, che e' molto rumoroso:
 
 ```bash
-sudo go run ./cmd/project --drop-events cap_capable
+make run ARGS="--drop-events cap_capable"
 ```
 
 Combinare include ed exclude:
 
 ```bash
-sudo go run ./cmd/project \
-  --events cap_capable,sched_process_exec \
-  --drop-events cap_capable
+make run ARGS="--events cap_capable,sched_process_exec --drop-events cap_capable"
+```
+
+Filtrare per nome comando (`comm`) dopo la decodifica:
+
+```bash
+make run ARGS="--events task_rename,sched_process_exec,sched_process_exit --comms ls,whoami --output table"
 ```
 
 ## Build binario
@@ -72,9 +76,9 @@ sudo ./dist/project --help
 
 ## Test Go
 
-```bash
-make test
-```
+Il Makefile corrente non espone ancora un target `test`. Eseguire i package Go
+direttamente, passando i flag CGO quando servono package che importano
+`libbpfgo`.
 
 ## Test decoder
 
@@ -140,9 +144,9 @@ curl http://127.0.0.1:18080
 ```
 
 Nota: gli hook networking importati usano ancora in gran parte perf buffer,
-mentre il runtime Go legge la ring buffer. Se non compare output, non significa
-automaticamente che il kprobe non venga raggiunto: puo' mancare il reader del
-canale corretto.
+mentre alcuni hook process/security usano ring buffer. La versione attuale del
+runtime legge entrambi i canali (`events_ringbuf` e `events`), quindi questo
+target puo' essere usato per verificare la pipeline networking.
 
 ## Installare il binario come comando locale
 
@@ -157,6 +161,36 @@ sudo oppure usare il path assoluto:
 ```bash
 sudo /usr/local/bin/project --help
 ```
+
+## Verificare il reader duale
+
+La versione attuale apre sia ring buffer sia perf buffer:
+
+```text
+events_ringbuf -> InitRingBuf
+events         -> InitPerfBuf
+```
+
+Per verificare un evento su ring buffer:
+
+```bash
+make run ARGS="--events sched_process_exec --output table --comms ls"
+```
+
+Poi, da un altro terminale:
+
+```bash
+ls
+```
+
+Per verificare un evento su perf buffer/networking:
+
+```bash
+make filtered
+```
+
+Poi generare una connessione con `curl` come indicato nella sezione
+`security_socket_connect`.
 
 ## Output atteso
 
