@@ -20,6 +20,8 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [2026-05-06 - Oggetto eBPF embedded nel binario Go](daily/2026-05-06.md)
 - [2026-05-12 - Merge libbpfgo, hook networking e output operativo](daily/2026-05-12.md)
 - [2026-05-13 - Reader duale ring buffer/perf buffer e filtro per comm](daily/2026-05-13.md)
+- [2026-05-18 - Prima demo, Docker workflow e documentazione di supporto](daily/2026-05-18.md)
+- [2026-05-19 - Execve dedicata, log libbpf e direzione target-specific](daily/2026-05-19.md)
 
 ### Implementazione
 
@@ -29,6 +31,7 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [Decoder Go degli eventi eBPF](implementation/decoder.md)
 - [Output layer e formati eventi](implementation/output.md)
 - [Hook implementati](implementation/hooks.md)
+- [Docker nel progetto](implementation/docker.md)
 
 ### Debugging
 
@@ -304,3 +307,95 @@ o migrare tutto a ring buffer.
 - [Protocollo eventi e buffer eBPF](implementation/event-buffer.md)
 - [Comandi utili](debugging/commands.md)
 - [Decision log](decisions/decision-log.md)
+
+### 2026-05-18
+
+**Tema principale:** preparazione della prima demo tecnica e introduzione di un
+workflow Docker per rendere piu' riproducibile la build.
+
+**Attivita' svolte:**
+
+- Preparato materiale di supporto per la demo in `documentation/demo`.
+- Raffinati i diagrammi LaTeX/PDF della pipeline.
+- Preparato un breve discorso in italiano con riferimenti ai file principali.
+- Aggiornato `demo_project/README.md` come guida piu' completa al progetto.
+- Aggiunto `demo_project/Dockerfile`.
+- Aggiunto `demo_project/.dockerignore`.
+- Esteso `demo_project/Makefile` con:
+  - `docker-image`;
+  - `docker-build`;
+  - `docker-shell`;
+  - `docker-run`.
+- Gestiti i problemi DNS nei container usando host networking per build e shell.
+- Modificato il mount Docker per mantenere lo stesso path assoluto dell'host,
+  evitando problemi con path generati da `pkg-config` e `libbpf.pc`.
+- Aggiunta documentazione narrativa su Docker in
+  `documentation/implementation/docker.md`.
+
+**Decisione/nota tecnica:**
+
+Docker viene usato come supporto alla build e allo sviluppo, non come
+isolamento completo del runtime eBPF. L'esecuzione del tool in container usa
+comunque il kernel host e richiede privilegi, BTF e accesso a `/sys/fs/bpf`.
+
+**File tecnici principali:**
+
+- `demo_project/Dockerfile`
+- `demo_project/.dockerignore`
+- `demo_project/Makefile`
+- `demo_project/README.md`
+- `documentation/implementation/docker.md`
+- `documentation/demo/first_demo.md`
+- `documentation/demo/first_demo.tex`
+- `documentation/demo/speech.md`
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-05-18.md)
+- [Docker nel progetto](implementation/docker.md)
+- [Decision log](decisions/decision-log.md)
+
+### 2026-05-19
+
+**Tema principale:** ottimizzazione target-specific dell'evento `execve`,
+pulizia dei log libbpf e consolidamento della CLI.
+
+**Attivita' svolte:**
+
+- Aggiunto/raffinato l'evento `execve` come tentativo di esecuzione.
+- Chiarita la differenza tra:
+  - `execve`: tentativo di eseguire un binario;
+  - `sched_process_exec`: exec riuscita.
+- Spostato `execve` da un secondo hook generico su
+  `raw_tracepoint/sys_enter` al tracepoint dedicato
+  `tracepoint/syscalls/sys_enter_execve`.
+- Esteso il registry probe Go con supporto a `AttachTracepoint`.
+- Valutato e rimosso il path `_light`, mantenendo il path standard
+  `init_program_data` + `events_perf_submit`.
+- Collegato `--log-level` ai callback di logging libbpfgo.
+- Filtrati di default i log verbose di relocation CO-RE.
+- Aggiornato l'help CLI e il README per documentare `--log-level` e `--comms`.
+- Aggiornato `run_table` per testare `execve` senza filtro `comm`.
+
+**Decisione/nota tecnica:**
+
+Il progetto inizia a seguire una direzione volutamente meno generalista di
+Tracee: quando il kernel target e' noto, e' preferibile usare hook specifici
+e piu' economici invece di dispatcher generici che girano per ogni evento del
+sistema. Questa scelta e' una parte importante della novelty del lavoro.
+
+**File tecnici principali:**
+
+- `demo_project/pkg/ebpf/c/project.bpf.c`
+- `demo_project/pkg/ebpf/probes/probes.go`
+- `demo_project/pkg/ebpf/project.go`
+- `demo_project/pkg/cmd/cobra/cobra.go`
+- `demo_project/Makefile`
+- `demo_project/README.md`
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-05-19.md)
+- [Hook implementati](implementation/hooks.md)
+- [Decision log](decisions/decision-log.md)
+- [Comandi utili](debugging/commands.md)

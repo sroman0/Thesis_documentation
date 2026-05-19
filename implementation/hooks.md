@@ -29,7 +29,33 @@ Scopo:
 
 - intercettare exec;
 - leggere `linux_binprm->filename`;
-- inviare il path allo userspace.
+- inviare il path allo userspace;
+- rappresentare una exec riuscita.
+
+### `execve`
+
+Tipo attach:
+
+```text
+tracepoint/syscalls/sys_enter_execve
+```
+
+Scopo:
+
+- intercettare il tentativo di esecuzione prima che il processo cambi immagine;
+- leggere il primo argomento della syscall, cioe' il path richiesto;
+- inviare l'evento tramite perf buffer usando il path standard
+  `init_program_data` + `events_perf_submit`.
+
+Nota: `execve` e `sched_process_exec` non sono duplicati perfetti.
+`execve` vede il tentativo, mentre `sched_process_exec` vede l'esecuzione
+riuscita. Questa distinzione e' utile per auditing e detection: un tentativo
+fallito puo' essere comunque informativo.
+
+La prima implementazione di `execve` usava un secondo
+`raw_tracepoint/sys_enter` e filtrava manualmente `SYSCALL_EXECVE`. E' stata
+poi sostituita dal tracepoint dedicato per evitare che il programma venga
+eseguito su ogni syscall del sistema.
 
 ### `sched_process_exit`
 
@@ -231,6 +257,19 @@ Resta comunque una scelta architetturale aperta: mantenere due canali oppure
 uniformare tutti gli hook su un solo meccanismo. Tracee usa perf buffer come
 canale principale; per questo, su Rocky Linux 4.18, il perf buffer resta la
 direzione piu' conservativa.
+
+## Nota sui tipi di attach
+
+Il registry Go in `pkg/ebpf/probes/probes.go` supporta ora tre tipi principali:
+
+- raw tracepoint, tramite `AttachRawTracepoint`;
+- tracepoint classico, tramite `AttachTracepoint`;
+- kprobe, tramite `AttachKprobe`.
+
+L'aggiunta dei tracepoint classici permette di usare hook syscall specifici,
+come `syscalls/sys_enter_execve`, quando il kernel target li espone. Questo
+riduce il lavoro inutile rispetto a un raw tracepoint generico piu' un filtro
+manuale nel programma eBPF.
 
 ## Collegamenti
 

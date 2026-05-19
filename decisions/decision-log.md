@@ -215,6 +215,100 @@ Il filtro viene applicato in userspace dopo la decodifica, usando il campo
 - in futuro si potra' valutare un filtro equivalente in mappa eBPF, piu'
   simile al policy/filtering model di Tracee.
 
+## 2026-05-18 - Docker come ambiente di build riproducibile
+
+**Contesto:** il progetto richiede Go/CGO, clang, LLVM, `pkg-config`, header
+`libelf`, `zlib` e build statica di `libbpf`. Installare e mantenere queste
+dipendenze manualmente su ogni macchina rende piu' fragile la collaborazione e
+la preparazione della demo.
+
+**Decisione:** introdurre Docker come ambiente riproducibile per build e shell
+di sviluppo, aggiungendo:
+
+- `demo_project/Dockerfile`;
+- `demo_project/.dockerignore`;
+- target Makefile `docker-image`, `docker-build`, `docker-shell`,
+  `docker-run`;
+- documentazione dedicata in `documentation/implementation/docker.md`.
+
+Docker non viene considerato isolamento completo del runtime eBPF: il container
+usa comunque il kernel host.
+
+**Conseguenze:**
+
+- la build puo' essere riprodotta con `make docker-build`;
+- `make docker-shell` offre una shell con dipendenze gia' installate;
+- `make docker-run` esegue il tool in container privilegiato, usando kernel,
+  BTF e bpffs dell'host;
+- la build Docker usa host networking per evitare problemi DNS su VM;
+- il repository viene montato nello stesso path assoluto dell'host per evitare
+  path `pkg-config` non validi;
+- i limiti del kernel Rocky/RHEL restano invariati: Docker standardizza
+  userspace, non il kernel.
+
+## 2026-05-19 - Preferire hook target-specific quando il kernel e' noto
+
+**Contesto:** il progetto deve girare principalmente sulla VM Rocky/RHEL 8.10
+con kernel `4.18.0-553.109.1.el8_10.x86_64`. Tracee deve mantenere alta
+portabilita' su kernel molto diversi; questo progetto puo' invece sfruttare
+il target noto come elemento di semplificazione e ottimizzazione.
+
+**Decisione:** quando esiste un hook specifico e stabile sul kernel target,
+preferirlo a un hook generico piu' filtro manuale. Il primo caso applicato e'
+`execve`: invece di un secondo `raw_tracepoint/sys_enter` che gira per ogni
+syscall, il progetto usa `tracepoint/syscalls/sys_enter_execve`.
+
+**Conseguenze:**
+
+- meno lavoro inutile lato kernel;
+- semantica dell'evento piu' chiara;
+- registry probe Go esteso con supporto a tracepoint classici;
+- maggiore dipendenza dal kernel target, accettata come parte della novelty
+  del progetto;
+- resta disponibile `raw_sys_enter` per bookkeeping syscall e casi piu'
+  generici.
+
+## 2026-05-19 - Mantenere il path standard per submit eventi
+
+**Contesto:** durante l'ottimizzazione di `execve` e' stato valutato un path
+leggero con initializer e submit dedicati. Il path funzionava per l'evento
+semplice, ma introduceva una seconda variante poco versatile della pipeline.
+
+**Decisione:** rimuovere il path `_light` e mantenere anche `execve` sul path
+standard:
+
+```text
+init_program_data -> events_perf_submit
+```
+
+**Conseguenze:**
+
+- meno codice speciale da mantenere;
+- comportamento piu' uniforme tra eventi;
+- costo maggiore rispetto al path leggero, ma piu' facile da spiegare,
+  debuggare ed estendere;
+- eventuali ottimizzazioni future dovranno essere piu' generali, non legate a
+  un solo evento.
+
+## 2026-05-19 - Filtrare i log libbpf in base a `--log-level`
+
+**Contesto:** ogni run stampava molte righe libbpf relative alle relocation
+CO-RE, per esempio `field_exists`, `byte_off` e fallback su campi mancanti del
+kernel target. Questi log sono utili per debugging ma disturbano l'uso normale
+e la demo.
+
+**Decisione:** configurare i callback di logging di `libbpfgo` nel runtime:
+
+- `debug`: mostra tutti i log libbpf;
+- `info`: nasconde `LIBBPF_DEBUG`;
+- `warn`/`error`: mostra solo warning libbpf.
+
+**Conseguenze:**
+
+- output runtime molto piu' leggibile;
+- i dettagli CO-RE restano disponibili quando servono;
+- l'help CLI e il README documentano il significato di `--log-level`.
+
 ## Collegamenti
 
 - [Timeline](../timeline.md)

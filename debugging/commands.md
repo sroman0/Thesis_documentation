@@ -10,6 +10,19 @@ make bpf
 
 Il target genera `dist/project.bpf.o`, che viene embedded nel binario Go.
 
+Nota: il target attuale traccia direttamente `project.bpf.c`, ma non tutti gli
+header `.h` inclusi. Dopo modifiche a `pkg/ebpf/c/common/*.h`, se `make bpf`
+risponde con `Nothing to be done`, forzare una ricompilazione esplicita:
+
+```bash
+clang -O2 -g \
+  -target bpf \
+  -D__TARGET_ARCH_x86 \
+  -D__x86_64__ \
+  -I ./pkg/ebpf/c -I ./pkg/ebpf/c/common -I ./3rdparty/libbpfgo/libbpf/src \
+  -c pkg/ebpf/c/project.bpf.c -o dist/project.bpf.o
+```
+
 ## Eseguire userspace
 
 ```bash
@@ -21,6 +34,9 @@ Formato table per debug manuale:
 ```bash
 make run_table
 ```
+
+Il target `run_table` e' utile anche per osservare `execve`, perche' usa
+l'evento dedicato senza filtrare per `comm`.
 
 ## Eseguire solo alcuni eventi
 
@@ -47,6 +63,25 @@ Filtrare per nome comando (`comm`) dopo la decodifica:
 ```bash
 make run ARGS="--events task_rename,sched_process_exec,sched_process_exit --comms ls,whoami --output table"
 ```
+
+Nota: per eventi presi all'ingresso della syscall, come `execve`, il campo
+`comm` puo' ancora essere quello del processo chiamante. Per questo e'
+preferibile testare `execve` filtrando per evento, non per `comm`.
+
+## Log libbpf e relocation CO-RE
+
+Per run normali, il default `--log-level info` nasconde i log verbose di
+relocation CO-RE.
+
+Per riabilitarli:
+
+```bash
+make run ARGS="--events execve --output table --log-level debug"
+```
+
+I messaggi `field_exists`, `byte_off` e `no matching targets found` non sono
+necessariamente errori: spesso indicano che libbpf sta patchando il programma
+in base ai campi disponibili nel BTF del kernel target.
 
 ## Build binario
 
@@ -110,6 +145,20 @@ echo test
 ```
 
 Questi comandi dovrebbero generare almeno eventi `sched_process_exec`.
+
+Per generare eventi `execve`:
+
+```bash
+make run ARGS="--events execve --output table"
+```
+
+Poi, da un altro terminale:
+
+```bash
+ls
+whoami
+curl --version
+```
 
 ## Testare `security_settime64`
 

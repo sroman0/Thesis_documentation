@@ -14,6 +14,7 @@ cmd/project/main.go
   -> ebpf.New(cfg)
   -> selectProbes(cfg.Events.Include, cfg.Events.Exclude)
   -> project.Init(ctx)
+  -> configure libbpf logging from --log-level
   -> open events_ringbuf with InitRingBuf
   -> open events perf buffer with InitPerfBuf
   -> attach selected probes
@@ -57,6 +58,13 @@ Se `--events` non viene passato, il runtime abilita tutti gli eventi supportati.
 `--comms ls,whoami` e' utile per demo mirate, perche' stampa solo eventi il cui
 `comm` decodificato corrisponde ai nomi indicati.
 
+La config contiene anche `LogLevel`, popolato da `--log-level`. Questo valore
+controlla sia il livello runtime sia il filtro dei log libbpf/CO-RE:
+
+- `debug`: mostra anche le relocation verbose;
+- `info`: nasconde i log `LIBBPF_DEBUG`;
+- `warn`/`error`: mantiene solo warning libbpf.
+
 ## Load e attach
 
 In `Project.Init()`:
@@ -68,8 +76,19 @@ In `Project.Init()`:
 5. apertura perf buffer `events`;
 6. attach dei soli programmi selezionati.
 
-La selezione dei programmi vive in `pkg/ebpf/probes/probes.go`. Ogni probe collega il
-nome evento decodificato al programma eBPF e all'hook kernel da usare.
+La selezione dei programmi vive in `pkg/ebpf/probes/probes.go`. Ogni probe
+collega il nome evento decodificato al programma eBPF e all'hook kernel da
+usare.
+
+Il registry supporta:
+
+- raw tracepoint;
+- tracepoint classici;
+- kprobe.
+
+Questo permette di usare hook dedicati come `syscalls/sys_enter_execve` quando
+il kernel target li espone, evitando di filtrare manualmente ogni syscall da un
+hook generico.
 
 ## Lettura e decoding eventi
 
@@ -180,6 +199,11 @@ Tracee usa un sistema `ProbeGroup` piu' ricco, con:
 Il progetto usa un registry statico di probe selezionabili, sufficiente per MVP.
 Questa e' una deviazione intenzionale: mantiene il design vicino a Tracee, ma
 riduce complessita' e rischio sul kernel Rocky Linux 4.18.
+
+Dal 2026-05-19 questa deviazione e' stata resa piu' esplicita: quando il target
+kernel e' noto, il progetto preferisce hook specifici e meno generici. La scelta
+riduce portabilita' teorica, ma rende piu' chiara e piu' economica la pipeline
+sulla VM di tesi.
 
 ## Collegamenti
 

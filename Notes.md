@@ -1,0 +1,5 @@
+- Per la comunicazione tra userspace e kernel space, conviene utilizzare un ring buffer oppure un perf buffer? Risolto: usiamo entrambe
+- Chiedere se è necessario implementare un file .yaml su .github per le github actions, cosi che ad ogni push viene effettuato un test sul codice.
+- Idea: preparare dei template ai customers per filtrare gli eventi in base ad una macroarea. Template per il processing, template per il networking, template per security, template per attacchi specifici...
+- Idea: provare ad implementare un sistema di monitoring non solo per eventi singoli, ma anche per pattern di eventi.
+- Idea: implementare delle funzioni per gli hook più frequenti che printano una versione più compatta dell'evento, evitando di printare dati che non ci servono, e che non intasino il terminale
