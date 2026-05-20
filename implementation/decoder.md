@@ -2,17 +2,16 @@
 
 ## Scopo
 
-Il decoder trasforma i record raw letti dalla ring buffer in strutture Go
-leggibili e poi in JSON.
+Il decoder trasforma i record raw letti da ring buffer o perf buffer in
+strutture Go leggibili e poi in output `json` o `table`.
 
 Il flusso attuale e':
 
 ```text
-ringbuf.Record.RawSample
+raw event bytes
   -> bufferdecoder.DecodeEvent()
   -> EventContext + argomenti tipizzati
-  -> json.Marshal()
-  -> stdout
+  -> output printer
 ```
 
 ## File principali
@@ -25,10 +24,10 @@ demo_project/pkg/bufferdecoder/
 
 File:
 
-- `protocol.go`: definisce protocollo Go, ID eventi, tipi argomento e schema argomenti;
+- `protocol.go`: definisce protocollo Go e layout del context evento;
 - `decoder.go`: primitive di lettura binaria (`u8`, `u16`, `u32`, `u64`, bytes, context);
 - `eventsreader.go`: decodifica evento completo e argomenti;
-- `eventsreader_test.go`: test minimi per eventi scalari e stringa.
+- `eventsreader_test.go`: test per scalari, stringhe e array di stringhe.
 
 ## Responsabilita' dei file
 
@@ -37,10 +36,8 @@ File:
 Definisce il contratto semantico tra eBPF e Go:
 
 - dimensioni degli slot;
-- ID eventi;
-- tipi argomento;
 - `EventContext`;
-- schema statico `EventID -> nome evento + argomenti`.
+- limiti di sicurezza per stringhe e array.
 
 ### `decoder.go`
 
@@ -61,14 +58,14 @@ E' il livello semantico:
 - crea un `EbpfDecoder`;
 - legge il context;
 - legge `argnum`;
-- usa lo schema evento da `protocol.go`;
-- decodifica slot scalari o stringa;
+- usa lo schema evento da `pkg/events/spec.go`;
+- decodifica scalari, stringhe, sockaddr e array di stringhe;
 - produce un `Event` completo.
 
 ## `EventContext`
 
-Il context Go e' allineato al `event_context_t` eBPF del progetto, non a quello
-completo di Tracee.
+Il context Go e' allineato al `event_context_t` eBPF del progetto, quindi
+segue solo i campi realmente emessi dal runtime attuale.
 
 Dimensione:
 
@@ -88,12 +85,9 @@ Layout:
 126 - 127  pad
 ```
 
-Differenza importante rispetto a Tracee:
-
-- Tracee usa un context da `136` byte;
-- Tracee include `policies_version` e `matched_policies`;
-- il progetto li omette per MVP;
-- quindi il decoder non puo' copiare pari pari `tracee/pkg/bufferdecoder/protocol.go`.
+Nota importante: il context Go deve restare allineato al layout eBPF locale.
+Ogni modifica a `event_context_t` o `task_context_t` richiede quindi un
+aggiornamento esplicito del decoder.
 
 ## Argomenti
 
@@ -103,21 +97,28 @@ Dopo il context, il formato inviato sulla ring buffer e':
 [event_context_t:128][argnum:u8][args...]
 ```
 
-Gli argomenti usano gli slot fissi introdotti per rendere il codice accettabile
-dal verifier.
-
 Scalari:
 
 ```text
-slot = 16 byte
-[type_tag:u8][value][padding...]
+[index:u8][value]
 ```
 
 Stringhe:
 
 ```text
-slot = 517 byte
-[type_tag:u8][length:u32][payload:512]
+[index:u8][length:u32][payload]
+```
+
+Array di stringhe (`StrArrT`):
+
+```text
+[index:u8][count:u8][size:int32][string bytes]...
+```
+
+Array di argomenti compatti (`ArgsArrT`):
+
+```text
+[index:u8][payload_len:int32][reported_count:int32][NUL-delimited strings]
 ```
 
 `eventsreader.go` usa lo schema statico degli eventi per sapere come leggere gli
@@ -125,13 +126,19 @@ argomenti. Esempio:
 
 - `cap_capable`: `cap` come `INT_T`;
 - `sched_process_exec`: `filename` come `STR_T`;
+- `execve`: `pathname` come `STR_T`, `argv` come `STR_ARR_T`;
+- `execveat`: `dirfd`, `pathname`, `flags`, `argv`;
 - `sched_process_exit`: `exit_code` come `LONG_T`, `group_dead` come `U8_T`.
+
+Il limite massimo per le singole stringhe e' stato allineato al lato eBPF
+(`MAX_STRING_SIZE`, 4096 byte). Questo evita che path o argomenti validi
+scritti dal kernel vengano rifiutati artificialmente dal decoder Go.
 
 ## Runtime
 
 In `demo_project/pkg/ebpf/project.go`, il loop runtime:
 
-1. legge un record dalla ring buffer;
+1. legge un record da ring buffer o perf buffer;
 2. chiama `bufferdecoder.DecodeEvent(record.RawSample)`;
 3. applica il filtro eventi runtime;
 4. passa l'evento al printer configurato in `pkg/output`;
@@ -153,15 +160,64 @@ kprobe/cap_capable
   -> output layer
 ```
 
+## Array di stringhe
+
+Il supporto agli array di stringhe serve soprattutto per argomenti come
+`argv`. Il writer eBPF `save_str_arr_to_buf` legge una lista `char **` da
+userspace, salva il numero di elementi e poi serializza ogni stringa con la sua
+dimensione.
+
+Il decoder Go:
+
+- controlla che il numero di elementi non sia eccessivo;
+- valida ogni dimensione prima di leggere il payload;
+- rimuove il terminatore `NUL`;
+- verifica UTF-8;
+- restituisce un `[]string`.
+
+Questo rende possibile stampare eventi come:
+
+```text
+event=execve ... args=pathname=/usr/bin/sh,argv=["sh","-c","id"]
+```
+
+Per ora non viene serializzato `envp`: e' spesso molto rumoroso e puo'
+contenere dati sensibili. La scelta e' coerente con una demo piu' leggibile e
+con un payload piu' controllato.
+
+## Stringhe NUL-delimited
+
+Il decoder contiene anche un parser per payload compatti in cui piu' stringhe
+sono salvate in un solo blocco e separate dal byte `NUL`:
+
+```text
+sh\0-c\0id\0
+```
+
+La funzione `splitNullDelimitedStrings` scorre il payload, taglia una stringa
+ogni volta che trova `NUL` e rispetta un limite massimo di elementi. Questo
+limite evita che un valore `reported_count` errato produca parsing eccessivo.
+Se l'ultima stringa non e' terminata da `NUL`, il suffisso restante viene
+comunque decodificato.
+
+Ogni elemento passa poi da `decodeStringPayload`, che:
+
+- rimuove eventuali terminatori `NUL` finali;
+- verifica che il risultato sia UTF-8 valido;
+- restituisce una stringa Go pulita al livello di output.
+
+Questa separazione rende il codice piu' semplice: una funzione si occupa di
+separare il blocco in elementi, l'altra di normalizzare una singola stringa.
+
 ## Limitazioni
 
 - Il decoder resta responsabile del formato binario, non della presentazione.
 - `comm`, `uts_name` e capability vengono normalizzati nel package `output`.
 - `cap_capable` e' molto rumoroso e puo' generare molte righe.
-- Il decoder supporta gli eventi attuali; nuovi hook richiedono una voce nello
-  schema statico in `protocol.go`.
-- Gli eventi con argomenti misti stringa + scalare richiedono attenzione per
-  evitare sovrapposizioni tra slot di dimensione diversa.
+- Il decoder supporta gli eventi attuali; nuovi hook richiedono una voce in
+  `pkg/events/spec.go`.
+- `security_bprm_check` espone `argc`/`envc`, ma non ancora `argv`/`envp`:
+  farlo bene richiede una decisione su dipendenze tra hook syscall e hook LSM.
 
 ## Verifiche
 

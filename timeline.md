@@ -22,6 +22,7 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [2026-05-13 - Reader duale ring buffer/perf buffer e filtro per comm](daily/2026-05-13.md)
 - [2026-05-18 - Prima demo, Docker workflow e documentazione di supporto](daily/2026-05-18.md)
 - [2026-05-19 - Execve dedicata, log libbpf e direzione target-specific](daily/2026-05-19.md)
+- [2026-05-20 - Security bprm check e decoder per array di stringhe](daily/2026-05-20.md)
 
 ### Implementazione
 
@@ -357,25 +358,31 @@ comunque il kernel host e richiede privilegi, BTF e accesso a `/sys/fs/bpf`.
 
 ### 2026-05-19
 
-**Tema principale:** ottimizzazione target-specific dell'evento `execve`,
-pulizia dei log libbpf e consolidamento della CLI.
+**Tema principale:** ottimizzazione target-specific degli eventi `execve` e
+`execveat`, pulizia dei log libbpf e consolidamento della CLI.
 
 **Attivita' svolte:**
 
 - Aggiunto/raffinato l'evento `execve` come tentativo di esecuzione.
+- Aggiunto l'evento `execveat` come syscall separata, con payload dedicato:
+  `dirfd`, `pathname`, `flags`.
 - Chiarita la differenza tra:
   - `execve`: tentativo di eseguire un binario;
   - `sched_process_exec`: exec riuscita.
 - Spostato `execve` da un secondo hook generico su
   `raw_tracepoint/sys_enter` al tracepoint dedicato
   `tracepoint/syscalls/sys_enter_execve`.
+- Agganciato `execveat` al tracepoint dedicato
+  `tracepoint/syscalls/sys_enter_execveat`.
 - Esteso il registry probe Go con supporto a `AttachTracepoint`.
 - Valutato e rimosso il path `_light`, mantenendo il path standard
   `init_program_data` + `events_perf_submit`.
 - Collegato `--log-level` ai callback di logging libbpfgo.
 - Filtrati di default i log verbose di relocation CO-RE.
 - Aggiornato l'help CLI e il README per documentare `--log-level` e `--comms`.
-- Aggiornato `run_table` per testare `execve` senza filtro `comm`.
+- Aggiornato `run_table` per testare `execve`/`execveat` senza filtro `comm`.
+- Verificato `execveat` con un piccolo programma C che invoca direttamente
+  `SYS_execveat`.
 
 **Decisione/nota tecnica:**
 
@@ -383,11 +390,16 @@ Il progetto inizia a seguire una direzione volutamente meno generalista di
 Tracee: quando il kernel target e' noto, e' preferibile usare hook specifici
 e piu' economici invece di dispatcher generici che girano per ogni evento del
 sistema. Questa scelta e' una parte importante della novelty del lavoro.
+`execveat` viene mantenuto distinto da `execve` per non perdere informazioni
+su `dirfd` e `flags`, evitando pero' di duplicare lo stesso payload.
 
 **File tecnici principali:**
 
 - `demo_project/pkg/ebpf/c/project.bpf.c`
+- `demo_project/pkg/ebpf/c/types.h`
 - `demo_project/pkg/ebpf/probes/probes.go`
+- `demo_project/pkg/events/ids.go`
+- `demo_project/pkg/events/spec.go`
 - `demo_project/pkg/ebpf/project.go`
 - `demo_project/pkg/cmd/cobra/cobra.go`
 - `demo_project/Makefile`
@@ -398,4 +410,40 @@ sistema. Questa scelta e' una parte importante della novelty del lavoro.
 - [Diario dettagliato del giorno](daily/2026-05-19.md)
 - [Hook implementati](implementation/hooks.md)
 - [Decision log](decisions/decision-log.md)
+- [Comandi utili](debugging/commands.md)
+
+### 2026-05-20
+
+**Tema principale:** aggiunta di `security_bprm_check` come hook security nel
+percorso di exec.
+
+**Attivita' svolte:**
+
+- Analizzato il pattern Tracee per `kprobe/security_bprm_check`.
+- Implementato `trace_security_bprm_check` lato eBPF.
+- Registrato l'evento nel registry Go dei probe.
+- Aggiunta la specifica di decode userspace.
+- Documentata la semantica dell'hook nel percorso
+  `execve/execveat -> security_bprm_check -> sched_process_exec`.
+- Documentato il test manuale con `whoami`.
+
+**Decisione/nota tecnica:**
+
+Tracee raccoglie anche `argv`/`envp` per questo evento. Nel progetto, per ora,
+il payload e' limitato a `pathname`, `dev`, `inode`, `filename`, `argc`, `envc`.
+Questa scelta riduce complessita' e rischio verifier sul target Rocky Linux
+4.18, mantenendo comunque informazioni utili per correlare tentativo di exec,
+validazione del binario ed exec riuscita.
+
+**File tecnici principali:**
+
+- `demo_project/pkg/ebpf/c/project.bpf.c`
+- `demo_project/pkg/ebpf/probes/probes.go`
+- `demo_project/pkg/events/ids.go`
+- `demo_project/pkg/events/spec.go`
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-05-20.md)
+- [Hook implementati](implementation/hooks.md)
 - [Comandi utili](debugging/commands.md)

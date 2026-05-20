@@ -52,6 +52,8 @@ mindmap
     Process lifecycle
       sched_process_fork
       sched_process_exec
+      execve
+      execveat
       sched_process_exit
       task_rename
     Security

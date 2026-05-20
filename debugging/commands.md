@@ -35,8 +35,8 @@ Formato table per debug manuale:
 make run_table
 ```
 
-Il target `run_table` e' utile anche per osservare `execve`, perche' usa
-l'evento dedicato senza filtrare per `comm`.
+Il target `run_table` e' utile anche per osservare `execve` ed `execveat`,
+perche' usa eventi dedicati senza filtrare per `comm`.
 
 ## Eseguire solo alcuni eventi
 
@@ -76,7 +76,7 @@ relocation CO-RE.
 Per riabilitarli:
 
 ```bash
-make run ARGS="--events execve --output table --log-level debug"
+make run ARGS="--events execve,execveat --output table --log-level debug"
 ```
 
 I messaggi `field_exists`, `byte_off` e `no matching targets found` non sono
@@ -146,10 +146,10 @@ echo test
 
 Questi comandi dovrebbero generare almeno eventi `sched_process_exec`.
 
-Per generare eventi `execve`:
+Per generare eventi `execve` e `execveat`:
 
 ```bash
-make run ARGS="--events execve --output table"
+make run ARGS="--events execve,execveat --output table"
 ```
 
 Poi, da un altro terminale:
@@ -158,6 +158,81 @@ Poi, da un altro terminale:
 ls
 whoami
 curl --version
+```
+
+La maggior parte dei comandi comuni genera `execve`; `execveat` e' meno comune
+ma copre i casi fd-relative o con flag come `AT_EMPTY_PATH`.
+
+Per forzare un evento `execveat`, compilare un piccolo programma C:
+
+```c
+#define _GNU_SOURCE
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+
+int main(void) {
+    char *argv[] = {"whoami", NULL};
+    char *envp[] = {NULL};
+
+    return syscall(SYS_execveat, AT_FDCWD, "/usr/bin/whoami", argv, envp, 0);
+}
+```
+
+Eseguirlo mentre il tool ascolta:
+
+```bash
+gcc /tmp/test_execveat.c -o /tmp/test_execveat
+/tmp/test_execveat
+```
+
+Output atteso:
+
+```text
+event=execveat ... args=dirfd=-100,pathname=/usr/bin/whoami,flags=0
+```
+
+`-100` corrisponde a `AT_FDCWD`.
+
+## Testare `security_bprm_check`
+
+Terminale 1:
+
+```bash
+make run ARGS="--events security_bprm_check --output table"
+```
+
+Terminale 2:
+
+```bash
+whoami
+ls
+```
+
+Output atteso:
+
+```text
+event=security_bprm_check ... args=pathname=/usr/bin/whoami,dev=...,inode=...,filename=/usr/bin/whoami,argc=1,envc=...
+```
+
+Questo evento non rappresenta solo la syscall richiesta da userspace: viene
+emesso mentre il kernel valida il binario tramite `linux_binprm`. Per questo e'
+utile accanto a `execve`, `execveat` e `sched_process_exec`.
+
+Lettura dei campi principali:
+
+- `pathname`: path del file eseguibile risolto dal kernel;
+- `dev` e `inode`: identificano il file sul filesystem;
+- `filename`: campo `linux_binprm->filename`;
+- `argc`: numero di argomenti passati al nuovo programma;
+- `envc`: numero di variabili d'ambiente.
+
+Sequenza utile durante il debug:
+
+```text
+execve / execveat     -> richiesta userspace
+security_bprm_check   -> validazione kernel del binario
+sched_process_exec    -> exec riuscita
 ```
 
 ## Testare `security_settime64`

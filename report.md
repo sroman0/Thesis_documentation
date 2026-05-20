@@ -106,6 +106,10 @@ Sono stati aggiunti due gruppi:
   - `tracepoint__sched__sched_process_exit` -> `sched_process_exit`
   - `tracepoint__task__task_rename` -> `task_rename`
 
+- syscall tracepoint:
+  - `tracepoint__syscalls__sys_enter_execve` -> `execve`
+  - `tracepoint__syscalls__sys_enter_execveat` -> `execveat`
+
 - kprobe:
   - `trace_cap_capable` -> `cap_capable`
   - `trace_security_task_setrlimit` -> `security_task_setrlimit`
@@ -150,6 +154,9 @@ Esempi Tracee:
 - `SecuritySettime64`: kprobe `security_settime64`
 
 Il nostro codice replica lo stesso concetto, ma senza introdurre ancora un sistema completo di `ProbeGroup`.
+In piu', per il target Rocky/RHEL noto, usa tracepoint syscall dedicati per
+`execve` ed `execveat`, evitando un secondo dispatcher generico su
+`raw_tracepoint/sys_enter`.
 
 ### 5.2 Differenze importanti
 

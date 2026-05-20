@@ -44,6 +44,7 @@ Scopo:
 
 - intercettare il tentativo di esecuzione prima che il processo cambi immagine;
 - leggere il primo argomento della syscall, cioe' il path richiesto;
+- leggere `argv` come array di stringhe;
 - inviare l'evento tramite perf buffer usando il path standard
   `init_program_data` + `events_perf_submit`.
 
@@ -52,10 +53,47 @@ Nota: `execve` e `sched_process_exec` non sono duplicati perfetti.
 riuscita. Questa distinzione e' utile per auditing e detection: un tentativo
 fallito puo' essere comunque informativo.
 
+Payload attuale:
+
+- `pathname`: path richiesto dalla syscall;
+- `argv`: argomenti del nuovo programma, serializzati come array di stringhe.
+
 La prima implementazione di `execve` usava un secondo
 `raw_tracepoint/sys_enter` e filtrava manualmente `SYSCALL_EXECVE`. E' stata
 poi sostituita dal tracepoint dedicato per evitare che il programma venga
 eseguito su ogni syscall del sistema.
+
+### `execveat`
+
+Tipo attach:
+
+```text
+tracepoint/syscalls/sys_enter_execveat
+```
+
+Scopo:
+
+- intercettare tentativi di exec fd-relative o con flag dedicati;
+- salvare `dirfd`, `pathname`, `flags` e `argv`;
+- distinguere casi come path relativo a directory file descriptor o
+  `AT_EMPTY_PATH`.
+
+`execveat` non sostituisce `execve`: sono syscall diverse. Il payload e'
+volutamente diverso per evitare ridondanza:
+
+- `execve`: `pathname`, `argv`;
+- `execveat`: `dirfd`, `pathname`, `flags`, `argv`.
+
+Il decoder userspace ora supporta `StrArrT`, quindi `argv` viene esposto come
+lista Go/JSON di stringhe e nel formato `table` come:
+
+```text
+argv=["cmd","arg1","arg2"]
+```
+
+Per testarlo non basta lanciare comandi comuni come `ls` o `whoami`, perche'
+di solito usano `execve`. Serve un programma che invochi esplicitamente
+`SYS_execveat`.
 
 ### `sched_process_exit`
 
@@ -98,6 +136,54 @@ Scopo:
 
 - intercettare controlli di capability;
 - salvare capability richiesta.
+
+### `security_bprm_check`
+
+Tipo attach:
+
+```text
+kprobe/security_bprm_check
+```
+
+Scopo:
+
+- intercettare la validazione security del binario durante il percorso di exec;
+- salvare il path risolto dal kernel;
+- salvare metadati stabili del file (`dev`, `inode`);
+- salvare `filename`, `argc` ed `envc` dal `linux_binprm`.
+
+Posizione nella pipeline di exec:
+
+```text
+execve / execveat
+    -> prepare linux_binprm
+    -> security_bprm_check
+    -> sched_process_exec, se l'exec riesce
+```
+
+Questo evento e' quindi diverso da `execve` e da `sched_process_exec`.
+`execve`/`execveat` descrivono la richiesta fatta da userspace,
+`security_bprm_check` descrive il file eseguibile che il kernel sta validando,
+mentre `sched_process_exec` conferma che il cambio immagine e' avvenuto.
+
+Campi emessi:
+
+- `pathname`: path dell'eseguibile ricostruito da `linux_binprm->file`;
+- `dev`: device del filesystem che contiene il file;
+- `inode`: inode del file eseguibile;
+- `filename`: valore di `linux_binprm->filename`;
+- `argc`: numero di argomenti del nuovo programma;
+- `envc`: numero di variabili d'ambiente del nuovo programma.
+
+`dev` e `inode` sono utili per identificare il file in modo piu' stabile del
+solo path, per esempio in presenza di rename o hard link.
+
+Nota tecnica: Tracee salva anche `argv` ed eventualmente `envp` nel percorso
+exec. Il progetto ora supporta gli array di stringhe nel decoder e li usa per
+`execve`/`execveat`. Su `security_bprm_check` la raccolta di `argv` non e'
+stata ancora aggiunta perche' richiede una scelta piu' precisa sulle dipendenze
+tra hook syscall e hook LSM. `envp` resta intenzionalmente escluso per ora:
+produce molto rumore e puo' contenere dati sensibili.
 
 ### `security_task_setrlimit`
 

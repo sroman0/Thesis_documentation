@@ -256,13 +256,21 @@ il target noto come elemento di semplificazione e ottimizzazione.
 **Decisione:** quando esiste un hook specifico e stabile sul kernel target,
 preferirlo a un hook generico piu' filtro manuale. Il primo caso applicato e'
 `execve`: invece di un secondo `raw_tracepoint/sys_enter` che gira per ogni
-syscall, il progetto usa `tracepoint/syscalls/sys_enter_execve`.
+syscall, il progetto usa `tracepoint/syscalls/sys_enter_execve`. La stessa
+scelta e' stata applicata a `execveat`, usando
+`tracepoint/syscalls/sys_enter_execveat`.
+
+`execveat` resta un evento separato da `execve`: non viene trattato come
+semplice alias, perche' espone informazioni aggiuntive (`dirfd`, `flags`) utili
+per capire exec relative a file descriptor o casi come `AT_EMPTY_PATH`.
 
 **Conseguenze:**
 
 - meno lavoro inutile lato kernel;
 - semantica dell'evento piu' chiara;
 - registry probe Go esteso con supporto a tracepoint classici;
+- payload meno ridondante: `execve` espone il path, `execveat` espone anche
+  `dirfd` e `flags`;
 - maggiore dipendenza dal kernel target, accettata come parte della novelty
   del progetto;
 - resta disponibile `raw_sys_enter` per bookkeeping syscall e casi piu'

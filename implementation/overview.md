@@ -148,10 +148,14 @@ Completato per MVP:
 - ring buffer reader;
 - perf buffer reader;
 - decoder Go per context e argomenti attuali;
+- decoder Go per array di stringhe (`StrArrT`) e array Tracee-like
+  null-delimited (`ArgsArrT`);
 - output layer separato con formato `json` normalizzato e `table`.
 - filtro userspace per `comm`.
 - workflow Docker per build, shell e demo runtime.
-- evento `execve` su tracepoint dedicato `syscalls/sys_enter_execve`;
+- eventi `execve` e `execveat` su tracepoint dedicati
+  `syscalls/sys_enter_execve` e `syscalls/sys_enter_execveat`;
+- payload `argv` per `execve`/`execveat`;
 - filtro dei log libbpf/CO-RE tramite `--log-level`.
 
 Manca ancora:
