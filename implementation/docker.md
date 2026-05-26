@@ -1,15 +1,18 @@
 # Docker nel progetto
 
-Questo documento spiega in modo semplice come Docker entra nel nostro progetto,
-perché lo stiamo usando e quali problemi risolve davvero.
+Docker nel progetto ha due usi distinti: ci dà un ambiente di sviluppo
+riproducibile e ci permette di produrre una vera immagine runtime del tool.
+Questa distinzione è importante perché il progetto non deve solo compilare
+localmente: in prospettiva deve poter girare anche dentro un pod Kubernetes.
 
-L'idea importante da tenere a mente è questa: Docker ci aiuta soprattutto a
-rendere riproducibile l'ambiente di build. Per l'esecuzione eBPF, invece, il
-tool continua a dipendere dal kernel della macchina host.
+Il punto chiave è questo: Docker standardizza lo userspace, quindi Go, clang,
+LLVM, libelf, zlib e il binario finale. Non cambia però il kernel. Quando il
+tool gira in container, i programmi eBPF vengono comunque caricati nel kernel
+del nodo host.
 
-## Il problema che Docker risolve
+## Perché lo usiamo
 
-Il nostro tool ha dipendenze abbastanza specifiche:
+Il tool richiede dipendenze abbastanza specifiche:
 
 - Go e CGO;
 - `clang` e LLVM per compilare il codice eBPF;
@@ -19,203 +22,127 @@ Il nostro tool ha dipendenze abbastanza specifiche:
 - `libbpfgo` e il codice sorgente di `libbpf`;
 - un kernel Linux con BTF disponibile.
 
-Installare e allineare tutte queste dipendenze manualmente su ogni macchina è
-scomodo. Inoltre, branch diversi possono richiedere piccoli cambiamenti
-nell'ambiente. Docker ci permette di descrivere questo ambiente in un file,
-il `Dockerfile`, e ricostruirlo in modo prevedibile.
+Senza Docker, ogni macchina deve avere queste dipendenze installate e allineate
+a mano. Con Docker descriviamo l'ambiente nel `Dockerfile` e lo ricostruiamo in
+modo prevedibile.
 
-In pratica, invece di dire:
+## Due immagini logiche
 
-> installa questi pacchetti, usa questa versione di Go, assicurati che clang
-> sia presente, controlla pkg-config, poi prova a compilare
+Il Dockerfile è organizzato in più stage:
 
-possiamo dire:
-
-```bash
-make docker-build
-```
-
-e lasciare che Docker prepari l'ambiente di compilazione.
-
-## Immagine e container
-
-Docker introduce due concetti principali: immagine e container.
-
-L'immagine è il template. Nel nostro caso contiene Go, clang, LLVM e le librerie
-necessarie per compilare il progetto.
-
-Il container è un processo avviato a partire da quell'immagine. Quando lanciamo
-un target come `make docker-build`, Docker crea un container temporaneo, monta
-la repository dentro il container e compila il progetto.
+- `dev`: contiene toolchain e dipendenze di build;
+- `builder`: copia il codice del progetto e compila il binario;
+- `runtime`: contiene solo le librerie runtime e il binario `project`.
 
 ```mermaid
 flowchart LR
-    D[Dockerfile] --> I[Docker image]
-    I --> C[Container]
-    C --> B[Build del progetto]
-    B --> O[dist/project.bpf.o<br/>dist/project]
+    D[dev stage<br/>Go, clang, LLVM, make] --> B[builder stage<br/>COPY codice + make build]
+    B --> R[runtime stage<br/>/usr/local/bin/project]
+    R --> K[Pod o container Docker]
 ```
 
-Nel nostro caso l'immagine viene costruita con:
+Questa struttura risolve il problema che avevamo all'inizio: l'immagine non era
+veramente applicativa, perché il codice entrava solo tramite bind mount. Ora
+l'immagine runtime contiene già il tool compilato.
+
+## Immagine runtime
+
+Il target:
 
 ```bash
 make docker-image
 ```
 
-Questo target usa il `Dockerfile` in `demo_project/Dockerfile`.
+costruisce lo stage `runtime` e produce, di default:
 
-## Cosa contiene il Dockerfile
-
-Il Dockerfile parte da un'immagine ufficiale Go:
-
-```dockerfile
-FROM golang:1.22-bookworm
+```text
+demo-project-ebpf:runtime
 ```
 
-Poi installa i pacchetti necessari alla build:
+Su un checkout appena clonato bisogna prima eseguire:
 
-```dockerfile
-clang
-gcc
-git
-libc6-dev
-libelf-dev
-llvm
-make
-pkg-config
-zlib1g-dev
+```bash
+make init
 ```
 
-Questi pacchetti sono quelli che normalmente installeremmo a mano sulla VM.
-Docker li mette dentro l'immagine, così la build non dipende più dallo stato
-della macchina locale.
+Il motivo è semplice: il Dockerfile copia il contenuto già presente nella
+working tree. Siccome `.git` non entra nel build context, il container non può
+inizializzare i submodule al posto nostro.
 
-## Come entra il codice nel container
+Dentro questa immagine viene installato:
 
-Il codice non viene copiato dentro l'immagine. Viene montato al momento
-dell'esecuzione del container.
-
-Nel Makefile questo avviene con:
-
-```make
-DOCKER_WORKDIR ?= $(CURDIR)
-DOCKER_MOUNT = -v $(CURDIR):$(DOCKER_WORKDIR) -w $(DOCKER_WORKDIR)
+```text
+/usr/local/bin/project
 ```
 
-Significa:
+e viene copiato anche l'oggetto eBPF compilato:
 
-- monta la directory corrente del progetto dentro il container;
-- rendila visibile nello stesso path assoluto usato sull'host;
-- usa quel path come working directory.
+```text
+/opt/project/project.bpf.o
+```
 
-Usare lo stesso path dell'host evita un problema sottile: alcuni file generati
-da `libbpf` e `pkg-config` contengono path assoluti. Se il progetto venisse
-montato in un path diverso, per esempio `/src`, quei path potrebbero puntare a
-directory inesistenti dentro il container.
-
-Quindi, quando il container esegue `make build`, sta compilando il codice reale
-della repository locale.
+Il binario Go usa normalmente l'oggetto eBPF embedded, quindi non dipende da un
+volume montato con la repository. Questo rende l'immagine adatta a scenari come
+Docker runtime o Kubernetes.
 
 ```mermaid
-flowchart LR
-    H[Repository host<br/>/home/.../demo_project] -- volume mount --> C[Container<br/>/home/.../demo_project]
-    C -- make build --> D[dist/]
-    D -- scritto su volume --> H
+flowchart TD
+    A[Repository locale] --> B[docker build --target runtime]
+    B --> C[Compila libbpf, eBPF object e Go binary]
+    C --> D[Immagine runtime]
+    D --> E[/usr/local/bin/project]
 ```
 
-Questo è utile perché gli artefatti generati restano disponibili sulla macchina
-host:
+## Immagine di sviluppo
+
+Per lo sviluppo locale resta disponibile lo stage `dev`. Viene usato da:
+
+```bash
+make docker-build
+make docker-shell
+```
+
+`make docker-build` compila il progetto dentro un container con toolchain
+controllata, ma monta la repository dal filesystem host. Gli artefatti vengono
+scritti nella directory locale:
 
 ```text
 demo_project/dist/project.bpf.o
 demo_project/dist/project
 ```
 
-## Build del progetto con Docker
-
-Il target principale per compilare è:
-
-```bash
-make docker-build
-```
-
-Internamente fa due cose:
+Questo comportamento è utile durante lo sviluppo perché permette di modificare
+il codice sull'host e compilare dentro un ambiente pulito senza creare ogni
+volta una nuova immagine runtime.
 
 ```mermaid
-sequenceDiagram
-    participant User as Utente
-    participant Make as Makefile
-    participant Docker as Docker
-    participant Container as Container
-
-    User->>Make: make docker-build
-    Make->>Docker: build immagine
-    Docker-->>Make: immagine pronta
-    Make->>Container: docker run ... make build
-    Container->>Container: compila libbpf, eBPF object e Go binary
-    Container-->>User: artefatti in dist/
+flowchart LR
+    H[Repository host] -- bind mount --> C[Container dev]
+    C -- make build --> D[dist/]
+    D -- scritto sul mount --> H
 ```
 
-Dentro il container viene eseguito:
+`make docker-shell` apre invece una shell interattiva nello stesso ambiente:
 
 ```bash
-make build
+make docker-shell
 ```
 
-Quindi il comportamento è lo stesso della build locale, ma con dipendenze
-controllate da Docker.
+È utile per debug di build, `pkg-config`, `clang`, `go env` e dipendenze.
 
-## Perché usiamo `--network=host` durante la build
+## Esecuzione da Docker
 
-Nel nostro Makefile sia `docker-image` sia `docker-build` usano la rete host.
-Il primo ne ha bisogno per `apt-get update`, il secondo per scaricare eventuali
-moduli Go mancanti.
-
-Il target `docker-image` usa:
-
-```bash
-docker build --network=host -t demo-project-ebpf:dev .
-```
-
-Questo è stato aggiunto perché sulla VM il container di build non riusciva a
-risolvere `deb.debian.org` durante `apt-get update`.
-
-L'errore era simile a:
-
-```text
-Temporary failure resolving 'deb.debian.org'
-Unable to locate package clang
-```
-
-Con `--network=host`, Docker usa la rete dell'host durante la fase di build.
-Su una VM Linux questo è spesso il modo più semplice per evitare problemi DNS
-specifici del bridge Docker.
-
-Lo stesso principio vale per `docker-build`: se Go deve scaricare un modulo da
-`proxy.golang.org`, il container usa la stessa rete dell'host.
-
-Se non serve, si può tornare al comportamento standard:
-
-```bash
-make docker-image DOCKER_BUILD_NETWORK=default
-```
-
-## Esecuzione del tool con Docker
-
-Compilare in Docker è semplice. Eseguire un tool eBPF in Docker richiede invece
-più attenzione.
-
-Il motivo è che un container non ha un kernel separato. Usa il kernel della
-macchina host. Quindi, quando il nostro binario carica programmi eBPF, li sta
-caricando nel kernel reale della VM.
-
-Per questo il target:
+Il target:
 
 ```bash
 make docker-run ARGS="--events sched_process_exec --output table"
 ```
 
-usa opzioni più forti:
+usa l'immagine runtime e avvia direttamente `project`. Non monta più la
+repository nel container, perché il binario è già dentro l'immagine.
+
+Per eseguire eBPF servono comunque privilegi e accesso ad alcune risorse del
+nodo:
 
 ```bash
 --privileged
@@ -224,19 +151,19 @@ usa opzioni più forti:
 -v /sys/fs/bpf:/sys/fs/bpf
 ```
 
-Queste opzioni servono a dare al container accesso alle parti del sistema
-necessarie per eBPF.
+Queste opzioni servono perché il container non ha un kernel proprio. Il tool
+sta osservando il kernel reale della macchina host.
 
 ```mermaid
 flowchart TB
-    subgraph Host["VM host"]
-        K[Kernel Linux<br/>eBPF verifier, hooks, maps]
+    subgraph Host["Nodo host"]
+        K[Kernel Linux<br/>verifier, hooks, BPF maps]
         BTF[/sys/kernel/btf/vmlinux]
         BPFFS[/sys/fs/bpf]
     end
 
-    subgraph Container["Container Docker"]
-        P[dist/project]
+    subgraph Container["Container runtime"]
+        P[/usr/local/bin/project]
     end
 
     P -->|carica programmi eBPF| K
@@ -244,112 +171,100 @@ flowchart TB
     P -->|usa bpffs| BPFFS
 ```
 
-Questa è la differenza fondamentale rispetto a una normale applicazione Docker:
-il nostro tool non osserva solo il container, ma il kernel host.
+## Implicazioni per Kubernetes
 
-## Cosa fanno le opzioni di runtime
+In Kubernetes l'immagine runtime può essere usata direttamente in un pod. La
+forma più naturale, se vogliamo osservare tutti i nodi, è un DaemonSet: un pod
+per ogni nodo.
 
-`--privileged` dà al container privilegi sufficienti per caricare programmi eBPF
-e interagire con risorse del kernel. Senza questa opzione, il caricamento degli
-hook eBPF fallirebbe quasi sicuramente.
+Un esempio minimale di configurazione runtime è:
 
-`--pid=host` fa vedere al container il namespace dei processi dell'host. Questo
-è importante perché il tool osserva eventi di sistema e processi reali della VM.
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: vesuvius
+spec:
+  selector:
+    matchLabels:
+      app: vesuvius
+  template:
+    metadata:
+      labels:
+        app: vesuvius
+    spec:
+      hostPID: true
+      containers:
+        - name: vesuvius
+          image: demo-project-ebpf:runtime
+          args: ["--events", "security_bprm_check,execve,execveat", "--output", "json"]
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: btf
+              mountPath: /sys/kernel/btf
+              readOnly: true
+            - name: bpffs
+              mountPath: /sys/fs/bpf
+      volumes:
+        - name: btf
+          hostPath:
+            path: /sys/kernel/btf
+        - name: bpffs
+          hostPath:
+            path: /sys/fs/bpf
+```
 
-Il mount di `/sys/kernel/btf` rende disponibile il file BTF del kernel. Questo
-serve per CO-RE, cioè per permettere al codice eBPF di adattarsi alle strutture
-kernel della macchina su cui gira.
+Questo non è ancora un manifest di produzione completo, ma mostra i concetti
+fondamentali: immagine runtime, privilegi, `hostPID`, BTF e BPF filesystem del
+nodo.
 
-Il mount di `/sys/fs/bpf` rende disponibile il filesystem BPF. È utile per mappe
-e oggetti BPF gestiti dal kernel.
+## Rete durante la build
+
+Nel Makefile usiamo di default:
+
+```bash
+DOCKER_BUILD_NETWORK ?= host
+```
+
+Quindi la build Docker usa:
+
+```bash
+docker build --network=host ...
+```
+
+Questo è stato utile sulla VM perché il bridge Docker aveva problemi DNS verso
+repository Debian e Go. Se la rete Docker funziona correttamente, si può tornare
+al comportamento standard:
+
+```bash
+make docker-image DOCKER_BUILD_NETWORK=default
+```
 
 ## Cosa Docker non risolve
 
-Docker non cambia il kernel.
-
-Se la VM usa:
+Docker non rende più moderno il kernel. Se il nodo usa:
 
 ```text
 Linux 4.18.0-553.109.1.el8_10.x86_64
 ```
 
-il tool continuerà a girare su quel kernel, anche dentro Docker.
+il tool continuerà a dipendere da quel kernel anche dentro il container.
+Restano quindi validi:
 
-Questo significa che restano validi i limiti del kernel host:
-
+- limiti del verifier;
 - helper eBPF disponibili;
-- comportamento del verifier;
-- supporto a ring buffer o perf buffer;
-- disponibilità e qualità del BTF;
+- qualità del BTF;
+- supporto reale a ring buffer e perf buffer;
 - differenze dovute ai backport Rocky/RHEL.
-
-Docker rende più stabile la build, ma non rende più moderno il kernel.
-
-## Flusso completo nel nostro progetto
-
-Il flusso completo è questo:
-
-```mermaid
-flowchart TD
-    A[make docker-image] --> B[Costruisce immagine con Go, clang, LLVM, libelf]
-    B --> C[make docker-build]
-    C --> D[Container monta demo_project nello stesso path dell'host]
-    D --> E[make build dentro il container]
-    E --> F[Genera dist/project.bpf.o]
-    E --> G[Genera dist/project]
-    G --> H[make docker-run ARGS=...]
-    H --> I[Container privilegiato]
-    I --> L[Carica eBPF nel kernel host]
-    L --> M[Eventi letti da userspace]
-```
-
-## Quando conviene usare Docker
-
-Docker conviene quando:
-
-- una macchina non ha ancora tutte le dipendenze installate;
-- vogliamo evitare differenze tra ambienti di sviluppo;
-- vogliamo una build ripetibile per demo o test;
-- dobbiamo collaborare su branch diversi senza rincorrere pacchetti mancanti;
-- vogliamo isolare l'ambiente di compilazione dal sistema host.
-
-Per lo sviluppo quotidiano sulla VM già configurata, la build locale può essere
-più veloce:
-
-```bash
-make build
-```
-
-Per una demo o per riallineare l'ambiente, Docker è più prevedibile:
-
-```bash
-make docker-build
-```
-
-## Limiti pratici
-
-Docker aggiunge un po' di overhead: la prima build dell'immagine può essere
-lenta perché scarica l'immagine base e installa i pacchetti Debian.
-
-Inoltre, se la rete Docker o il DNS della VM non sono configurati bene,
-`apt-get update` può fallire durante `docker build`. Per questo nel Makefile
-usiamo `--network=host` di default.
-
-Infine, `make docker-run` richiede privilegi elevati. È normale per un tool eBPF,
-ma significa che va usato solo in un ambiente controllato, come la nostra VM di
-test.
 
 ## Riassunto
 
-Docker nel nostro progetto serve principalmente a rendere la build più
-riproducibile.
+Ora Docker copre due esigenze. Per lo sviluppo, lo stage `dev` permette di
+compilare dentro un ambiente controllato montando la repository locale. Per il
+deployment, lo stage `runtime` produce un'immagine con il codice già compilato e
+il binario già installato.
 
-La compilazione avviene dentro un container con dipendenze controllate. Gli
-artefatti vengono scritti nella directory locale `dist/`.
-
-L'esecuzione, invece, resta legata al kernel host: il container lancia il nostro
-binario, ma gli hook eBPF vengono caricati nella VM reale. Per questo servono
-privilegi, BTF e accesso a `/sys/fs/bpf`.
-
-In una frase: Docker standardizza l'ambiente userspace, ma il comportamento eBPF
-dipende ancora dal kernel della macchina su cui stiamo osservando gli eventi.
+Questa seconda parte è quella importante per Kubernetes: il pod non deve
+dipendere dal codice sorgente montato dall'esterno, ma deve avviare direttamente
+`/usr/local/bin/project` dall'immagine.

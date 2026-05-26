@@ -235,6 +235,54 @@ security_bprm_check   -> validazione kernel del binario
 sched_process_exec    -> exec riuscita
 ```
 
+## Testare `security_task_fix_setuid`
+
+Terminale 1:
+
+```bash
+make run ARGS="--events security_task_fix_setuid --output table"
+```
+
+Esca piu' pulita:
+
+```bash
+sudo python3 -c 'import os; os.setuid(65534); print(os.getuid(), os.geteuid())'
+```
+
+`65534` e' normalmente l'UID dell'utente `nobody`.
+
+Output atteso:
+
+```text
+event=security_task_fix_setuid ... args=old_uid=0,new_uid=65534,old_euid=0,new_euid=65534,...
+```
+
+Esca alternativa:
+
+```bash
+sudo -u nobody id
+```
+
+Questa seconda esca genera piu' rumore perche' `sudo`, PAM e la sessione shell
+possono alternare piu' volte UID effettivo e filesystem UID prima di eseguire
+il comando finale.
+
+Lettura del campo `flags`:
+
+```text
+1  LSM_SETID_ID   setuid/setgid
+2  LSM_SETID_RE   setreuid/setregid
+4  LSM_SETID_RES  setresuid/setresgid
+8  LSM_SETID_FS   setfsuid/setfsgid
+```
+
+Se l'evento non viene emesso, controllare che il simbolo sia presente nel
+kernel:
+
+```bash
+sudo grep security_task_fix_setuid /proc/kallsyms
+```
+
 ## Testare `security_settime64`
 
 Terminale 1:

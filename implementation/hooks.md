@@ -232,6 +232,67 @@ Nota: questi valori sono ancora stampati in forma numerica. Un miglioramento
 futuro sara' mappare costanti come `PR_SET_VMA`, `PR_SET_NAME`,
 `PR_SET_NO_NEW_PRIVS` e `PR_SET_SECCOMP`.
 
+### `security_task_fix_setuid`
+
+Tipo attach:
+
+```text
+kprobe/security_task_fix_setuid
+```
+
+Scopo:
+
+- intercettare cambiamenti degli attributi UID del task durante il percorso
+  `set*uid`;
+- confrontare le credenziali vecchie e nuove prima che vengano installate;
+- emettere l'evento solo se cambia almeno uno tra `uid`, `euid`, `suid` e
+  `fsuid`;
+- osservare transizioni di privilegio come `root -> nobody`, `utente -> root`
+  o cambi temporanei di effective UID eseguiti da programmi come `sudo` e
+  `sshd`.
+
+Campi emessi:
+
+- `old_uid`, `new_uid`: real UID prima e dopo la transizione;
+- `old_euid`, `new_euid`: effective UID prima e dopo la transizione;
+- `old_suid`, `new_suid`: saved UID prima e dopo la transizione;
+- `old_fsuid`, `new_fsuid`: filesystem UID prima e dopo la transizione;
+- `flags`: tipo di operazione `set*uid` che ha attivato l'hook.
+
+Il campo `flags` usa i valori `LSM_SETID_*` definiti dal kernel:
+
+```text
+LSM_SETID_ID   = 1  setuid/setgid
+LSM_SETID_RE   = 2  setreuid/setregid
+LSM_SETID_RES  = 4  setresuid/setresgid
+LSM_SETID_FS   = 8  setfsuid/setfsgid
+```
+
+Nel kernel moderno questi valori sono definiti in `include/linux/security.h`.
+Il codice di `kernel/sys.c` mostra poi dove vengono usati: per esempio
+`setuid` chiama `security_task_fix_setuid(..., LSM_SETID_ID)`, `setreuid`
+chiama `security_task_fix_setuid(..., LSM_SETID_RE)`, `setresuid` chiama
+`security_task_fix_setuid(..., LSM_SETID_RES)` e `setfsuid` chiama
+`security_task_fix_setuid(..., LSM_SETID_FS)`.
+
+Nota operativa: sul kernel target Rocky Linux 4.18 della VM e' presente il
+simbolo `security_task_fix_setuid`, mentre non e' presente
+`security_task_fix_setgid`. Per questo il progetto ha implementato per ora solo
+la variante UID. Per tracciare cambi GID in modo robusto su questa VM, una
+prossima strada e' osservare `commit_creds` e filtrare le transizioni in cui
+cambiano `gid`, `egid`, `sgid` o `fsgid`.
+
+Fonti utili:
+
+- Linux Kernel API, `security_task_fix_setuid` e `security_task_fix_setgid`:
+  <https://docs.kernel.org/6.15/core-api/kernel-api.html>
+- Definizione di `LSM_SETID_*` in `include/linux/security.h`:
+  <https://codebrowser.dev/linux/linux/include/linux/security.h.html>
+- Uso delle flag nelle syscall `set*uid` in `kernel/sys.c`:
+  <https://codebrowser.dev/linux/linux/kernel/sys.c.html>
+- SafeSetID LSM, contesto security sulle transizioni UID/GID:
+  <https://docs.kernel.org/6.2/admin-guide/LSM/SafeSetID.html>
+
 ## Networking hooks
 
 Gli hook networking sono stati integrati dal branch collaboratore e registrati

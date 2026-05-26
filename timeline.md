@@ -23,6 +23,7 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [2026-05-18 - Prima demo, Docker workflow e documentazione di supporto](daily/2026-05-18.md)
 - [2026-05-19 - Execve dedicata, log libbpf e direzione target-specific](daily/2026-05-19.md)
 - [2026-05-20 - Security bprm check e decoder per array di stringhe](daily/2026-05-20.md)
+- [2026-05-26 - security_task_fix_setuid e studio delle flag LSM_SETID](daily/2026-05-26.md)
 
 ### Implementazione
 
@@ -445,5 +446,45 @@ validazione del binario ed exec riuscita.
 **Note collegate:**
 
 - [Diario dettagliato del giorno](daily/2026-05-20.md)
+- [Hook implementati](implementation/hooks.md)
+- [Comandi utili](debugging/commands.md)
+
+### 2026-05-26
+
+**Tema principale:** aggiunta di `security_task_fix_setuid` per osservare
+transizioni UID e studio delle flag `LSM_SETID_*`.
+
+**Attivita' svolte:**
+
+- Implementato `trace_security_task_fix_setuid` lato eBPF.
+- Registrato l'evento nel registry probe Go.
+- Aggiunta la specifica di decode per `old/new uid`, `old/new euid`,
+  `old/new suid`, `old/new fsuid` e `flags`.
+- Verificato che sul kernel target e' presente `security_task_fix_setuid` ma
+  non `security_task_fix_setgid`.
+- Documentato il significato delle flag `LSM_SETID_ID`, `LSM_SETID_RE`,
+  `LSM_SETID_RES` e `LSM_SETID_FS`.
+- Aggiunto un test manuale pulito basato su `sudo python3` e `os.setuid(65534)`.
+
+**Decisione/nota tecnica:**
+
+`security_task_fix_setgid` non viene aggiunto come kprobe diretto perche' il
+simbolo non e' disponibile sulla VM Rocky Linux 4.18 usata come target. Per
+coprire anche le transizioni GID sara' preferibile valutare `commit_creds`,
+filtrando gli eventi in cui cambiano `gid`, `egid`, `sgid` o `fsgid`.
+
+**File tecnici principali:**
+
+- `demo_project/pkg/ebpf/c/project.bpf.c`
+- `demo_project/pkg/ebpf/c/types.h`
+- `demo_project/pkg/ebpf/probes/probes.go`
+- `demo_project/pkg/events/ids.go`
+- `demo_project/pkg/events/spec.go`
+- `documentation/implementation/hooks.md`
+- `documentation/debugging/commands.md`
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-05-26.md)
 - [Hook implementati](implementation/hooks.md)
 - [Comandi utili](debugging/commands.md)
