@@ -451,8 +451,8 @@ validazione del binario ed exec riuscita.
 
 ### 2026-05-26
 
-**Tema principale:** aggiunta di `security_task_fix_setuid` per osservare
-transizioni UID e studio delle flag `LSM_SETID_*`.
+**Tema principale:** aggiunta di hook semantici per transizioni UID e invio
+segnali tra processi.
 
 **Attivita' svolte:**
 
@@ -465,6 +465,9 @@ transizioni UID e studio delle flag `LSM_SETID_*`.
 - Documentato il significato delle flag `LSM_SETID_ID`, `LSM_SETID_RE`,
   `LSM_SETID_RES` e `LSM_SETID_FS`.
 - Aggiunto un test manuale pulito basato su `sudo python3` e `os.setuid(65534)`.
+- Implementato `trace_security_task_kill` per osservare relazioni
+  `processo sorgente -> segnale -> processo target`.
+- Documentato il test manuale con `sleep` e `kill`.
 
 **Decisione/nota tecnica:**
 
@@ -472,6 +475,11 @@ transizioni UID e studio delle flag `LSM_SETID_*`.
 simbolo non e' disponibile sulla VM Rocky Linux 4.18 usata come target. Per
 coprire anche le transizioni GID sara' preferibile valutare `commit_creds`,
 filtrando gli eventi in cui cambiano `gid`, `egid`, `sgid` o `fsgid`.
+
+`security_task_kill` viene implementato come hook semantico invece che come
+evento syscall Tracee-like: il kernel fornisce gia' il task target, quindi
+l'evento e' piu' leggibile. Il limite da ricordare e' l'assenza del return
+value finale della syscall.
 
 **File tecnici principali:**
 

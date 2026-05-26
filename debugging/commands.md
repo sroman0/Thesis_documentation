@@ -276,12 +276,69 @@ Lettura del campo `flags`:
 8  LSM_SETID_FS   setfsuid/setfsgid
 ```
 
+Descrizione rapida delle flag:
+
+- `LSM_SETID_ID`: percorso `setuid`/`setgid`. Imposta l'ID utente o gruppo del
+  processo. Se il chiamante e' privilegiato, puo' aggiornare real, effective e
+  saved ID; se non lo e', puo' solo passare a un ID gia' consentito, per
+  esempio real o saved ID.
+- `LSM_SETID_RE`: percorso `setreuid`/`setregid`. Permette di gestire real ID
+  ed effective ID separatamente, utile per cambi temporanei di privilegio.
+- `LSM_SETID_RES`: percorso `setresuid`/`setresgid`. Permette di impostare in
+  modo esplicito real, effective e saved ID; e' il caso piu' chiaro quando un
+  programma vuole controllare l'intera transizione di privilegi.
+- `LSM_SETID_FS`: percorso `setfsuid`/`setfsgid`. Modifica solo l'ID usato per
+  i controlli di accesso al filesystem, senza cambiare direttamente effective
+  UID/GID.
+
 Se l'evento non viene emesso, controllare che il simbolo sia presente nel
 kernel:
 
 ```bash
 sudo grep security_task_fix_setuid /proc/kallsyms
 ```
+
+## Testare `security_task_kill`
+
+Terminale 1:
+
+```bash
+make run ARGS="--events security_task_kill --output table"
+```
+
+Terminale 2:
+
+```bash
+sleep 1000 &
+target=$!
+kill -TERM "$target"
+```
+
+Output atteso:
+
+```text
+event=security_task_kill ... args=target_host_pid=...,target_host_tid=...,target_uid=...,target_comm=sleep,signal=SIGTERM(15)
+```
+
+Nel formato `table`, il campo `signal` viene arricchito con il nome simbolico
+del segnale. Per esempio `15` diventa `SIGTERM(15)`, mentre `0` viene mostrato
+come `permission_check(0)` per indicare i controlli di permesso senza invio di
+un segnale reale.
+
+Per osservare altri segnali:
+
+```bash
+sleep 1000 &
+target=$!
+kill -STOP "$target"
+kill -CONT "$target"
+kill -TERM "$target"
+```
+
+Nota: questo evento viene emesso durante la validazione security dell'invio del
+segnale. Non contiene il return value finale della syscall `kill`/`tgkill`.
+Se serve sapere con certezza se la syscall e' riuscita, bisogna usare un evento
+syscall con modello `sys_enter` + `sys_exit`.
 
 ## Testare `security_settime64`
 

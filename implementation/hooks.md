@@ -1,5 +1,46 @@
 # Hook implementati
 
+## Regole decisionali per nuovi hook
+
+Quando si aggiunge un nuovo hook, la scelta del punto di osservazione deve
+partire dal significato che vogliamo dare all'evento, non solo dalla syscall che
+lo genera.
+
+Regole pratiche:
+
+- se serve sapere se l'operazione e' riuscita o fallita, usare un modello
+  syscall `sys_enter` + `sys_exit`, perche' il return value e' noto solo a fine
+  syscall;
+- se serve l'oggetto kernel gia' risolto, preferire un hook semantico
+  `kprobe`/LSM quando disponibile;
+- se l'evento rappresenta un controllo security prima della decisione finale
+  del kernel, usare l'hook LSM/security e documentare chiaramente che l'evento
+  descrive la validazione, non necessariamente il completamento della syscall;
+- se esiste un tracepoint stabile e sufficiente, preferirlo a un kprobe per gli
+  eventi di lifecycle;
+- evitare dispatcher generici quando il kernel target offre un hook specifico
+  piu' economico e piu' leggibile.
+
+Schema mentale:
+
+```text
+Mi serve il return value?
+    si  -> syscall enter/exit, modello Tracee-like
+    no  -> esiste un hook kernel piu' semantico?
+              si  -> kprobe/LSM/security hook
+              no  -> tracepoint o syscall enter dedicata
+```
+
+Esempi:
+
+- `openat`, `mprotect`, `ptrace`, `mount`, `setns`: spesso il return value e'
+  importante, quindi il modello `sys_enter` + `sys_exit` e' piu' corretto;
+- `security_bprm_check`, `security_task_fix_setuid`,
+  `security_socket_connect`, `security_task_kill`: l'hook security offre gia'
+  un significato kernel piu' alto e spesso un oggetto risolto;
+- `sched_process_fork`, `sched_process_exec`, `sched_process_exit`: il kernel
+  espone tracepoint di lifecycle gia' adatti.
+
 ## Process lifecycle
 
 ### `sched_process_fork`
@@ -292,6 +333,42 @@ Fonti utili:
   <https://codebrowser.dev/linux/linux/kernel/sys.c.html>
 - SafeSetID LSM, contesto security sulle transizioni UID/GID:
   <https://docs.kernel.org/6.2/admin-guide/LSM/SafeSetID.html>
+
+### `security_task_kill`
+
+Tipo attach:
+
+```text
+kprobe/security_task_kill
+```
+
+Scopo:
+
+- intercettare tentativi di invio segnale verso un task target;
+- rappresentare la relazione `processo sorgente -> segnale -> processo target`;
+- arricchire l'evento con il task target gia' risolto dal kernel;
+- preparare future detection su terminazione, sospensione o controllo di
+  processi sensibili.
+
+Campi emessi:
+
+- `target_host_pid`: TGID del processo target nel namespace host;
+- `target_host_tid`: TID del task target nel namespace host;
+- `target_uid`: real UID del target;
+- `target_comm`: nome breve del task target;
+- `signal`: numero del segnale richiesto. Lo strato di output lo arricchisce
+  con una label simbolica quando possibile, ad esempio `SIGTERM(15)`.
+
+Il processo sorgente non viene duplicato negli argomenti perche' e' gia'
+presente nel contesto standard dell'evento (`pid`, `tid`, `uid`, `comm`).
+
+Limite noto: questo hook viene eseguito durante la validazione security
+dell'invio del segnale. Non espone il return value finale della syscall che ha
+generato il segnale. L'evento indica quindi che il kernel sta valutando una
+relazione di signal delivery, non che la syscall sia gia' terminata con
+successo. Se in futuro servira' distinguere successo/fallimento in modo
+rigoroso, andra' valutato un evento syscall `kill`/`tgkill`/`pidfd_send_signal`
+con modello `sys_enter` + `sys_exit`.
 
 ## Networking hooks
 

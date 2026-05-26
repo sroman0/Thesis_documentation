@@ -2,6 +2,32 @@
 
 Questo file raccoglie le decisioni architetturali importanti. Ogni decisione dovrebbe spiegare contesto, scelta e conseguenze.
 
+## 2026-05-26 - Regola per scegliere tra syscall engine e hook semantici
+
+**Contesto:** durante la scelta del prossimo hook process/security e' emerso il
+dubbio se seguire sempre il modello Tracee-like, basato su syscall
+`sys_enter`/`sys_exit`, oppure usare hook security piu' specifici come
+`security_task_kill`.
+
+**Decisione:** non esiste una scelta unica. La regola del progetto e':
+
+- usare un modello syscall `sys_enter` + `sys_exit` quando il return value e'
+  necessario per capire se l'operazione e' riuscita o fallita;
+- usare hook semantici `kprobe`/LSM quando il kernel fornisce gia' l'oggetto
+  rilevante e il valore principale e' la relazione security, non il risultato
+  finale della syscall;
+- usare tracepoint quando il kernel espone un evento lifecycle stabile e
+  sufficiente.
+
+**Conseguenze:**
+
+- il progetto resta piu' piccolo e target-specific rispetto a Tracee;
+- il syscall engine generico resta utile per feature future come `mprotect`,
+  `ptrace`, `mount`, `setns`, `chmod` o `chown`;
+- hook come `security_bprm_check`, `security_task_fix_setuid` e
+  `security_task_kill` vengono trattati come eventi semantici, anche se non
+  espongono direttamente il return value della syscall.
+
 ## 2026-04-29 - Usare `cilium/ebpf` invece di `libbpfgo`
 
 **Contesto:** Tracee usa `libbpfgo`, ma il progetto di tesi vuole un MVP piu' leggero in Go.

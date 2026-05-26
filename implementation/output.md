@@ -47,6 +47,13 @@ Esempio:
 event=cap_capable pid=1374462 tid=1374462 uid=1000 comm=cpuUsage.sh args=cap=CAP_SYS_ADMIN(21)
 ```
 
+Per gli eventi di signal delivery il numero del segnale viene arricchito nello
+stesso modo:
+
+```text
+event=security_task_kill ... args=target_comm=sleep,signal=SIGTERM(15)
+```
+
 Questo formato sacrifica alcuni metadati dettagliati per rendere l'output
 leggibile mentre il tracer gira.
 
@@ -57,6 +64,7 @@ I test del package output verificano:
 - che il JSON prodotto sia valido;
 - che `comm` venga convertito da array C-style a stringa;
 - che capability numeriche come `21` vengano convertite in `CAP_SYS_ADMIN`;
+- che segnali numerici come `15` vengano convertiti in `SIGTERM`;
 - che il formato table contenga i campi essenziali;
 - che formati non supportati vengano rifiutati dalla factory.
 
@@ -68,9 +76,9 @@ GOCACHE=/tmp/go-build go test ./pkg/output -v
 
 ## Limiti attuali
 
-Il mapping simbolico e' presente per le Linux capabilities. Altri valori
-numerici, come syscall, resource limit o opzioni `prctl`, sono ancora stampati
-come numeri e potranno essere arricchiti nello stesso layer.
+Il mapping simbolico e' presente per Linux capabilities e segnali POSIX comuni.
+Altri valori numerici, come syscall, resource limit o opzioni `prctl`, sono
+ancora stampati come numeri e potranno essere arricchiti nello stesso layer.
 
 Esempio:
 
