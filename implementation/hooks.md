@@ -226,6 +226,155 @@ stata ancora aggiunta perche' richiede una scelta piu' precisa sulle dipendenze
 tra hook syscall e hook LSM. `envp` resta intenzionalmente escluso per ora:
 produce molto rumore e puo' contenere dati sensibili.
 
+### `security_file_open`
+
+Tipo attach:
+
+```text
+kprobe/security_file_open
+```
+
+Scopo:
+
+- intercettare aperture file dopo la risoluzione VFS;
+- osservare il path risolto dal kernel, non solo il path richiesto da
+  userspace;
+- salvare metadati stabili del file (`dev`, `inode`, `ctime`);
+- preparare future detection su accesso a file sensibili, credential files,
+  log, configurazioni e artefatti eseguibili.
+
+Campi emessi:
+
+- `pathname`: path risolto dal kernel a partire da `struct file->f_path`;
+- `flags`: flag di apertura presenti in `file->f_flags`;
+- `dev`: device del filesystem;
+- `inode`: inode del file;
+- `ctime`: change time dell'inode in nanosecondi;
+- `syscall_pathname`: path originariamente passato alla syscall, quando
+  recuperabile da `open`, `openat`, `openat2`, `execve` o `execveat`.
+
+Decisione tecnica: per questo evento non viene emesso il return value. Il valore
+principale dell'hook e' il `struct file *` gia' risolto dal kernel. Per
+distinguere aperture riuscite e fallite e' stato affiancato l'evento syscall
+`open`, descritto sotto.
+
+### `open`
+
+Tipo attach:
+
+```text
+tracepoint/syscalls/sys_enter_open
+tracepoint/syscalls/sys_exit_open
+tracepoint/syscalls/sys_enter_openat
+tracepoint/syscalls/sys_exit_openat
+```
+
+Scopo:
+
+- osservare tentativi di apertura file prima e dopo l'esecuzione della syscall;
+- unificare `open` e `openat` in un singolo evento logico;
+- salvare `returnValue`, quindi distinguere aperture riuscite, file descriptor
+  restituiti ed errori come `EPERM`/`EACCES`/`ENOENT`;
+- completare `security_file_open`, che resta utile per path risolto e metadati
+  stabili del file.
+
+Campi emessi:
+
+- `operation`: variante syscall che ha generato l'evento (`open`, `openat`);
+- `dirfd`: directory file descriptor (`AT_FDCWD` per `open`);
+- `pathname`: path passato dalla syscall;
+- `flags`: flag di apertura richieste;
+- `mode`: mode richiesto quando le flag creano un file;
+- `returnValue`: file descriptor o errore negativo.
+
+Decisione tecnica: Tracee modella le syscall con enter/exit e return value.
+Qui seguiamo lo stesso pattern, ma manteniamo un solo evento user-facing
+`open` con campo `operation`. Su Rocky Linux 4.18 non registriamo `openat2`,
+perche' non e' parte del kernel target e potrebbe rendere fragile l'attach di
+default.
+
+### `chmod`
+
+Tipo attach:
+
+```text
+tracepoint/syscalls/sys_enter_chmod
+tracepoint/syscalls/sys_exit_chmod
+tracepoint/syscalls/sys_enter_fchmod
+tracepoint/syscalls/sys_exit_fchmod
+tracepoint/syscalls/sys_enter_fchmodat
+tracepoint/syscalls/sys_exit_fchmodat
+```
+
+Scopo:
+
+- osservare cambi di permessi su file e file descriptor;
+- unificare `chmod`, `fchmod` e `fchmodat` in un singolo evento logico;
+- emettere l'evento solo all'uscita della syscall, quando e' disponibile
+  `returnValue`;
+- preparare detection su file resi eseguibili, permessi troppo permissivi o
+  tentativi falliti su file sensibili.
+
+Campi emessi:
+
+- `operation`: variante syscall che ha generato l'evento (`chmod`, `fchmod`,
+  `fchmodat`);
+- `dirfd`: directory file descriptor per `chmod`/`fchmodat`;
+- `fd`: file descriptor per `fchmod`;
+- `pathname`: path passato dalla syscall, quando disponibile;
+- `mode`: permessi richiesti in formato ottale nel layer di output;
+- `returnValue`: esito finale della syscall.
+
+Decisione tecnica: Tracee modella `chmod`, `fchmod` e `fchmodat` come eventi
+syscall separati e offre anche un hook semantico `chmod_common`. Nel progetto
+li abbiamo mantenuti come evento logico unico per ridurre la superficie CLI,
+ma abbiamo conservato il pattern enter/exit con return value. Su Rocky Linux
+4.18 `fchmodat` non espone un argomento `flags` come `fchmodat2`, quindi la
+prima versione non salva `flags`.
+
+### `chown`
+
+Tipo attach:
+
+```text
+tracepoint/syscalls/sys_enter_chown
+tracepoint/syscalls/sys_exit_chown
+tracepoint/syscalls/sys_enter_fchown
+tracepoint/syscalls/sys_exit_fchown
+tracepoint/syscalls/sys_enter_fchownat
+tracepoint/syscalls/sys_exit_fchownat
+tracepoint/syscalls/sys_enter_lchown
+tracepoint/syscalls/sys_exit_lchown
+```
+
+Scopo:
+
+- osservare cambi di owner e group su file e file descriptor;
+- unificare `chown`, `fchown`, `fchownat` e `lchown` in un singolo evento
+  logico;
+- emettere l'evento solo all'uscita della syscall, quando e' disponibile
+  `returnValue`;
+- preparare detection su trasferimenti sospetti di ownership, tentativi falliti
+  su file sensibili e modifiche ai metadati di file eseguibili o di sistema.
+
+Campi emessi:
+
+- `operation`: variante syscall che ha generato l'evento (`chown`, `fchown`,
+  `fchownat`, `lchown`);
+- `dirfd`: directory file descriptor per `chown`, `fchownat` e `lchown`;
+- `fd`: file descriptor per `fchown`;
+- `pathname`: path passato dalla syscall, quando disponibile;
+- `owner`: UID richiesto come nuovo owner;
+- `group`: GID richiesto come nuovo group;
+- `flags`: flag di `fchownat`, se presenti;
+- `returnValue`: esito finale della syscall.
+
+Decisione tecnica: l'implementazione segue lo stesso modello di `chmod`, cioe'
+enter/exit con salvataggio temporaneo degli argomenti e submit all'exit. Questo
+mantiene il valore di ritorno, che e' importante per distinguere un cambio owner
+effettivo da un tentativo negato. Le quattro syscall restano un solo evento
+user-facing (`chown`) e vengono distinte tramite `operation`.
+
 ### `security_task_setrlimit`
 
 Tipo attach:
@@ -370,6 +519,47 @@ successo. Se in futuro servira' distinguere successo/fallimento in modo
 rigoroso, andra' valutato un evento syscall `kill`/`tgkill`/`pidfd_send_signal`
 con modello `sys_enter` + `sys_exit`.
 
+### `ptrace`
+
+Tipo attach:
+
+```text
+tracepoint/syscalls/sys_enter_ptrace
+tracepoint/syscalls/sys_exit_ptrace
+```
+
+Scopo:
+
+- intercettare tentativi di tracing o manipolazione di un altro processo;
+- osservare primitive usate da debugger, `strace`, `gdb` e tecniche di
+  process inspection/injection;
+- mantenere il valore di ritorno della syscall per distinguere richieste
+  riuscite e fallite;
+- preparare detection come anti-debugging (`PTRACE_TRACEME`) o code injection
+  (`PTRACE_POKETEXT`, `PTRACE_POKEDATA`).
+
+Modello implementativo:
+
+- `sys_enter_ptrace` salva gli argomenti `request`, `pid`, `addr` e `data`
+  nella `args_map`;
+- `sys_exit_ptrace` recupera gli argomenti, aggiunge `returnValue` e invia un
+  singolo evento userspace;
+- questo segue il modello enter/exit usato quando il return value e'
+  semanticamente importante.
+
+Campi emessi:
+
+- `request`: operazione ptrace richiesta, arricchita in output con label come
+  `PTRACE_ATTACH(16)`;
+- `pid`: PID target indicato dalla syscall;
+- `addr`: indirizzo passato alla syscall;
+- `data`: valore/puntatore passato alla syscall;
+- `returnValue`: risultato finale della syscall.
+
+Nota: a differenza di `security_task_kill`, qui non usiamo l'hook security
+semantico. La scelta e' intenzionale: per `ptrace` e' importante sapere se il
+tentativo e' stato autorizzato o negato dal kernel.
+
 ## Networking hooks
 
 Gli hook networking sono stati integrati dal branch collaboratore e registrati
@@ -469,18 +659,17 @@ Scopo:
 
 ## Nota su ring buffer e perf buffer
 
-Gli hook process/security usano `events_ringbuf_submit` e sono letti dal runtime
-Go tramite `InitRingBuf("events_ringbuf", ...)`.
+Gli hook attuali inviano gli eventi tramite `events_perf_submit`, quindi passano
+dal perf buffer `events`.
 
-Gli hook networking importati usano ancora in gran parte `events_perf_submit`.
-La versione attuale del runtime apre anche `InitPerfBuf("events", ...)`, quindi
-questi eventi possono arrivare allo userspace senza doverli prima migrare a
-ring buffer.
+La ring buffer `events_ringbuf` e la helper `events_ringbuf_submit` restano nel
+progetto per versatilita' e per possibili esperimenti/fallback futuri. Anche il
+runtime Go continua ad aprire `InitRingBuf("events_ringbuf", ...)`, ma la
+direzione operativa corrente e' usare il perf buffer come canale principale.
 
-Resta comunque una scelta architetturale aperta: mantenere due canali oppure
-uniformare tutti gli hook su un solo meccanismo. Tracee usa perf buffer come
-canale principale; per questo, su Rocky Linux 4.18, il perf buffer resta la
-direzione piu' conservativa.
+Questa scelta riduce la frammentazione tra hook storici, syscall enter/exit e
+networking: tutti usano lo stesso transport, mentre il supporto ring buffer non
+viene rimosso.
 
 ## Nota sui tipi di attach
 

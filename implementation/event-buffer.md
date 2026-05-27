@@ -155,9 +155,10 @@ Entrambi i canali finiscono in `handleRawEvent(raw []byte)`, che esegue:
 3. filtro `comm`;
 4. output.
 
-Questa architettura e' transitoria ma utile: permette di supportare gli hook
-process/security gia' su ring buffer e gli hook networking che seguono ancora
-il pattern perf buffer di Tracee.
+Questa architettura resta utile anche dopo la migrazione degli hook correnti al
+perf buffer: il percorso principale usa `events_perf_submit`, mentre
+`events_ringbuf_submit` e la mappa `events_ringbuf` restano disponibili per
+esperimenti, fallback o confronti futuri senza dover ricostruire il runtime.
 
 ## Collegamenti
 

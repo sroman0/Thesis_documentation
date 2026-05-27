@@ -3,8 +3,9 @@
 ## Obiettivo
 
 Il package `demo_project/pkg/output` separa la presentazione degli eventi dal
-runtime eBPF. `Project.Run()` legge dalla ring buffer, decodifica e filtra; il
-package output decide come trasformare l'evento in una riga stampabile.
+runtime eBPF. `Project.Run()` legge i record raw dai canali eBPF aperti dal
+runtime, oggi principalmente perf buffer, decodifica e filtra; il package output
+decide come trasformare l'evento in una riga stampabile.
 
 Questa scelta riprende in forma ridotta il ruolo del sink stage di Tracee: la
 pipeline non mescola piu' lettura kernel, decoding e formattazione finale.
@@ -54,6 +55,18 @@ stesso modo:
 event=security_task_kill ... args=target_comm=sleep,signal=SIGTERM(15)
 ```
 
+Anche le richieste `ptrace` vengono rese piu' leggibili:
+
+```text
+event=ptrace ... args=request=PTRACE_ATTACH(16),pid=1234,addr=0,data=0,returnValue=0
+```
+
+Per gli eventi file, il formato resta volutamente compatto:
+
+```text
+event=security_file_open ... args=pathname=/etc/hostname,flags=32768,dev=...,inode=...,ctime=...,syscall_pathname=/etc/hostname
+```
+
 Questo formato sacrifica alcuni metadati dettagliati per rendere l'output
 leggibile mentre il tracer gira.
 
@@ -65,6 +78,7 @@ I test del package output verificano:
 - che `comm` venga convertito da array C-style a stringa;
 - che capability numeriche come `21` vengano convertite in `CAP_SYS_ADMIN`;
 - che segnali numerici come `15` vengano convertiti in `SIGTERM`;
+- che richieste ptrace come `16` vengano convertite in `PTRACE_ATTACH`;
 - che il formato table contenga i campi essenziali;
 - che formati non supportati vengano rifiutati dalla factory.
 
@@ -76,9 +90,10 @@ GOCACHE=/tmp/go-build go test ./pkg/output -v
 
 ## Limiti attuali
 
-Il mapping simbolico e' presente per Linux capabilities e segnali POSIX comuni.
-Altri valori numerici, come syscall, resource limit o opzioni `prctl`, sono
-ancora stampati come numeri e potranno essere arricchiti nello stesso layer.
+Il mapping simbolico e' presente per Linux capabilities, segnali POSIX comuni e
+richieste `ptrace`. Altri valori numerici, come syscall, resource limit o
+opzioni `prctl`, sono ancora stampati come numeri e potranno essere arricchiti
+nello stesso layer.
 
 Esempio:
 

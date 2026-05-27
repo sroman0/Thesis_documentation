@@ -47,11 +47,14 @@ Questo separa:
 - runtime eBPF.
 
 La config contiene anche `Events.Include`, `Events.Exclude` e
-`Events.FilterComms`, popolati dalle flag CLI:
+`Events.FilterComms`, popolati dalle flag CLI. La flag `--list-events` e'
+gestita prima del caricamento dell'oggetto eBPF, quindi puo' essere usata senza
+privilegi root per ispezionare gli eventi disponibili.
 
 - `--events`: eventi da abilitare, separati da virgola;
 - `--drop-events`: eventi da disabilitare dopo la selezione iniziale;
 - `--comms`: command names da mantenere dopo la decodifica.
+- `--list-events`: stampa gli eventi supportati e termina.
 
 Se `--events` non viene passato, il runtime abilita tutti gli eventi supportati.
 `--drop-events cap_capable` e' utile per ridurre il rumore durante i test.
@@ -147,14 +150,12 @@ La versione attuale apre anche il perf buffer `events`, quindi gli eventi
 networking inviati con `events_perf_submit` possono arrivare allo stesso decoder
 e allo stesso output.
 
-Opzioni future:
+Stato attuale:
 
-- mantenere temporaneamente il modello duale;
-- migrare tutti gli hook a perf buffer, seguendo Tracee piu' da vicino;
-- migrare gli hook networking a `events_ringbuf_submit`, se il ring buffer
-  resta affidabile sul kernel Rocky 4.18;
-- mantenere entrambi i canali, ma documentando chiaramente quali eventi usano
-  quale canale.
+- gli hook correnti usano `events_perf_submit`;
+- il reader perf buffer e' quindi il percorso operativo principale;
+- ring buffer e `events_ringbuf_submit` restano nel codice per versatilita',
+  fallback o confronti futuri.
 
 ## Output layer
 

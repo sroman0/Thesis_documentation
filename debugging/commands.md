@@ -38,6 +38,18 @@ make run_table
 Il target `run_table` e' utile anche per osservare `execve` ed `execveat`,
 perche' usa eventi dedicati senza filtrare per `comm`.
 
+## Listare gli eventi disponibili
+
+La CLI puo' stampare tutti gli eventi supportati senza caricare eBPF e senza
+richiedere `sudo`:
+
+```bash
+./dist/project --list-events
+```
+
+Questo comando legge il registry in `pkg/ebpf/probes/probes.go` e mostra i nomi
+usabili con `--events` e `--drop-events`.
+
 ## Eseguire solo alcuni eventi
 
 Abilitare solo `sched_process_exec`:
@@ -340,6 +352,171 @@ segnale. Non contiene il return value finale della syscall `kill`/`tgkill`.
 Se serve sapere con certezza se la syscall e' riuscita, bisogna usare un evento
 syscall con modello `sys_enter` + `sys_exit`.
 
+## Testare `ptrace`
+
+Terminale 1:
+
+```bash
+make run ARGS="--events ptrace --output table --comms strace,gdb"
+```
+
+Terminale 2:
+
+```bash
+sleep 1000 &
+target=$!
+strace -p "$target"
+```
+
+Output atteso:
+
+```text
+event=ptrace ... comm=strace args=request=PTRACE_SEIZE(16902),pid=...,addr=...,data=...,returnValue=...
+```
+
+Per testare un caso esplicitamente negato, si puo' provare ad agganciare un
+processo non autorizzato o eseguire il comando senza privilegi sufficienti. In
+questo caso `returnValue` sara' negativo, tipicamente `-1` con `EPERM` lato
+userspace.
+
+## Testare `security_file_open`
+
+Terminale 1:
+
+```bash
+make run ARGS="--events security_file_open --output table --comms cat"
+```
+
+Terminale 2:
+
+```bash
+cat /etc/hostname
+```
+
+Output atteso:
+
+```text
+event=security_file_open ... comm=cat args=pathname=/etc/hostname,flags=...,dev=...,inode=...,ctime=...,syscall_pathname=/etc/hostname
+```
+
+Nota: `security_file_open` e' un hook molto rumoroso. Durante i test manuali e'
+quasi sempre necessario usare `--events security_file_open` insieme a
+`--comms <processo>`.
+
+## Testare `open`
+
+Terminale 1:
+
+```bash
+make run ARGS="--events open --output table --comms cat"
+```
+
+Terminale 2:
+
+```bash
+cat /etc/hostname
+cat /etc/shadow 2>/dev/null || true
+```
+
+Output atteso:
+
+```text
+event=open ... comm=cat args=operation=openat(2),dirfd=-100,pathname=/etc/hostname,flags=...,mode=0000,returnValue=3
+event=open ... comm=cat args=operation=openat(2),dirfd=-100,pathname=/etc/shadow,flags=...,mode=0000,returnValue=-13
+```
+
+Il valore positivo di `returnValue` e' il file descriptor restituito. Un valore
+negativo rappresenta l'errore kernel, per esempio `-13` per `EACCES`.
+Per osservare un errore di permesso, lascia il tool in esecuzione con `sudo`,
+ma lancia il comando `cat` da un terminale non privilegiato. Se anche il comando
+di test viene eseguito come root, `/etc/shadow` verra' aperto correttamente e
+`returnValue` sara' un file descriptor positivo.
+
+## Testare `chmod`
+
+Terminale 1:
+
+```bash
+make run ARGS="--events chmod --output table --comms chmod"
+```
+
+Terminale 2:
+
+```bash
+touch /tmp/project-chmod-demo
+chmod 600 /tmp/project-chmod-demo
+chmod 755 /tmp/project-chmod-demo
+```
+
+Output atteso:
+
+```text
+event=chmod ... comm=chmod args=operation=fchmodat(3),dirfd=-100,pathname=/tmp/project-chmod-demo,mode=0755,returnValue=0
+```
+
+Per testare `fchmod` direttamente:
+
+Terminale 1:
+
+```bash
+make run ARGS="--events chmod --output table --comms python3"
+```
+
+Terminale 2:
+
+```bash
+python3 -c 'import os; fd=os.open("/tmp/project-chmod-demo", os.O_RDONLY); os.fchmod(fd, 0o640); os.close(fd)'
+```
+
+In questo caso l'evento contiene `fd` invece di `pathname`.
+
+## Testare `chown`
+
+Terminale 1:
+
+```bash
+make run ARGS="--events chown --output table --comms chown"
+```
+
+Terminale 2:
+
+```bash
+touch /tmp/project-chown-demo
+sudo chown root:root /tmp/project-chown-demo
+sudo chown "$USER":"$USER" /tmp/project-chown-demo
+```
+
+Output atteso:
+
+```text
+event=chown ... comm=chown args=operation=fchownat(3),dirfd=-100,pathname=/tmp/project-chown-demo,owner=0,group=0,flags=...,returnValue=0
+```
+
+Per osservare un tentativo negato, lascia il tool in esecuzione con `sudo` ma
+lancia il comando `chown` da un terminale non privilegiato:
+
+```bash
+chown root:root /tmp/project-chown-demo
+```
+
+In questo caso `returnValue` sara' negativo, tipicamente `-1` (`EPERM`).
+
+Per testare `fchown` direttamente:
+
+Terminale 1:
+
+```bash
+make run ARGS="--events chown --output table --comms python3"
+```
+
+Terminale 2:
+
+```bash
+python3 -c 'import os; fd=os.open("/tmp/project-chown-demo", os.O_RDONLY); os.fchown(fd, os.getuid(), os.getgid()); os.close(fd)'
+```
+
+In questo caso l'evento contiene `fd` invece di `pathname`.
+
 ## Testare `security_settime64`
 
 Terminale 1:
@@ -372,10 +549,9 @@ python3 -m http.server 18080 --bind 127.0.0.1
 curl http://127.0.0.1:18080
 ```
 
-Nota: gli hook networking importati usano ancora in gran parte perf buffer,
-mentre alcuni hook process/security usano ring buffer. La versione attuale del
-runtime legge entrambi i canali (`events_ringbuf` e `events`), quindi questo
-target puo' essere usato per verificare la pipeline networking.
+Nota: gli hook attuali inviano gli eventi tramite perf buffer. Il runtime apre
+ancora anche `events_ringbuf`, ma il percorso operativo corrente usa la mappa
+perf `events`.
 
 ## Installare il binario come comando locale
 
@@ -393,14 +569,17 @@ sudo /usr/local/bin/project --help
 
 ## Verificare il reader duale
 
-La versione attuale apre sia ring buffer sia perf buffer:
+La versione attuale apre ancora sia ring buffer sia perf buffer:
 
 ```text
 events_ringbuf -> InitRingBuf
 events         -> InitPerfBuf
 ```
 
-Per verificare un evento su ring buffer:
+La ring buffer resta disponibile per versatilita' e fallback futuri, mentre gli
+hook correnti usano `events_perf_submit`.
+
+Per verificare un evento sul percorso perf buffer:
 
 ```bash
 make run ARGS="--events sched_process_exec --output table --comms ls"
@@ -412,7 +591,7 @@ Poi, da un altro terminale:
 ls
 ```
 
-Per verificare un evento su perf buffer/networking:
+Per verificare un evento networking:
 
 ```bash
 make filtered

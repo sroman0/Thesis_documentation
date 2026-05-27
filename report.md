@@ -167,7 +167,8 @@ runtime verso `libbpfgo`. Restano comunque differenze importanti:
 - Tracee ha una pipeline eventi e policy piu' completa;
 - Tracee gestisce i kprobe tramite symbol table e puo' attaccarsi per address se un simbolo ha piu' indirizzi;
 - il progetto usa ancora un registry statico piu' semplice;
-- il progetto deve ancora decidere come uniformare ring buffer e perf buffer.
+- il progetto usa ora il perf buffer come transport operativo principale,
+  mantenendo ring buffer e reader come percorso opzionale/fallback.
 
 Tracee usa inoltre un'infrastruttura molto piu' ampia:
 
@@ -580,10 +581,10 @@ rispetto al JSON raw iniziale, ma resta pensato per debugging:
 
 ## 11. Prossimi step consigliati
 
-1. Decidere il canale eventi unico: ring buffer, perf buffer o entrambi.
-2. Aggiungere lost channel e metriche per il perf buffer.
-3. Decidere se migrare gli hook networking a `events_ringbuf_submit` oppure
-   convergere tutto verso perf buffer in stile Tracee.
+1. Aggiungere lost channel e metriche per il perf buffer.
+2. Rendere configurabile la dimensione del perf buffer.
+3. Valutare se mantenere il reader ring buffer come fallback runtime o solo
+   come compatibilita' di codice.
 4. Aggiungere mapping human-readable per `prctl`, socket family/type, resource
    limit e syscall.
 5. Aggiungere filtri per UID, PID o processo padre.

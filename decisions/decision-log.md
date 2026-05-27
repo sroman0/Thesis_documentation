@@ -28,6 +28,28 @@ dubbio se seguire sempre il modello Tracee-like, basato su syscall
   `security_task_kill` vengono trattati come eventi semantici, anche se non
   espongono direttamente il return value della syscall.
 
+## 2026-05-27 - Perf buffer come transport operativo principale
+
+**Contesto:** il progetto manteneva due canali di trasporto per gli eventi:
+ring buffer per i primi hook process/security e perf buffer per syscall
+enter/exit, networking e hook piu' vicini al modello Tracee. Questa divisione
+funzionava, ma rendeva la pipeline piu' difficile da spiegare e da mantenere.
+
+**Decisione:** migrare anche gli hook process/security storici a
+`events_perf_submit`, usando quindi il perf buffer `events` come canale
+operativo principale. La ring buffer `events_ringbuf`, la helper
+`events_ringbuf_submit` e il reader Go restano nel progetto.
+
+**Conseguenze:**
+
+- tutti gli hook attualmente attivi usano lo stesso transport principale;
+- il runtime continua ad aprire sia ring buffer sia perf buffer, quindi non
+  perdiamo versatilita' o possibili fallback futuri;
+- la documentazione della pipeline puo' descrivere il perf buffer come percorso
+  corrente, evitando la distinzione evento-per-evento;
+- resta utile aggiungere metriche/lost channel al perf buffer per osservare
+  eventuali drop.
+
 ## 2026-04-29 - Usare `cilium/ebpf` invece di `libbpfgo`
 
 **Contesto:** Tracee usa `libbpfgo`, ma il progetto di tesi vuole un MVP piu' leggero in Go.
@@ -198,6 +220,10 @@ legge solo la ring buffer.
 `events` con `InitPerfBuf`, quindi il blocco userspace sugli eventi networking
 e' stato rimosso. Rimane aperta la decisione architetturale sul canale unico.
 
+**Stato aggiornato al 2026-05-27:** gli hook correnti sono stati migrati a
+`events_perf_submit`. Il perf buffer e' il canale operativo principale; ring
+buffer e helper restano disponibili come fallback/esperimento.
+
 ## 2026-05-13 - Reader duale per ring buffer e perf buffer
 
 **Contesto:** Tracee usa perf buffer come canale principale. Il progetto aveva
@@ -218,9 +244,8 @@ decoding, filtro evento, filtro `comm` e output.
 - gli eventi ring buffer e perf buffer attraversano la stessa pipeline
   userspace;
 - gli hook networking possono essere testati senza migrare subito il C code;
-- la struttura resta temporanea: bisognera' scegliere se mantenere due canali
-  oppure convergere verso perf buffer, piu' vicino a Tracee e piu' conservativo
-  su Rocky Linux 4.18;
+- la struttura e' stata poi consolidata migrando gli hook correnti a perf
+  buffer, mantenendo pero' il reader ring buffer disponibile;
 - il perf buffer non ha ancora un lost channel configurato, quindi i drop non
   sono osservabili lato userspace.
 

@@ -468,6 +468,12 @@ segnali tra processi.
 - Implementato `trace_security_task_kill` per osservare relazioni
   `processo sorgente -> segnale -> processo target`.
 - Documentato il test manuale con `sleep` e `kill`.
+- Implementato `ptrace` con modello syscall enter/exit: argomenti salvati
+  all'enter e `returnValue` aggiunto all'exit.
+- Implementato `security_file_open` per osservare aperture file con path
+  risolto e metadati stabili (`dev`, `inode`, `ctime`).
+- Aggiunto mapping human-readable per segnali e richieste ptrace nello strato
+  di output.
 
 **Decisione/nota tecnica:**
 
@@ -480,6 +486,42 @@ filtrando gli eventi in cui cambiano `gid`, `egid`, `sgid` o `fsgid`.
 evento syscall Tracee-like: il kernel fornisce gia' il task target, quindi
 l'evento e' piu' leggibile. Il limite da ricordare e' l'assenza del return
 value finale della syscall.
+
+Per `ptrace`, invece, e' stato scelto il modello enter/exit perche' il return
+value e' parte fondamentale della semantica: permette di distinguere tentativi
+autorizzati e negati.
+
+Per `security_file_open` il return value non e' stato incluso: il valore
+principale e' il `struct file *` gia' risolto. Un eventuale evento
+`open/openat/openat2` enter/exit potra' essere aggiunto in futuro per coprire
+esplicitamente successo/fallimento.
+
+Sul lato CLI e' stata aggiunta anche `--list-events`, che stampa gli eventi
+supportati direttamente dal registry delle probe e termina prima del caricamento
+eBPF. Serve come comando rapido di discovery per scegliere i nomi da usare con
+`--events` e `--drop-events`.
+
+E' stato inoltre aggiunto `chmod` come evento logico unico per
+`chmod/fchmod/fchmodat`. L'implementazione usa tracepoint syscall enter/exit,
+salva gli argomenti all'ingresso e invia l'evento all'uscita con
+`returnValue`. La scelta segue il pattern syscall con esito finale, ma riduce
+la superficie CLI rispetto a tre eventi separati.
+
+Come complemento di `security_file_open`, e' stato aggiunto anche `open` come
+evento syscall logico per `open/openat`. Questo evento porta il return value,
+quindi permette di distinguere file descriptor restituiti da errori negativi.
+`openat2` e' stato escluso per compatibilita' con Rocky Linux 4.18.
+
+E' stato aggiunto anche `chown` come evento logico unico per
+`chown/fchown/fchownat/lchown`. Come `chmod`, usa tracepoint syscall enter/exit,
+mantiene il `returnValue` e distingue la variante tramite il campo
+`operation`. L'obiettivo e' coprire cambi ownership riusciti o negati senza
+moltiplicare gli eventi esposti nella CLI.
+
+Gli hook process/security storicamente rimasti su ring buffer sono stati
+migrati al perf buffer. `events_ringbuf_submit`, la mappa `events_ringbuf` e il
+reader Go restano disponibili, ma per ora il transport principale e' `events`
+tramite `events_perf_submit`.
 
 **File tecnici principali:**
 
