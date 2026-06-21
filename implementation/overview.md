@@ -62,8 +62,8 @@ Responsabilita':
 - aprire ring buffer;
 - aprire perf buffer;
 - selezionare quali eventi/probe abilitare;
-- attaccare programmi agli hook selezionati, inclusi kprobe, raw tracepoint
-  e tracepoint classici;
+- attaccare programmi agli hook selezionati, inclusi kprobe, kretprobe, raw
+  tracepoint e tracepoint classici;
 - leggere eventi;
 - decodificare record raw da ring buffer o perf buffer;
 - applicare filtro eventi e filtro `comm`;
@@ -150,20 +150,55 @@ Completato per MVP:
 - decoder Go per context e argomenti attuali;
 - decoder Go per array di stringhe (`StrArrT`) e array Tracee-like
   null-delimited (`ArgsArrT`);
-- output layer separato con formato `json` normalizzato e `table`.
-- filtro userspace per `comm`.
-- workflow Docker per build, shell e demo runtime.
+- output layer separato con formato `json` normalizzato e `table`;
+- filtro userspace per `comm`;
+- workflow Docker per build, shell e demo runtime;
 - eventi `execve` e `execveat` su tracepoint dedicati
   `syscalls/sys_enter_execve` e `syscalls/sys_enter_execveat`;
 - payload `argv` per `execve`/`execveat`;
-- filtro dei log libbpf/CO-RE tramite `--log-level`.
+- filtro dei log libbpf/CO-RE tramite `--log-level`;
+- eventi syscall enter/exit per `chmod`, `chown`, `open` e `memfd_create`;
+- eventi di gestione memoria `mmap`, `mprotect` e `pkey_mprotect`;
+- evento `process_vm_writev` per osservare scritture dirette nella memoria di
+  un processo;
+- evento `process_vm_readv` per osservare letture dirette dalla memoria di un
+  processo;
+- evento `commit_creds` con confronto strutturato delle credenziali applicate;
+- evento `setns` con tipo di namespace simbolico ed esito finale della
+  transizione;
+- evento `unshare` con bitmask `CLONE_*` ed esito finale della separazione;
+- evento `switch_task_ns` differenziale per osservare i namespace realmente
+  sostituiti dal kernel;
+- eventi `security_sb_mount` e `security_sb_umount` con target risolti,
+  filesystem type e flag simboliche;
+- evento `security_inode_unlink` con path, device, inode e ctime del file;
+- eventi `security_inode_rename`, `security_inode_symlink` e
+  `security_inode_mknod` per rename atomici, link simbolici e file speciali;
+- eventi `security_mmap_file` e `security_file_mprotect` per mapping e
+  transizioni di protezione della memoria;
+- eventi `security_bpf`, `security_bpf_map` e `security_bpf_prog` per syscall
+  e oggetti eBPF;
+- eventi `security_kernel_read_file` e `security_kernel_post_read_file` per
+  file letti dal kernel;
+- eventi `security_file_ioctl` e `security_file_permission`;
+- eventi cgroup `cgroup_attach_task`, `cgroup_mkdir` e `cgroup_rmdir`;
+- eventi `call_usermodehelper` e `do_sigaction`;
+- eventi `module_load`, `module_free` e `do_init_module`;
+- evento `process_execute_failed` per tentativi falliti di `execve` e
+  `execveat`;
+- eventi di hardening kernel `proc_create`, `register_kprobe` e
+  `kallsyms_lookup_name`;
+- correlazione degli argomenti tra entry ed exit tramite `args_map`;
+- mapping human-readable per errno, file descriptor, `MFD_*`, `MAP_*` e
+  `PROT_*`, namespace `CLONE_NEW*`, flag mount/umount, eventi eBPF,
+  permessi file, modalita' usermodehelper, puntatori kernel e byte trasferiti.
 
 Manca ancora:
 
 - detection engine;
-- mapping MITRE.
-- arricchimento dell'output con mapping di syscall, resource limit e altre
-  costanti kernel.
+- mapping MITRE;
+- arricchimento dell'output con mapping di syscall, alcune opzioni `prctl`,
+  socket option e costanti driver-specific;
 - dipendenze Makefile piu' precise per ricompilare l'oggetto eBPF quando
   cambiano header `.h` inclusi da `project.bpf.c`.
 
@@ -172,7 +207,9 @@ Manca ancora:
 - [Timeline](../timeline.md)
 - [Userspace lifecycle](userspace-lifecycle.md)
 - [Event buffer](event-buffer.md)
+- [Roadmap hook process e security](hook-roadmap.md)
 - [Decoder Go](decoder.md)
 - [Output layer](output.md)
 - [Hook implementati](hooks.md)
 - [Docker nel progetto](docker.md)
+- [Misurazione prestazioni](performance.md)

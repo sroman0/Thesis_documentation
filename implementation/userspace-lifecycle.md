@@ -87,11 +87,14 @@ Il registry supporta:
 
 - raw tracepoint;
 - tracepoint classici;
-- kprobe.
+- kprobe;
+- kretprobe.
 
 Questo permette di usare hook dedicati come `syscalls/sys_enter_execve` quando
 il kernel target li espone, evitando di filtrare manualmente ogni syscall da un
-hook generico.
+hook generico. La presenza dei kretprobe permette inoltre di modellare eventi
+come `do_init_module`, `register_kprobe` e `kallsyms_lookup_name`, dove il dato
+piu' utile e' disponibile solo al ritorno della funzione kernel.
 
 ## Lettura e decoding eventi
 
@@ -171,7 +174,12 @@ Formati attuali:
 
 Nel formato JSON, campi C-style come `comm` e `uts_name` vengono convertiti in
 stringhe. Gli argomenti `cap` vengono arricchiti con una label simbolica, ad
-esempio `CAP_SYS_ADMIN`.
+esempio `CAP_SYS_ADMIN`. Lo stesso layer traduce errno, segnali, flag di
+memoria, namespace, flag mount/umount e puntatori kernel. Gli eventi
+`switch_task_ns`, `security_sb_mount`, `security_sb_umount`,
+`security_inode_unlink`, `proc_create`, `register_kprobe` e
+`kallsyms_lookup_name` non richiedono un reader dedicato: usano lo stesso perf
+buffer, decoder indicizzato e printer degli altri eventi.
 
 Questa scelta segue il ruolo del `sink` di Tracee in forma semplificata: il
 runtime legge e decodifica, mentre il layer output decide come presentare

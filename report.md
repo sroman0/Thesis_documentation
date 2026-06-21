@@ -9,7 +9,7 @@ L'obiettivo operativo e' stato portare il progetto al punto in cui:
 3. la collection eBPF viene caricata nel kernel;
 4. i programmi eBPF vengono attaccati ai rispettivi hook;
 5. ring buffer `events_ringbuf` e perf buffer `events` vengono drenati dallo
-   userspace.
+ userspace.
 
 Il lavoro e' ispirato a Tracee, ma adattato a un MVP piu' piccolo. La prima
 versione del runtime usava `github.com/cilium/ebpf`; dopo il merge con il
@@ -537,23 +537,38 @@ Esempio JSON normalizzato:
 Limitazioni residue:
 
 - syscall, resource limit e opzioni `prctl` sono ancora numeriche;
-- nuovi hook richiedono aggiornamento dello schema statico in `protocol.go`.
+- nuovi hook richiedono un ID coerente tra C e Go, una voce nello schema
+  statico in `pkg/events/spec.go` e la registrazione della probe.
 
-### 10.2 Attach kprobe semplificato
+Il decoder supporta inoltre array di stringhe e credenziali strutturate. Gli
+eventi namespace/filesystem aggiunti piu' di recente usano gli stessi record
+indicizzati:
 
-Il progetto usa `link.Kprobe(symbol, prog, nil)`.
+- `switch_task_ns` espone soltanto i namespace realmente cambiati;
+- `security_sb_mount` e `security_sb_umount` espongono mountpoint, filesystem
+  type e flag;
+- `security_inode_unlink` espone path, inode, device e ctime.
 
-Tracee e' piu' robusto:
+### 10.2 Registry e attach delle probe
 
-- legge la kernel symbol table;
-- gestisce simboli multipli;
-- puo' attaccare tramite address.
+Il runtime usa `libbpfgo` e il registry in:
 
-Miglioramento futuro:
+```text
+demo_project/pkg/ebpf/probes/probes.go
+```
 
-- introdurre un piccolo `ProbeGroup`;
-- opzionalmente leggere `/proc/kallsyms`;
-- gestire fallback se un simbolo non esiste.
+Ogni voce associa:
+
+- nome evento esposto dalla CLI;
+- nome del programma nell'oggetto eBPF;
+- hook kernel;
+- tipo di attach: raw tracepoint, tracepoint o kprobe.
+
+La selezione con `--events` evita di attaccare programmi non richiesti. Il
+limite ancora presente e' che la compatibilita' del simbolo kprobe viene
+verificata principalmente durante l'attach. Un miglioramento futuro potra'
+aggiungere discovery preventiva dei simboli e fallback espliciti per kernel
+diversi dal target Rocky Linux.
 
 ### 10.3 Stringhe troncate
 
@@ -575,7 +590,8 @@ rispetto al JSON raw iniziale, ma resta pensato per debugging:
 
 - una riga per evento;
 - filtri disponibili per include/exclude eventi e `comm`;
-- enrichment presente per capability;
+- enrichment presente per capability, segnali, errno, memoria, namespace e
+  mount/umount;
 - mapping ancora mancante per `prctl`, socket family/type, resource limit e
   syscall.
 
@@ -588,10 +604,8 @@ rispetto al JSON raw iniziale, ma resta pensato per debugging:
 4. Aggiungere mapping human-readable per `prctl`, socket family/type, resource
    limit e syscall.
 5. Aggiungere filtri per UID, PID o processo padre.
-6. Aggiungere test Go per:
-   - risoluzione path BPF/BTF;
-   - validazione config;
-   - decoder del wire format.
+6. Aggiungere policy che correlino eventi syscall ed eventi semantici, ad
+   esempio `unshare` con `switch_task_ns`.
 
 ## 12. Comandi utili
 

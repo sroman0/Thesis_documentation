@@ -136,6 +136,38 @@ Per testarlo non basta lanciare comandi comuni come `ls` o `whoami`, perche'
 di solito usano `execve`. Serve un programma che invochi esplicitamente
 `SYS_execveat`.
 
+### `process_execute_failed`
+
+Tipo attach:
+
+```text
+tracepoint/syscalls/sys_enter_execve
+tracepoint/syscalls/sys_exit_execve
+tracepoint/syscalls/sys_enter_execveat
+tracepoint/syscalls/sys_exit_execveat
+```
+
+Scopo:
+
+- osservare solo tentativi di exec falliti;
+- correlare entry ed exit della syscall per avere il `returnValue`;
+- distinguere `execve` ed `execveat` tramite il campo `operation`;
+- mantenere il payload compatto: path richiesto, `dirfd`, `flags` e risultato.
+
+Campi emessi:
+
+- `operation`: variante che ha generato l'evento (`execve`, `execveat`);
+- `dirfd`: directory file descriptor, usato da `execveat`;
+- `pathname`: path richiesto dalla syscall;
+- `flags`: flag di `execveat`, zero per `execve`;
+- `returnValue`: errore negativo restituito dal kernel.
+
+Decisione tecnica: nel progetto di riferimento il percorso exec fallito e'
+integrato in una pipeline piu' ampia. Qui e' stato scelto un modello piu'
+diretto e adatto al kernel target: salviamo lo stato in entry e stampiamo solo
+in exit quando il valore di ritorno e' negativo. In questo modo l'evento non
+duplica `sched_process_exec`, che rappresenta invece exec riuscite.
+
 ### `sched_process_exit`
 
 Tipo attach:
@@ -226,6 +258,35 @@ stata ancora aggiunta perche' richiede una scelta piu' precisa sulle dipendenze
 tra hook syscall e hook LSM. `envp` resta intenzionalmente escluso per ora:
 produce molto rumore e puo' contenere dati sensibili.
 
+### `security_bprm_creds_for_exec`
+
+Tipo attach:
+
+```text
+kprobe/security_bprm_creds_for_exec
+```
+
+Scopo:
+
+- osservare una fase successiva del percorso di exec, quando il kernel sta
+  preparando le credenziali del nuovo programma;
+- completare `security_bprm_check` con un checkpoint piu' vicino al cambio
+  effettivo di credenziali;
+- raccogliere gli stessi metadati principali del binario (`pathname`, `dev`,
+  `inode`, `filename`, `argc`, `envc`, `ctime`).
+
+Campi emessi:
+
+- `pathname`: path dell'eseguibile ricostruito dal `struct file`;
+- `dev`, `inode`, `ctime`: identificazione stabile del file;
+- `filename`: valore di `linux_binprm->filename`;
+- `argc`, `envc`: numero di argomenti e variabili d'ambiente.
+
+Nota progettuale: Tracee usa questo hook soprattutto come supporto interno per
+il percorso exec. Nel progetto viene esposto come evento dedicato per rendere
+visibile il momento in cui il kernel prepara le credenziali associate al nuovo
+programma.
+
 ### `security_file_open`
 
 Tipo attach:
@@ -257,6 +318,408 @@ Decisione tecnica: per questo evento non viene emesso il return value. Il valore
 principale dell'hook e' il `struct file *` gia' risolto dal kernel. Per
 distinguere aperture riuscite e fallite e' stato affiancato l'evento syscall
 `open`, descritto sotto.
+
+### `security_bpf`
+
+Tipo attach:
+
+```text
+kprobe/security_bpf
+```
+
+Scopo:
+
+- osservare richieste alla syscall `bpf(2)` nel punto in cui attraversano il
+  controllo security del kernel;
+- distinguere operazioni come `BPF_MAP_CREATE`, `BPF_PROG_LOAD`,
+  `BPF_PROG_ATTACH` e simili;
+- preparare future detection su caricamento di programmi eBPF o creazione di
+  mappe sospette.
+
+Campi emessi:
+
+- `cmd`: comando `bpf(2)`, arricchito in output con il nome simbolico quando
+  noto;
+- `size`: dimensione dell'attributo userspace passato alla syscall.
+
+Decisione tecnica: questa prima versione non copia `union bpf_attr`. La scelta
+riduce costo e complessita' del verifier, mantenendo comunque un segnale utile:
+quale operazione eBPF e' stata richiesta.
+
+### `security_bpf_map`
+
+Tipo attach:
+
+```text
+kprobe/security_bpf_map
+```
+
+Scopo:
+
+- osservare operazioni che attraversano il controllo security su una mappa eBPF
+  gia' esistente;
+- raccogliere identificatori stabili della mappa senza copiare strutture kernel
+  interne;
+- preparare future policy su accesso, freeze, pinning o manipolazione di mappe
+  eBPF.
+
+Campi emessi:
+
+- `map_id`: ID kernel della mappa eBPF;
+- `map_name`: nome della mappa, quando disponibile.
+
+Decisione tecnica: l'evento e' volutamente compatto. Per ora non vengono
+copiati attributi o contenuti della mappa; l'obiettivo e' rendere visibile il
+controllo security e collegarlo a un oggetto identificabile.
+
+### `security_bpf_prog`
+
+Tipo attach:
+
+```text
+kprobe/security_bpf_prog
+```
+
+Scopo:
+
+- osservare operazioni security su programmi eBPF gia' presenti nel kernel;
+- raccogliere ID, nome e tipo del programma;
+- distinguere programmi `KPROBE`, `TRACEPOINT`, `LSM`, `XDP`, `CGROUP_*` e
+  altre famiglie tramite output human-readable.
+
+Campi emessi:
+
+- `prog_id`: ID kernel del programma eBPF;
+- `prog_name`: nome del programma;
+- `prog_type`: tipo del programma, arricchito in output con il nome
+  `BPF_PROG_TYPE_*` quando noto.
+
+Questa informazione e' utile per una futura policy engine perche' permette di
+distinguere non solo il fatto che `bpf(2)` venga usata, ma anche quale oggetto
+eBPF viene toccato.
+
+### `security_kernel_read_file`
+
+Tipo attach:
+
+```text
+kprobe/security_kernel_read_file
+```
+
+Scopo:
+
+- osservare letture di file eseguite dal kernel stesso;
+- rendere visibili casi ad alto valore come moduli kernel, firmware, policy e
+  immagini kexec;
+- salvare metadati stabili del file letto dal kernel.
+
+Campi emessi:
+
+- `pathname`: path risolto del file, quando disponibile;
+- `dev`, `inode`, `ctime`: identificazione stabile del file;
+- `type`: motivo della lettura, ad esempio `READING_MODULE`,
+  `READING_FIRMWARE` o `READING_POLICY`.
+
+Nota: questo hook e' diverso da `security_file_open`. Qui il soggetto
+dell'operazione e' il kernel che legge un file per una propria funzionalita',
+non un processo userspace che apre un normale file descriptor.
+
+### `security_kernel_post_read_file`
+
+Tipo attach:
+
+```text
+kprobe/security_kernel_post_read_file
+```
+
+Scopo:
+
+- completare `security_kernel_read_file` con un checkpoint successivo alla
+  lettura;
+- osservare quanti byte sono stati effettivamente letti dal kernel;
+- mantenere lo stesso contesto file (`pathname`, `dev`, `inode`, `ctime`) e lo
+  stesso tipo di lettura (`READING_MODULE`, `READING_FIRMWARE`, ecc.).
+
+Campi emessi:
+
+- `pathname`: path risolto del file, quando disponibile;
+- `size`: numero di byte letti;
+- `type`: motivo della lettura, arricchito in output con `READING_*`;
+- `dev`, `inode`, `ctime`: metadati stabili del file.
+
+Nota operativa: su alcuni test manuali `security_kernel_read_file` puo' non
+emettere eventi se il file richiesto e' gia' cacheato o se il comando scelto non
+attraversa realmente quel percorso kernel. `security_kernel_post_read_file`
+aiuta a osservare il completamento della lettura quando il percorso viene
+effettivamente raggiunto.
+
+### `security_file_ioctl`
+
+Tipo attach:
+
+```text
+kprobe/security_file_ioctl
+```
+
+Scopo:
+
+- osservare controlli security sulle richieste `ioctl`;
+- collegare il comando `ioctl` al file/device risolto dal kernel;
+- preparare detection future su uso sospetto di device, pseudo-file e
+  interfacce speciali.
+
+Campi emessi:
+
+- `pathname`: path risolto del file o device;
+- `cmd`: comando ioctl, mostrato in esadecimale quando non noto;
+- `arg`: argomento opaco passato a ioctl, mostrato come puntatore/valore raw;
+- `dev`, `inode`, `ctime`: metadati stabili del file.
+
+Decisione tecnica: i comandi ioctl sono spesso specifici del driver, quindi il
+tool non prova a decodificarli tutti. L'output mantiene il valore raw in
+esadecimale e mappa solo i comandi noti quando sono presenti.
+
+### `security_file_permission`
+
+Tipo attach:
+
+```text
+kprobe/security_file_permission
+```
+
+Scopo:
+
+- osservare controlli di permesso su file gia' aperti;
+- completare `security_file_open`, che vede l'apertura iniziale;
+- distinguere controlli `MAY_READ`, `MAY_WRITE`, `MAY_EXEC`,
+  `MAY_APPEND`, `MAY_OPEN`, ecc.
+
+Campi emessi:
+
+- `pathname`: path risolto del file;
+- `mask`: bitmask di permesso, arricchita in output con nomi `MAY_*`;
+- `dev`, `inode`, `ctime`: metadati stabili del file.
+
+Nota operativa: questo hook puo' essere molto rumoroso. Durante i test manuali
+conviene abilitarlo da solo e usare `--comms` per limitare l'output al processo
+di interesse.
+
+### `cgroup_attach_task`
+
+Tipo attach:
+
+```text
+raw_tracepoint/cgroup_attach_task
+```
+
+Scopo:
+
+- osservare quando un task viene spostato in un cgroup diverso;
+- collegare l'evento al task target, non solo al processo che genera il
+  movimento;
+- preparare il progetto a una lettura piu' container-aware dei processi.
+
+Campi emessi:
+
+- `cgroup_id`: identificatore kernel del cgroup di destinazione;
+- `hierarchy_id`: gerarchia cgroup coinvolta;
+- `cgroup_path`: path del cgroup di destinazione;
+- `target_comm`: nome del task spostato;
+- `target_host_pid` e `target_host_tid`: PID/TID host del task target;
+- `threadgroup`: indica se lo spostamento riguarda l'intero thread group.
+
+Questo hook e' un raw tracepoint e viene inviato tramite perf buffer come gli
+altri hook process/security correnti.
+
+### `cgroup_mkdir` e `cgroup_rmdir`
+
+Tipo attach:
+
+```text
+raw_tracepoint/cgroup_mkdir
+raw_tracepoint/cgroup_rmdir
+```
+
+Scopo:
+
+- osservare creazione e rimozione di cgroup;
+- associare ogni evento a `cgroup_id`, gerarchia e path kernel;
+- completare `cgroup_attach_task`, che vede invece lo spostamento dei task.
+
+Campi emessi:
+
+- `cgroup_id`: identificatore kernel del cgroup;
+- `path`: path del cgroup;
+- `hierarchy_id`: gerarchia cgroup coinvolta.
+
+Questi hook sono utili per contesti container e orchestrazione, perche'
+permettono di vedere non solo quando un processo entra in un cgroup, ma anche
+quando il cgroup viene creato o rimosso.
+
+### `call_usermodehelper`
+
+Tipo attach:
+
+```text
+kprobe/call_usermodehelper
+```
+
+Scopo:
+
+- intercettare esecuzioni di helper userspace avviate dal kernel;
+- distinguere questo percorso dagli `execve` ordinari richiesti da userspace;
+- osservare path, argomenti e modalita' di attesa usata dal kernel.
+
+Campi emessi:
+
+- `path`: helper userspace richiesto dal kernel;
+- `argv`: argomenti passati all'helper;
+- `envp`: ambiente passato all'helper;
+- `wait`: modalita' `UMH_*`, arricchita nello strato output quando possibile.
+
+Esempi di casi che possono passare da questo hook sono richieste kernel verso
+helper come modprobe o altri programmi chiamati tramite `call_usermodehelper`.
+
+### `module_load`, `module_free` e `do_init_module`
+
+Tipo attach:
+
+```text
+raw_tracepoint/module_load
+raw_tracepoint/module_free
+kprobe/do_init_module
+kretprobe/do_init_module
+```
+
+Scopo:
+
+- osservare il ciclo di vita dei moduli kernel caricati dinamicamente;
+- distinguere la richiesta di inizializzazione (`do_init_module`) dagli eventi
+  di load/free esposti dai tracepoint;
+- raccogliere metadati del modulo come nome, versione e `srcversion`;
+- usare il kretprobe di `do_init_module` per avere il valore di ritorno
+  dell'inizializzazione.
+
+Campi emessi:
+
+- `name`: nome del modulo;
+- `version`: versione dichiarata dal modulo, quando disponibile;
+- `srcversion`: identificatore sorgente del modulo, quando disponibile;
+- `returnValue`: presente su `do_init_module`, indica successo o errore.
+
+Decisione tecnica: per ora non e' stata importata la logica piu' avanzata di
+ricerca di moduli nascosti. L'obiettivo di questa fase e' rendere visibile il
+percorso standard di load/unload, mantenendo payload e verifier complexity
+contenuti su Rocky Linux 4.18.
+
+### `proc_create`
+
+Tipo attach:
+
+```text
+kprobe/proc_create
+```
+
+Scopo:
+
+- osservare la creazione di entry procfs da parte del kernel o di moduli;
+- evidenziare possibili superfici di controllo esposte sotto `/proc`;
+- affiancare gli eventi sui moduli kernel con un segnale utile per rootkit e
+  componenti che pubblicano interfacce custom.
+
+Campi emessi:
+
+- `name`: nome della entry procfs richiesta;
+- `proc_ops_addr`: puntatore alla struttura di operazioni associata alla entry.
+
+Decisione tecnica: l'evento resta volutamente compatto. Non tenta di
+ricostruire l'intera gerarchia procfs e non copia le funzioni della struttura
+`proc_ops`; espone pero' abbastanza informazione per correlare creazione di
+entry, caricamento moduli e possibili superfici di controllo.
+
+### `register_kprobe`
+
+Tipo attach:
+
+```text
+kprobe/register_kprobe
+kretprobe/register_kprobe
+```
+
+Scopo:
+
+- osservare registrazioni dinamiche di kprobe;
+- capire quale simbolo kernel viene osservato;
+- raccogliere gli indirizzi dei callback associati alla probe;
+- distinguere registrazioni riuscite e fallite tramite return value.
+
+Campi emessi:
+
+- `symbol_name`: simbolo kernel richiesto dalla kprobe;
+- `pre_handler`: indirizzo del callback eseguito prima del simbolo target;
+- `post_handler`: indirizzo del callback eseguito dopo il simbolo target;
+- `returnValue`: esito della registrazione, arricchito in output come
+  `success` o errno.
+
+Decisione tecnica: questo hook usa una coppia kprobe/kretprobe per mantenere il
+return value. L'entry salva temporaneamente il `struct kprobe *`, mentre la
+return probe emette l'evento con simbolo, handler e risultato finale.
+
+### `kallsyms_lookup_name`
+
+Tipo attach:
+
+```text
+kprobe/kallsyms_lookup_name
+kretprobe/kallsyms_lookup_name
+```
+
+Scopo:
+
+- osservare lookup runtime di simboli kernel interni;
+- individuare moduli o codice kernel che risolvono funzioni sensibili;
+- correlare il nome richiesto con l'indirizzo restituito dal kernel.
+
+Campi emessi:
+
+- `symbol_name`: simbolo richiesto;
+- `address`: indirizzo restituito da `kallsyms_lookup_name`, mostrato in
+  esadecimale nello strato output.
+
+Nota operativa: il lookup di simboli kernel puo' essere legittimo. L'evento
+diventa piu' interessante quando viene correlato con `module_load`,
+`do_init_module`, `register_kprobe`, `proc_create` o future superfici debugfs.
+
+### `do_sigaction`
+
+Tipo attach:
+
+```text
+kprobe/do_sigaction
+```
+
+Scopo:
+
+- osservare modifiche alla gestione dei segnali di un processo;
+- vedere se un segnale viene impostato a default, ignorato o gestito tramite
+  handler custom;
+- fornire un punto di osservazione utile per comportamenti evasivi o processi
+  che alterano signal handling.
+
+Campi emessi:
+
+- `signal`: numero del segnale, arricchito con nome simbolico nello strato di
+  output;
+- `new_action`: indica se e' stata fornita una nuova azione;
+- `new_sa_flags`, `new_sa_mask`, `new_handle_method`, `new_sa_handler`:
+  stato richiesto per il nuovo handler;
+- `old_action_requested`: indica se il chiamante ha richiesto il vecchio stato;
+- `old_sa_flags`, `old_sa_mask`, `old_handle_method`, `old_sa_handler`:
+  snapshot dello stato precedente.
+
+Nota tecnica: nel nostro schema vengono sempre emessi tutti gli slot del nuovo
+e vecchio handler. Quando una parte non e' inizializzata viene salvato
+zero/null. Questa scelta mantiene semplice e stabile il decoder userspace.
 
 ### `open`
 
@@ -375,6 +838,304 @@ mantiene il valore di ritorno, che e' importante per distinguere un cambio owner
 effettivo da un tentativo negato. Le quattro syscall restano un solo evento
 user-facing (`chown`) e vengono distinte tramite `operation`.
 
+### `memfd_create`
+
+Tipo attach:
+
+```text
+tracepoint/syscalls/sys_enter_memfd_create
+tracepoint/syscalls/sys_exit_memfd_create
+```
+
+Scopo:
+
+- osservare la creazione di file anonimi residenti in memoria;
+- rendere visibili primitive utili per esecuzione fileless, unpacking di
+  payload o caricamento dinamico senza un normale file su disco;
+- distinguere tentativi riusciti e falliti tramite il valore di ritorno.
+
+Campi emessi:
+
+- `name`: nome diagnostico richiesto dal processo;
+- `flags`: flag `MFD_*`, ad esempio `MFD_CLOEXEC`, `MFD_ALLOW_SEALING` o
+  `MFD_HUGETLB`;
+- `returnValue`: file descriptor creato, oppure errore negativo.
+
+Decisione tecnica: l'evento usa il modello syscall enter/exit. L'entry salva
+`name` e `flags`, mentre l'exit aggiunge il risultato e invia un singolo evento
+tramite perf buffer. Questo e' preferibile a un evento solo-entry, perche' un
+tentativo di `memfd_create` fallito non produce alcun file descriptor anonimo.
+
+Compatibilita': il kernel target Rocky Linux 4.18 espone i tracepoint syscall
+dedicati a `memfd_create`, quindi non e' necessario usare il raw syscall engine
+generico.
+
+### `mmap`
+
+Tipo attach:
+
+```text
+tracepoint/syscalls/sys_enter_mmap
+tracepoint/syscalls/sys_exit_mmap
+```
+
+Scopo:
+
+- osservare la creazione di nuove regioni di memoria virtuale;
+- identificare mapping anonimi, file-backed ed eseguibili;
+- mantenere il risultato finale, distinguendo un indirizzo valido da un errno.
+
+Campi emessi:
+
+- `addr`: indirizzo richiesto dal processo;
+- `length`: dimensione della regione;
+- `prot`: permessi `PROT_*`, tradotti simbolicamente nell'output;
+- `flags`: tipo e opzioni `MAP_*`, tradotti simbolicamente nell'output;
+- `fd`: file descriptor sorgente, oppure `-1` per mapping anonimi;
+- `offset`: offset nel file sorgente;
+- `returnValue`: indirizzo della nuova regione oppure errore negativo.
+
+### `mprotect` e `pkey_mprotect`
+
+Tipo attach:
+
+```text
+tracepoint/syscalls/sys_enter_mprotect
+tracepoint/syscalls/sys_exit_mprotect
+tracepoint/syscalls/sys_enter_pkey_mprotect
+tracepoint/syscalls/sys_exit_pkey_mprotect
+```
+
+Scopo:
+
+- osservare cambi ai permessi di regioni di memoria gia' esistenti;
+- rendere visibili transizioni sensibili come memoria scrivibile resa
+  eseguibile;
+- distinguere modifiche riuscite e fallite tramite il return value;
+- includere la protection key nel caso di `pkey_mprotect`.
+
+Campi emessi:
+
+- `addr`: inizio della regione;
+- `length`: dimensione della regione;
+- `prot`: nuovi permessi `PROT_*`;
+- `pkey`: protection key, presente solo in `pkey_mprotect`;
+- `returnValue`: `success` per zero oppure errno simbolico.
+
+Decisione tecnica: i tre eventi seguono il modello syscall enter/exit. Gli
+argomenti vengono conservati in `args_map` all'ingresso e ricomposti all'uscita
+prima del submit sul perf buffer. Sul kernel Rocky Linux 4.18 target sono
+presenti tutti e sei i tracepoint dedicati; questa soluzione e' quindi piu'
+diretta del raw syscall dispatcher generico e conserva comunque il valore di
+ritorno.
+
+### `process_vm_writev`
+
+Tipo attach:
+
+```text
+tracepoint/syscalls/sys_enter_process_vm_writev
+tracepoint/syscalls/sys_exit_process_vm_writev
+```
+
+Scopo:
+
+- osservare scritture dirette nello spazio di memoria di un processo;
+- rendere visibile una primitiva usata legittimamente da debugger e runtime,
+  ma anche sfruttabile per process injection;
+- mantenere il valore di ritorno per distinguere un tentativo negato da una
+  scrittura realmente avvenuta;
+- preparare una futura policy che segnali soprattutto il caso in cui PID
+  sorgente e PID target sono differenti.
+
+Campi emessi:
+
+- `pid`: PID del processo target;
+- `local_iov`: indirizzo dell'array `iovec` nel processo chiamante;
+- `liovcnt`: numero di vettori locali;
+- `remote_iov`: indirizzo dell'array `iovec` riferito al processo target;
+- `riovcnt`: numero di vettori remoti;
+- `flags`: flag della syscall, attualmente richieste a zero dal kernel;
+- `returnValue`: numero di byte scritti oppure errno negativo.
+
+Il layer di output mostra i puntatori in esadecimale e il risultato positivo
+come `bytes:N`.
+
+Decisione tecnica: l'evento segue il modello syscall enter/exit usato dagli
+altri eventi che richiedono l'esito finale. Il kernel Rocky Linux 4.18 target
+espone entrambi i tracepoint dedicati, quindi non e' necessario attivare il raw
+syscall dispatcher globale. La prima versione conserva i metadati degli
+`iovec`, ma non copia il contenuto scritto: questa scelta limita costo, volume
+degli eventi e rischio di esporre dati sensibili.
+
+### `process_vm_readv`
+
+Tipo attach:
+
+```text
+tracepoint/syscalls/sys_enter_process_vm_readv
+tracepoint/syscalls/sys_exit_process_vm_readv
+```
+
+Scopo:
+
+- osservare letture dirette dalla memoria di un processo;
+- completare la copertura fornita da `process_vm_writev`;
+- distinguere letture riuscite, parziali e negate;
+- preparare policy su credential theft, memory inspection e accessi
+  cross-process anomali.
+
+Campi emessi:
+
+- `pid`: PID target;
+- `local_iov` e `liovcnt`: destinazione locale e numero di vettori;
+- `remote_iov` e `riovcnt`: sorgente remota e numero di vettori;
+- `flags`: flag della syscall;
+- `returnValue`: byte letti oppure errno negativo.
+
+Come per `process_vm_writev`, il payload non viene copiato. Questa scelta evita
+di acquisire contenuti sensibili e mantiene contenuto il costo dell'evento.
+L'implementazione usa i tracepoint dedicati presenti sul kernel target e
+correla entry ed exit tramite `args_map`.
+
+### `fork`, `vfork` e `clone`
+
+Tipo attach:
+
+```text
+tracepoint/syscalls/sys_enter_clone
+tracepoint/syscalls/sys_exit_clone
+tracepoint/syscalls/sys_enter_fork
+tracepoint/syscalls/sys_exit_fork
+tracepoint/syscalls/sys_enter_vfork
+tracepoint/syscalls/sys_exit_vfork
+```
+
+Scopo:
+
+- osservare direttamente le syscall di creazione processo/thread;
+- mantenere il valore di ritorno, cioe' il PID/TID del child oppure errno;
+- completare `sched_process_fork`, che resta il tracepoint lifecycle piu'
+  semantico ma non rappresenta il risultato della syscall dal punto di vista
+  del chiamante.
+
+Campi emessi:
+
+- `fork`/`vfork`: `returnValue`;
+- `clone`: `flags`, `stack`, `parent_tid`, `child_tid`, `tls`,
+  `returnValue`.
+
+Decisione tecnica: `fork` e `vfork` non hanno argomenti utili da salvare
+all'enter, quindi l'evento viene costruito all'exit. `clone` invece salva gli
+argomenti all'ingresso e aggiunge il risultato all'uscita. L'output traduce i
+flag `CLONE_*` e mostra i risultati positivi come `child_pid:N`.
+
+### `commit_creds`
+
+Tipo attach:
+
+```text
+kprobe/commit_creds
+```
+
+Scopo:
+
+- osservare le credenziali realmente applicate al task;
+- confrontare identita', namespace utente, securebits e capability prima e
+  dopo il commit;
+- rilevare primitive importanti per privilege escalation;
+- completare `security_task_fix_setuid`, che osserva una fase precedente della
+  preparazione delle credenziali.
+
+Campi emessi:
+
+- `old_cred`: UID/GID reali, effective, saved e filesystem, user namespace,
+  securebits e capability precedenti;
+- `new_cred`: gli stessi campi dopo la transizione.
+
+L'evento viene inviato solo se almeno un campo cambia. Le capability sono
+normalizzate in maschere a 64 bit con CO-RE, supportando sia il layout storico
+del kernel target sia quello usato dai kernel piu' recenti.
+
+Decisione tecnica: il progetto usa il tipo wire `slim_cred_t`, gia' presente
+nel protocollo C, e ha completato il decoder Go per `CredT`. Questo mantiene
+old e new credentials come due oggetti strutturati invece di esporre decine di
+argomenti indipendenti.
+
+Un singolo comando come `sudo` puo' generare diverse transizioni legittime. Il
+filtro kernel elimina i commit senza cambiamenti, ma la riduzione semantica
+resta responsabilita' di una futura policy. Esempi ad alto valore sono il
+passaggio da `euid != 0` a `euid == 0` e l'acquisizione di nuove capability.
+
+### `setns`
+
+Tipo attach:
+
+```text
+tracepoint/syscalls/sys_enter_setns
+tracepoint/syscalls/sys_exit_setns
+```
+
+Scopo:
+
+- osservare quando un processo tenta di entrare in un namespace esistente;
+- distinguere transizioni riuscite da tentativi negati;
+- rendere visibili operazioni rilevanti per isolamento container, debugging e
+  possibili tecniche di container escape;
+- preparare policy che combinino namespace target, identita' del processo ed
+  esito della syscall.
+
+Campi emessi:
+
+- `fd`: file descriptor che identifica il namespace target;
+- `nstype`: tipo richiesto, mostrato come `CLONE_NEWNS`, `CLONE_NEWNET`,
+  `CLONE_NEWPID`, `CLONE_NEWUSER` e altri valori `CLONE_NEW*`;
+- `returnValue`: `success` quando la transizione e' accettata oppure errno
+  simbolico quando viene negata.
+
+Il valore `nstype=0` viene mostrato come `AUTO`: in questo caso il kernel
+determina il tipo di namespace dal file descriptor.
+
+Decisione tecnica: `setns` segue il modello syscall entry/exit perche' il valore
+di ritorno e' essenziale. Osservare soltanto l'ingresso non permetterebbe di
+distinguere un cambio di namespace effettivo da un tentativo fallito. Sul
+kernel Rocky Linux 4.18 target sono disponibili entrambi i tracepoint dedicati.
+I campi del contesto C usano la larghezza riportata dal formato tracepoint
+reale del kernel e vengono convertiti a `int` prima della serializzazione.
+
+### `unshare`
+
+Tipo attach:
+
+```text
+tracepoint/syscalls/sys_enter_unshare
+tracepoint/syscalls/sys_exit_unshare
+```
+
+Scopo:
+
+- osservare quando un processo separa una parte del proprio execution context;
+- rilevare la creazione di nuovi namespace tramite flag come
+  `CLONE_NEWUSER`, `CLONE_NEWNS`, `CLONE_NEWNET` e `CLONE_NEWPID`;
+- distinguere operazioni riuscite da richieste negate;
+- fornire una base per policy su sandbox, isolamento container ed evasione.
+
+Campi emessi:
+
+- `flags`: bitmask delle risorse da separare, convertita in nomi `CLONE_*`;
+- `returnValue`: `success` oppure errno simbolico.
+
+`setns` e `unshare` coprono due operazioni complementari: `setns` sposta il
+processo in un namespace gia' esistente identificato da un file descriptor,
+mentre `unshare` separa risorse del processo corrente e, con i flag
+`CLONE_NEW*`, puo' creare nuovi namespace.
+
+Decisione tecnica: anche `unshare` usa il modello entry/exit, perche' il solo
+tentativo non dimostra che l'isolamento sia stato modificato. Sul kernel target
+il tracepoint espone `unshare_flags` in uno slot a 64 bit; l'evento conserva
+quindi una bitmask `unsigned long`, evitando di troncare combinazioni di flag.
+L'output mantiene eventuali bit non riconosciuti in forma esadecimale.
+
 ### `security_task_setrlimit`
 
 Tipo attach:
@@ -468,9 +1229,8 @@ chiama `security_task_fix_setuid(..., LSM_SETID_RE)`, `setresuid` chiama
 Nota operativa: sul kernel target Rocky Linux 4.18 della VM e' presente il
 simbolo `security_task_fix_setuid`, mentre non e' presente
 `security_task_fix_setgid`. Per questo il progetto ha implementato per ora solo
-la variante UID. Per tracciare cambi GID in modo robusto su questa VM, una
-prossima strada e' osservare `commit_creds` e filtrare le transizioni in cui
-cambiano `gid`, `egid`, `sgid` o `fsgid`.
+la variante UID. I cambi GID sono ora coperti da `commit_creds`, che espone le
+transizioni effettive di `gid`, `egid`, `sgid` e `fsgid`.
 
 Fonti utili:
 
@@ -482,6 +1242,41 @@ Fonti utili:
   <https://codebrowser.dev/linux/linux/kernel/sys.c.html>
 - SafeSetID LSM, contesto security sulle transizioni UID/GID:
   <https://docs.kernel.org/6.2/admin-guide/LSM/SafeSetID.html>
+
+### `setuid`, `setgid`, `setreuid`, `setregid`, `setresuid`, `setresgid`, `setfsuid`, `setfsgid`
+
+Tipo attach:
+
+```text
+tracepoint/syscalls/sys_enter_setuid
+tracepoint/syscalls/sys_exit_setuid
+...
+tracepoint/syscalls/sys_enter_setfsgid
+tracepoint/syscalls/sys_exit_setfsgid
+```
+
+Scopo:
+
+- osservare le syscall userspace che richiedono cambi di identita' UID/GID;
+- distinguere tentativi riusciti e negati tramite `returnValue`;
+- affiancare `security_task_fix_setuid` e `commit_creds`, che osservano fasi
+  diverse e piu' semantiche della transizione credenziali.
+
+Campi emessi:
+
+- `setuid`: `uid`, `returnValue`;
+- `setgid`: `gid`, `returnValue`;
+- `setreuid`: `ruid`, `euid`, `returnValue`;
+- `setregid`: `rgid`, `egid`, `returnValue`;
+- `setresuid`: `ruid`, `euid`, `suid`, `returnValue`;
+- `setresgid`: `rgid`, `egid`, `sgid`, `returnValue`;
+- `setfsuid`: `fsuid`, `returnValue`;
+- `setfsgid`: `fsgid`, `returnValue`.
+
+Decisione tecnica: questi eventi seguono il modello enter/exit perche' il
+return value e' essenziale. Il kernel puo' negare la transizione richiesta; in
+quel caso l'hook LSM puo' comunque essere stato raggiunto, ma la syscall non
+ha modificato davvero le credenziali del processo.
 
 ### `security_task_kill`
 
@@ -559,6 +1354,90 @@ Campi emessi:
 Nota: a differenza di `security_task_kill`, qui non usiamo l'hook security
 semantico. La scelta e' intenzionale: per `ptrace` e' importante sapere se il
 tentativo e' stato autorizzato o negato dal kernel.
+
+### `prlimit64`
+
+Tipo attach:
+
+```text
+tracepoint/syscalls/sys_enter_prlimit64
+tracepoint/syscalls/sys_exit_prlimit64
+```
+
+Scopo:
+
+- osservare letture e modifiche dei resource limits;
+- distinguere richieste riuscite e fallite tramite `returnValue`;
+- completare `security_task_setrlimit`, che osserva il controllo security su
+  una modifica, ma non copre allo stesso modo tutte le richieste syscall.
+
+Campi emessi:
+
+- `pid`: processo target, con `0` per il processo corrente;
+- `resource`: risorsa `RLIMIT_*`;
+- `new_limit`: puntatore alla nuova coppia soft/hard limit, se presente;
+- `old_limit`: puntatore dove il kernel scrive il vecchio limite, se presente;
+- `returnValue`: `success` oppure errno simbolico.
+
+Nota tecnica: sul kernel Rocky Linux 4.18 i campi del tracepoint `prlimit64`
+sono esposti come slot a 8 byte. La struct eBPF usa quindi tipi larghi per
+evitare truncation dei puntatori.
+
+### `switch_task_ns`
+
+Tipo attach:
+
+```text
+kprobe/switch_task_namespaces
+```
+
+Scopo:
+
+- osservare il momento in cui il kernel sostituisce il `nsproxy` di un task;
+- completare `setns` e `unshare` con la transizione namespace effettiva;
+- emettere soltanto i namespace realmente cambiati.
+
+Campi:
+
+- `pid`: PID del task interessato;
+- `new_mnt`, `new_pid`, `new_uts`, `new_ipc`, `new_net`, `new_cgroup`: inode
+  number dei nuovi namespace. I campi invariati non vengono serializzati.
+
+### `security_sb_mount` e `security_sb_umount`
+
+Tipo attach:
+
+```text
+kprobe/security_sb_mount
+kprobe/security_sb_umount
+```
+
+`security_sb_mount` espone sorgente, mountpoint risolto, filesystem type e
+flag `MS_*`. `security_sb_umount` ricava dal `vfsmount` il mountpoint e il tipo
+di filesystem, aggiungendo le flag `MNT_*`.
+
+Sono hook LSM pre-decisione: descrivono la richiesta validata dal kernel, non
+il return value finale di `mount(2)` o `umount2(2)`. Questa scelta privilegia
+gli oggetti kernel risolti; se una policy richiedera' l'esito rigoroso, gli
+eventi potranno essere correlati con syscall entry/exit.
+
+### `security_inode_unlink`
+
+Tipo attach:
+
+```text
+kprobe/security_inode_unlink
+```
+
+Scopo:
+
+- osservare la cancellazione di un file dopo la risoluzione del dentry;
+- raccogliere `pathname`, inode, device e ctime prima della rimozione;
+- fornire una base stabile per policy su file sensibili o cancellazioni
+  sospette.
+
+Anche questo hook rappresenta la validazione LSM e non include il risultato
+finale della syscall `unlink`/`unlinkat`.
 
 ## Networking hooks
 

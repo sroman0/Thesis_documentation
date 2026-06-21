@@ -21,7 +21,8 @@ All active development happens in `demo_project/`. Tracee is used only as refere
 An eBPF-based runtime security monitoring tool. Target environment: **Rocky Linux 8.10**, kernel `4.18.0-553.109.1.el8_10.x86_64`.
 
 Go module: `github.com/V3suv1us/demo_project`  
-Key dependency: `github.com/cilium/ebpf` (pure Go — **no CGO**, unlike Tracee's libbpfgo)
+Key dependency: `github.com/aquasecurity/libbpfgo`, with CGO and the bundled
+`libbpf` submodule.
 
 ### Build & Run
 
@@ -29,11 +30,11 @@ Key dependency: `github.com/cilium/ebpf` (pure Go — **no CGO**, unlike Tracee'
 # Compile the eBPF C program
 make bpf
 
-# Build the Go userspace binary
-go build -o /tmp/project ./cmd/project
+# Build the eBPF object and Go userspace binary
+make build
 
-# Run (requires root or CAP_BPF + CAP_PERFMON)
-sudo /tmp/project --bpf-object pkg/ebpf/c/project.bpf.o
+# Run with the embedded eBPF object
+sudo ./dist/project --output table
 ```
 
 ### Package Architecture
@@ -42,27 +43,39 @@ sudo /tmp/project --bpf-object pkg/ebpf/c/project.bpf.o
 cmd/project/main.go           → CLI entrypoint
 cmd/project/cmd/root.go       → Cobra command, config validation, signal handling
 pkg/cmd/initialize/           → loads .bpf.o bytes into runtime config
-pkg/ebpf/                     → loads collection, selects probes, attaches hooks, reads ring buffer
-pkg/bufferdecoder/            → deserializes raw ring buffer bytes into typed Event structs
+pkg/ebpf/                     → loads module, selects probes, attaches hooks, reads event buffers
+pkg/ebpf/probes/              → event/program/hook registry
+pkg/bufferdecoder/            → deserializes raw event bytes into typed Event structs
+pkg/events/                   → event IDs and argument schemas
+pkg/output/                   → normalized table and JSON output
 pkg/ebpf/c/                   → eBPF C program and headers (types.h, maps.h, common/)
 ```
 
-Data flow: `ring buffer → project.Run() → bufferdecoder.DecodeEvent() → JSON stdout`
+Data flow:
+`perf buffer → project.Run() → bufferdecoder.DecodeEvent() → output printer`.
+Ring buffer support remains available, but active hooks currently submit
+through the perf buffer.
 
 ### Critical Constraint: Struct Layout Parity
 
-`pkg/bufferdecoder/protocol.go` declares Go structs that must match the C structs in `pkg/ebpf/c/types.h`. The decoder uses little-endian binary reads, so any size or order mismatch corrupts decoded events. If `types.h` changes, `protocol.go` must be updated to match.
+`pkg/bufferdecoder/protocol.go` declares Go structs that must match the C
+structs in `pkg/ebpf/c/types.h`. Event IDs must match
+`pkg/events/ids.go`, while argument indexes and types must match
+`pkg/events/spec.go`.
 
 `EventContext` is 128 bytes: `[u64 Ts][TaskContext 104B][EventID u32][Syscall s32][StackID u32][ProcessorID u16][Pad u16]`
 
 ### Hook Attachment Strategy
 
-The runtime uses `pkg/ebpf/probes.go` as a Tracee-light probe registry. Each entry maps a decoded event name to an eBPF program, kernel hook, and attach method. The CLI can select events with `--events` and `--drop-events`.
+The runtime uses `pkg/ebpf/probes/probes.go` as its probe registry. Each entry
+maps a decoded event name to an eBPF program, kernel hook, and attach method.
+The CLI can select events with `--events` and `--drop-events`.
 
 | Probe kind | Attach method |
 |---|---|
-| raw tracepoint | `link.AttachRawTracepoint` |
-| kprobe | `link.Kprobe` |
+| raw tracepoint | `AttachRawTracepoint` |
+| tracepoint | `AttachTracepoint` |
+| kprobe | `AttachKprobe` |
 
 ### eBPF Maps
 
@@ -70,15 +83,19 @@ Defined in `pkg/ebpf/c/maps.h`:
 
 | Map | Type | Purpose |
 |---|---|---|
-| `events` | `RINGBUF` (256 KB) | Primary kernel→userspace event channel |
+| `events` | `PERF_EVENT_ARRAY` | Primary kernel→userspace event channel |
+| `events_ringbuf` | `RINGBUF` | Retained alternative event channel |
 | `args_bufs` | `PERCPU_ARRAY` | Per-CPU scratch buffer for event arguments |
+| `args_map` | `HASH` | Correlates syscall entry arguments with syscall exit |
 
 ### Adding a New Event Type
 
 1. Add the event ID constant in `pkg/ebpf/c/types.h`.
-2. Add the matching event ID and event schema in `pkg/bufferdecoder/protocol.go`.
-3. Add the eBPF C hook in `pkg/ebpf/c/project.bpf.c`.
-4. Add the event/program/hook mapping in `pkg/ebpf/probes.go`.
+2. Add the matching Go ID in `pkg/events/ids.go`.
+3. Add the argument schema in `pkg/events/spec.go`.
+4. Add the eBPF C hook in `pkg/ebpf/c/project.bpf.c`.
+5. Add the event/program/hook mapping in `pkg/ebpf/probes/probes.go`.
+6. Add probe-selection, decoder and output tests as needed.
 
 ### Work Division
 

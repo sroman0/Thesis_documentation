@@ -22,11 +22,31 @@ dubbio se seguire sempre il modello Tracee-like, basato su syscall
 **Conseguenze:**
 
 - il progetto resta piu' piccolo e target-specific rispetto a Tracee;
-- il syscall engine generico resta utile per feature future come `mprotect`,
-  `ptrace`, `mount`, `setns`, `chmod` o `chown`;
+- il syscall engine generico resta utile per feature future che non espongono
+  tracepoint dedicati o che richiedono una gestione centralizzata di molte
+  syscall;
 - hook come `security_bprm_check`, `security_task_fix_setuid` e
   `security_task_kill` vengono trattati come eventi semantici, anche se non
   espongono direttamente il return value della syscall.
+
+## 2026-06-10 - Tracepoint dedicati per le syscall di memoria
+
+**Contesto:** `mmap`, `mprotect` e `pkey_mprotect` richiedono il return value,
+ma il kernel Rocky Linux target espone gia' tracepoint `sys_enter_*` e
+`sys_exit_*` specifici per tutte e tre le syscall.
+
+**Decisione:** usare coppie di tracepoint dedicate e correlare entry ed exit
+tramite `args_map`, invece di instradare questi eventi nel raw syscall engine
+generico.
+
+**Conseguenze:**
+
+- ogni programma riceve un context con campi noti e verificati sul kernel
+  target;
+- il codice eBPF resta piu' piccolo e leggibile;
+- il valore di ritorno viene mantenuto;
+- la soluzione e' volutamente target-aware e richiede una nuova verifica se
+  cambia kernel o architettura.
 
 ## 2026-05-27 - Perf buffer come transport operativo principale
 
@@ -49,6 +69,43 @@ operativo principale. La ring buffer `events_ringbuf`, la helper
   corrente, evitando la distinzione evento-per-evento;
 - resta utile aggiungere metriche/lost channel al perf buffer per osservare
   eventuali drop.
+
+## 2026-06-10 - process_vm_writev raccoglie metadati, non payload
+
+**Contesto:** `process_vm_writev` permette a un processo di scrivere in un
+altro spazio di memoria ed e' quindi rilevante per process injection. Copiare
+nel tracer anche i byte trasferiti aumenterebbe pero' costo, volume degli eventi
+e rischio di acquisire dati sensibili.
+
+**Decisione:** raccogliere PID target, puntatori e conteggi degli `iovec`, flag
+e valore di ritorno, senza leggere il contenuto dei buffer.
+
+**Conseguenze:**
+
+- una futura policy puo' distinguere scritture sul processo stesso da
+  scritture cross-process;
+- il numero di byte realmente trasferiti resta disponibile;
+- il costo kernel-side rimane limitato rispetto alla copia del payload;
+- l'eventuale acquisizione del contenuto dovra' essere una feature esplicita e
+  sottoposta a limiti di dimensione e policy.
+
+## 2026-06-10 - commit_creds usa credenziali strutturate e filtro sui cambi
+
+**Contesto:** `commit_creds` e' invocato frequentemente e una singola
+operazione privilegiata puo' applicare piu' transizioni intermedie. Esporre
+ogni campo come argomento indipendente renderebbe inoltre fragile il contratto
+kernel/userspace.
+
+**Decisione:** inviare due record `slim_cred_t`, `old_cred` e `new_cred`, e
+scartare kernel-side i commit in cui nessun campo osservato cambia.
+
+**Conseguenze:**
+
+- il decoder supporta ora il tipo strutturato `CredT`;
+- UID/GID, user namespace, securebits e capability restano correlati;
+- il volume e' ridotto rispetto alla cattura di tutti i commit;
+- la selezione di escalation realmente sospette sara' affidata alle future
+  policy.
 
 ## 2026-04-29 - Usare `cilium/ebpf` invece di `libbpfgo`
 
@@ -367,6 +424,53 @@ e la demo.
 - output runtime molto piu' leggibile;
 - i dettagli CO-RE restano disponibili quando servono;
 - l'help CLI e il README documentano il significato di `--log-level`.
+
+## 2026-06-10 - Eventi semantici per namespace e filesystem
+
+**Contesto:** `setns`, `unshare`, `mount`, `umount` e `unlink` possono essere
+osservati come syscall, ma gli hook kernel espongono direttamente namespace,
+mount e dentry gia' risolti.
+
+**Decisione:** usare `switch_task_namespaces`, `security_sb_mount`,
+`security_sb_umount` e `security_inode_unlink` come kprobe semantiche. Gli
+eventi descrivono la transizione o la validazione LSM e vengono inviati tramite
+perf buffer. Non viene aggiunto il return value syscall.
+
+**Conseguenze:**
+
+- path e oggetti filesystem provengono dalle strutture kernel risolte;
+- `switch_task_ns` elimina rumore inviando solo namespace realmente cambiati;
+- mount e umount hanno flag simboliche in table e JSON;
+- resta esplicito il limite: un evento LSM non prova da solo che la syscall sia
+  terminata con successo.
+
+## 2026-06-18 - Esporre segnali di kernel tampering in forma compatta
+
+**Contesto:** dopo la copertura di moduli kernel, eBPF object, cgroup e file
+security, restava una carenza sulla visibilita' di comportamenti piu' vicini al
+kernel tampering: entry procfs create da moduli, registrazione dinamica di
+kprobe e lookup di simboli interni.
+
+**Decisione:** aggiungere tre eventi compatti:
+
+- `proc_create`, come kprobe diretto;
+- `register_kprobe`, come coppia kprobe/kretprobe per includere l'esito;
+- `kallsyms_lookup_name`, come coppia kprobe/kretprobe per collegare simbolo e
+  indirizzo risolto.
+
+Gli eventi mantengono payload piccoli e compatibili con il kernel Rocky Linux
+4.18: nomi, puntatori principali e return value quando utile. Non viene ancora
+implementata la logica di hidden module detection.
+
+**Conseguenze:**
+
+- maggiore copertura su comportamenti tipici di moduli o codice kernel
+  sospetto;
+- output piu' leggibile per puntatori kernel e callback, mostrati in
+  esadecimale;
+- `kallsyms_lookup_name` richiede un trigger kernel reale e non sempre puo'
+  essere testato con un semplice comando userspace;
+- restano come step successivi `bpf_attach`, debugfs e hidden module detection.
 
 ## Collegamenti
 

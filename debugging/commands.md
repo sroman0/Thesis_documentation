@@ -279,6 +279,77 @@ Questa seconda esca genera piu' rumore perche' `sudo`, PAM e la sessione shell
 possono alternare piu' volte UID effettivo e filesystem UID prima di eseguire
 il comando finale.
 
+## Testare `proc_create`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events proc_create --output table --log-level error
+```
+
+Terminale 2:
+
+```bash
+sudo modprobe nf_conntrack 2>/dev/null || true
+```
+
+Output atteso, se il modulo crea entry procfs nel percorso del kernel target:
+
+```text
+event=proc_create ... args=name=...,proc_ops_addr=0x...
+```
+
+Nota: se non compare output, non significa necessariamente che l'hook non
+funzioni. Il modulo potrebbe essere gia' caricato, non creare entry procfs in
+quel percorso, oppure attraversare una variante interna diversa. In quel caso
+conviene provare con un modulo di test che chiama esplicitamente `proc_create`.
+
+## Testare `register_kprobe`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events register_kprobe --output table --log-level error
+```
+
+Terminale 2:
+
+```bash
+sudo ./dist/project --events cap_capable --output table --log-level error
+```
+
+Il secondo comando carica un altro programma eBPF che registra kprobe, quindi
+il primo tracer dovrebbe vedere una o piu' registrazioni:
+
+```text
+event=register_kprobe ... args=symbol_name=cap_capable,pre_handler=0x...,post_handler=0x0,returnValue=success
+```
+
+Chiudere il secondo tracer con `Ctrl-C` dopo aver osservato l'evento.
+
+## Testare `kallsyms_lookup_name`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events kallsyms_lookup_name --output table --log-level error
+```
+
+Questo hook viene innescato solo quando codice kernel o un modulo chiama
+realmente `kallsyms_lookup_name`. Da userspace non esiste un comando generico e
+sempre affidabile per produrre l'evento.
+
+Per un test forte serve un modulo di laboratorio che risolva esplicitamente un
+simbolo, ad esempio `kallsyms_lookup_name("printk")`. Quando il percorso viene
+raggiunto, l'output atteso e':
+
+```text
+event=kallsyms_lookup_name ... args=symbol_name=printk,address=0x...
+```
+
+Se il tracer parte senza errori ma non stampa nulla, significa semplicemente
+che nessun lookup e' avvenuto durante la finestra di test.
+
 Lettura del campo `flags`:
 
 ```text
@@ -403,6 +474,258 @@ Nota: `security_file_open` e' un hook molto rumoroso. Durante i test manuali e'
 quasi sempre necessario usare `--events security_file_open` insieme a
 `--comms <processo>`.
 
+## Testare `security_file_ioctl`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events security_file_ioctl --output table --comms stty,python3
+```
+
+Terminale 2:
+
+```bash
+stty -a >/dev/null
+```
+
+Output atteso:
+
+```text
+event=security_file_ioctl ... args=pathname=...,cmd=0x...,arg=0x...,dev=...,inode=...,ctime=...
+```
+
+`ioctl` e' una famiglia molto ampia e driver-specific. Per questo il comando
+viene mostrato in esadecimale quando il tool non conosce una label simbolica.
+
+## Testare `security_file_permission`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events security_file_permission --output table --comms cat
+```
+
+Terminale 2:
+
+```bash
+cat /etc/hostname >/dev/null
+```
+
+Output atteso:
+
+```text
+event=security_file_permission ... comm=cat args=pathname=/etc/hostname,mask=MAY_READ|MAY_OPEN,dev=...,inode=...,ctime=...
+```
+
+Questo hook puo' generare molti eventi perche' osserva controlli successivi su
+file gia' aperti. Per test manuali conviene abilitarlo da solo e filtrare con
+`--comms`.
+
+## Testare `do_sigaction`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events do_sigaction --output table --comms python3
+```
+
+Terminale 2:
+
+```bash
+python3 -c 'import signal, time; signal.signal(signal.SIGUSR1, lambda s, f: None); time.sleep(1)'
+```
+
+Output atteso:
+
+```text
+event=do_sigaction ... comm=python3 args=signal=SIGUSR1(10),new_action=true,new_sa_flags=...,new_sa_mask=...,new_handle_method=SIG_HND(2),new_sa_handler=0x...,old_action_requested=...,old_sa_flags=...,old_sa_mask=...,old_handle_method=SIG_DFL(0),old_sa_handler=0x0
+```
+
+Questo hook osserva il cambio di signal handler. Se il programma imposta il
+segnale a default o ignored, `new_handle_method` diventa rispettivamente
+`SIG_DFL(0)` o `SIG_IGN(1)`.
+
+## Testare `call_usermodehelper`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events call_usermodehelper --output table --log-level error
+```
+
+Terminale 2:
+
+```bash
+sudo modprobe dummy || true
+sudo modprobe -r dummy || true
+```
+
+Output possibile:
+
+```text
+event=call_usermodehelper ... args=path=/sbin/modprobe,argv=["modprobe",...],envp=[...],wait=UMH_WAIT_PROC(1)
+```
+
+Nota: questo evento dipende dal fatto che il kernel richiami davvero un helper
+userspace. Se il modulo e' gia' caricato, non esiste o il kernel risolve la
+richiesta senza helper, il test puo' non produrre output.
+
+## Testare `cgroup_attach_task`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events cgroup_attach_task --output table --log-level error
+```
+
+Terminale 2:
+
+```bash
+sudo mkdir -p /sys/fs/cgroup/project-demo
+sleep 30 &
+pid=$!
+echo "$pid" | sudo tee /sys/fs/cgroup/project-demo/cgroup.procs >/dev/null
+wait "$pid" 2>/dev/null || true
+sudo rmdir /sys/fs/cgroup/project-demo
+```
+
+Output atteso:
+
+```text
+event=cgroup_attach_task ... args=cgroup_id=...,hierarchy_id=...,cgroup_path=...,target_comm=sleep,target_host_pid=...,target_host_tid=...,threadgroup=...
+```
+
+Nota: il comando sopra assume cgroup v2 montato in `/sys/fs/cgroup`. Se la VM
+usa layout diverso o permessi differenti, il test va adattato al mount cgroup
+effettivo.
+
+## Testare `cgroup_mkdir` e `cgroup_rmdir`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events cgroup_mkdir,cgroup_rmdir --output table --log-level error
+```
+
+Terminale 2:
+
+```bash
+sudo mkdir -p /sys/fs/cgroup/project-demo
+sudo rmdir /sys/fs/cgroup/project-demo
+```
+
+Output atteso:
+
+```text
+event=cgroup_mkdir ... args=cgroup_id=...,path=/project-demo,hierarchy_id=...
+event=cgroup_rmdir ... args=cgroup_id=...,path=/project-demo,hierarchy_id=...
+```
+
+Nota: il test assume cgroup v2 montato in `/sys/fs/cgroup`. Se la directory non
+e' scrivibile o la VM usa un layout diverso, controlla il mount effettivo con:
+
+```bash
+mount | grep cgroup
+```
+
+## Testare `module_load` e `module_free`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events module_load,module_free --output table --log-level error
+```
+
+Terminale 2:
+
+```bash
+sudo modprobe -r dummy 2>/dev/null || true
+sudo modprobe dummy
+sudo modprobe -r dummy
+```
+
+Output atteso:
+
+```text
+event=module_load ... args=name=dummy,version=...,srcversion=...
+event=module_free ... args=name=dummy,version=...,srcversion=...
+```
+
+Se non viene stampato nulla, il modulo potrebbe non esistere sulla VM oppure
+potrebbe essere gia' gestito in modo diverso dal kernel. In quel caso prova con
+un modulo innocuo disponibile sul sistema e controlla prima:
+
+```bash
+lsmod | head
+modinfo dummy
+```
+
+## Testare `do_init_module`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events do_init_module --output table --log-level error
+```
+
+Terminale 2:
+
+```bash
+sudo modprobe -r dummy 2>/dev/null || true
+sudo modprobe dummy || true
+```
+
+Output atteso:
+
+```text
+event=do_init_module ... args=name=dummy,version=...,srcversion=...,returnValue=success
+```
+
+Questo evento viene emesso quando il kernel attraversa davvero
+`do_init_module`. Se il modulo e' gia' caricato, `modprobe dummy` puo' non
+innescare una nuova inizializzazione.
+
+## Testare `process_execute_failed`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events process_execute_failed --output table --log-level error --comms bash
+```
+
+Terminale 2:
+
+```bash
+/tmp/project-binary-does-not-exist 2>/dev/null || true
+```
+
+Output atteso:
+
+```text
+event=process_execute_failed ... comm=bash args=operation=execve(1),dirfd=-100,pathname=/tmp/project-binary-does-not-exist,flags=0,returnValue=ENOENT(-2): no such file or directory
+```
+
+Per testare esplicitamente il ramo `execveat`:
+
+```bash
+cat >/tmp/test_execveat_fail.c <<'EOF'
+#define _GNU_SOURCE
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+
+int main(void) {
+    char *argv[] = {"missing", NULL};
+    char *envp[] = {NULL};
+    return syscall(SYS_execveat, AT_FDCWD, "/tmp/does-not-exist", argv, envp, 0);
+}
+EOF
+gcc /tmp/test_execveat_fail.c -o /tmp/test_execveat_fail
+/tmp/test_execveat_fail || true
+```
+
+In questo caso l'output deve indicare `operation=execveat(2)`.
+
 ## Testare `open`
 
 Terminale 1:
@@ -516,6 +839,484 @@ python3 -c 'import os; fd=os.open("/tmp/project-chown-demo", os.O_RDONLY); os.fc
 ```
 
 In questo caso l'evento contiene `fd` invece di `pathname`.
+
+## Testare `memfd_create`
+
+Terminale 1:
+
+```bash
+make run ARGS="--events memfd_create --output table --comms python3"
+```
+
+Terminale 2:
+
+```bash
+python3 -c 'import ctypes, os; libc=ctypes.CDLL(None, use_errno=True); libc.memfd_create.argtypes=[ctypes.c_char_p, ctypes.c_uint]; libc.memfd_create.restype=ctypes.c_int; fd=libc.memfd_create(b"project-demo", 3); print(fd); os.close(fd)'
+```
+
+Output atteso:
+
+```text
+event=memfd_create ... comm=python3 args=name=project-demo,flags=MFD_CLOEXEC|MFD_ALLOW_SEALING,returnValue=fd:3
+```
+
+Il file descriptor preciso puo' cambiare. Un valore positivo indica che il
+file anonimo e' stato creato; un valore negativo viene mostrato come errore
+simbolico, ad esempio `EINVAL(-22): invalid argument`.
+
+## Testare `mmap` e `mprotect`
+
+Terminale 1:
+
+```bash
+make run ARGS="--events mmap,mprotect --output table --comms python3"
+```
+
+Terminale 2:
+
+```bash
+python3 -c 'import ctypes,mmap; region=mmap.mmap(-1,mmap.PAGESIZE,prot=mmap.PROT_READ|mmap.PROT_WRITE); addr=ctypes.addressof(ctypes.c_char.from_buffer(region)); libc=ctypes.CDLL(None,use_errno=True); print(libc.mprotect(ctypes.c_void_p(addr),ctypes.c_size_t(mmap.PAGESIZE),mmap.PROT_READ|mmap.PROT_EXEC)); region.close()'
+```
+
+Output rappresentativo:
+
+```text
+event=mmap ... comm=python3 args=addr=...,length=4096,prot=PROT_READ|PROT_WRITE,flags=MAP_PRIVATE|MAP_ANONYMOUS,fd=-1,offset=0,returnValue=address:0x...
+event=mprotect ... comm=python3 args=addr=...,length=4096,prot=PROT_READ|PROT_EXEC,returnValue=success
+```
+
+Python e il loader dinamico generano altri mapping durante l'avvio. Il filtro
+`--comms python3` limita i processi osservati, ma e' normale vedere piu' eventi
+`mmap` rispetto alla singola regione creata dallo script.
+
+## Testare `pkey_mprotect`
+
+Terminale 1:
+
+```bash
+make run ARGS="--events pkey_mprotect --output table --comms python3"
+```
+
+Terminale 2:
+
+```bash
+python3 -c 'import ctypes,mmap; libc=ctypes.CDLL(None,use_errno=True); libc.syscall.restype=ctypes.c_long; region=mmap.mmap(-1,mmap.PAGESIZE,prot=mmap.PROT_READ|mmap.PROT_WRITE); addr=ctypes.addressof(ctypes.c_char.from_buffer(region)); result=libc.syscall(329,ctypes.c_void_p(addr),ctypes.c_size_t(mmap.PAGESIZE),ctypes.c_int(mmap.PROT_READ),ctypes.c_int(-1)); print("result",result,"errno",ctypes.get_errno()); region.close()'
+```
+
+Il numero `329` identifica `pkey_mprotect` su x86_64, cioe' l'architettura della
+VM target. Il valore `pkey=-1` richiede il comportamento equivalente a
+`mprotect` ma attraversa comunque la syscall `pkey_mprotect`, rendendo il test
+affidabile anche quando `pkey_alloc` non riesce per assenza del supporto MPK
+hardware. Un tentativo fallito resta osservabile e `returnValue` mostra
+l'errno, ad esempio `EINVAL(-22)`.
+
+## Testare `process_vm_writev`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events process_vm_writev --output table --comms python3
+```
+
+Terminale 2:
+
+```bash
+sudo python3 -c $'import ctypes, os\nclass IOVec(ctypes.Structure):\n    _fields_ = [("iov_base", ctypes.c_void_p), ("iov_len", ctypes.c_size_t)]\nlibc = ctypes.CDLL(None, use_errno=True)\nsource = ctypes.create_string_buffer(b"project-demo")\ntarget = ctypes.create_string_buffer(len(source))\nlocal = IOVec(ctypes.cast(source, ctypes.c_void_p), len(source))\nremote = IOVec(ctypes.cast(target, ctypes.c_void_p), len(target))\nlibc.process_vm_writev.argtypes = [ctypes.c_int, ctypes.POINTER(IOVec), ctypes.c_ulong, ctypes.POINTER(IOVec), ctypes.c_ulong, ctypes.c_ulong]\nlibc.process_vm_writev.restype = ctypes.c_ssize_t\nresult = libc.process_vm_writev(os.getpid(), ctypes.byref(local), 1, ctypes.byref(remote), 1, 0)\nprint("result", result, "target", target.value, "errno", ctypes.get_errno())'
+```
+
+Output rappresentativo:
+
+```text
+event=process_vm_writev ... comm=python3 args=pid=...,local_iov=0x...,liovcnt=1,remote_iov=0x...,riovcnt=1,flags=0,returnValue=bytes:13
+```
+
+## Testare `setns`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events setns --output table --comms python3
+```
+
+Terminale 2:
+
+```bash
+sudo python3 -c 'import ctypes, os; libc=ctypes.CDLL(None, use_errno=True); libc.setns.argtypes=[ctypes.c_int, ctypes.c_int]; libc.setns.restype=ctypes.c_int; fd=os.open("/proc/self/ns/mnt", os.O_RDONLY); rc=libc.setns(fd, 0x00020000); err=ctypes.get_errno(); print(f"setns rc={rc} errno={err}"); os.close(fd)'
+```
+
+Il comando prova a entrare nel mount namespace corrente. Non crea un nuovo
+namespace e, se autorizzato, non cambia stabilmente l'ambiente della shell.
+
+Output osservato sul kernel target:
+
+```text
+event=setns ... comm=python3 args=fd=3,nstype=CLONE_NEWNS,returnValue=success
+```
+
+Se la chiamata non e' autorizzata, l'evento viene comunque emesso con un valore
+come `EPERM(-1): operation not permitted`.
+
+## Testare `unshare`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events unshare --output table --comms python3
+```
+
+Terminale 2:
+
+```bash
+sudo python3 -c 'import ctypes; libc=ctypes.CDLL(None, use_errno=True); libc.unshare.argtypes=[ctypes.c_int]; libc.unshare.restype=ctypes.c_int; rc=libc.unshare(0x00000200); print(f"unshare rc={rc} errno={ctypes.get_errno()}")'
+```
+
+`0x00000200` corrisponde a `CLONE_FS`. La modifica resta confinata al breve
+processo Python e non crea namespace di rete o PID.
+
+Output osservato:
+
+```text
+event=unshare ... comm=python3 args=flags=CLONE_FS,returnValue=success
+```
+
+Per verificare il mapping di namespace multipli si puo' usare una combinazione
+di flag, tenendo presente che la creazione di namespace richiede capability e
+configurazioni kernel adeguate.
+
+## Testare `process_vm_readv`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events process_vm_readv --output table --comms python3
+```
+
+Terminale 2:
+
+```bash
+sudo python3 -c $'import ctypes, os\nclass IOVec(ctypes.Structure):\n    _fields_ = [("iov_base", ctypes.c_void_p), ("iov_len", ctypes.c_size_t)]\nlibc = ctypes.CDLL(None, use_errno=True)\nsource = ctypes.create_string_buffer(b"project-read")\ntarget = ctypes.create_string_buffer(len(source))\nlocal = IOVec(ctypes.cast(target, ctypes.c_void_p), len(target))\nremote = IOVec(ctypes.cast(source, ctypes.c_void_p), len(source))\nlibc.process_vm_readv.argtypes = [ctypes.c_int, ctypes.POINTER(IOVec), ctypes.c_ulong, ctypes.POINTER(IOVec), ctypes.c_ulong, ctypes.c_ulong]\nlibc.process_vm_readv.restype = ctypes.c_ssize_t\nresult = libc.process_vm_readv(os.getpid(), ctypes.byref(local), 1, ctypes.byref(remote), 1, 0)\nprint("result", result, "target", target.value, "errno", ctypes.get_errno())'
+```
+
+Output osservato:
+
+```text
+event=process_vm_readv ... args=pid=...,local_iov=0x...,liovcnt=1,remote_iov=0x...,riovcnt=1,flags=0,returnValue=bytes:13
+```
+
+## Testare `commit_creds`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events commit_creds --output table --comms sudo
+```
+
+Terminale 2:
+
+```bash
+sudo -u nobody true
+```
+
+L'output contiene piu' transizioni perche' `sudo` modifica separatamente real,
+effective, saved e filesystem ID, gruppi e capability. Un esempio rilevante e':
+
+```text
+event=commit_creds ... comm=sudo args=old_cred={uid:1000,...,euid:1000,...,cap_effective:0x0},new_cred={uid:1000,...,euid:0,...,cap_effective:0x1ffffffffff}
+```
+
+Il test scrive nel buffer dello stesso processo ed e' quindi innocuo. Serve a
+verificare l'hook e il decoder. La condizione security piu' interessante sara'
+una futura policy in cui il PID target e' diverso dal PID sorgente.
+
+## Testare `security_bprm_creds_for_exec`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events security_bprm_creds_for_exec --output table --comms whoami,ls,bash
+```
+
+Terminale 2:
+
+```bash
+whoami
+ls >/dev/null
+```
+
+Output atteso:
+
+```text
+event=security_bprm_creds_for_exec ... args=pathname=/usr/bin/whoami,dev=...,inode=...,filename=/usr/bin/whoami,argc=1,envc=...,ctime=...
+```
+
+Questo evento viene emesso durante la preparazione delle credenziali per il
+nuovo programma. E' vicino al percorso di exec, ma non sostituisce
+`sched_process_exec`: quest'ultimo conferma il cambio immagine riuscito.
+
+## Testare `security_bpf`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events security_bpf --output table --comms bpftool,project
+```
+
+Terminale 2:
+
+```bash
+sudo bpftool prog show >/dev/null
+sudo bpftool map show >/dev/null
+```
+
+Output atteso:
+
+```text
+event=security_bpf ... comm=bpftool args=cmd=BPF_PROG_GET_NEXT_ID(...),size=...
+event=security_bpf ... comm=bpftool args=cmd=BPF_MAP_GET_NEXT_ID(...),size=...
+```
+
+Se `bpftool` non e' installato, l'evento puo' comunque comparire quando il
+nostro tool o altri programmi caricano oggetti eBPF. In quel caso usare un
+filtro `--comms project` mentre si avvia una seconda istanza o un altro tool
+eBPF di test.
+
+## Testare `security_bpf_map` e `security_bpf_prog`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events security_bpf_map,security_bpf_prog --output table --comms bpftool,project
+```
+
+Terminale 2:
+
+```bash
+sudo bpftool map show >/dev/null
+sudo bpftool prog show >/dev/null
+```
+
+Output atteso:
+
+```text
+event=security_bpf_map ... args=map_id=...,map_name=...
+event=security_bpf_prog ... args=prog_id=...,prog_name=...,prog_type=BPF_PROG_TYPE_TRACEPOINT(...)
+```
+
+Questi eventi osservano operazioni su oggetti eBPF gia' esistenti. Sono piu'
+semantici di `security_bpf`, che invece descrive il comando generale passato a
+`bpf(2)`.
+
+## Testare `security_kernel_read_file`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events security_kernel_read_file --output table --log-level error
+```
+
+Terminale 2:
+
+```bash
+sudo modprobe dummy || true
+sudo modprobe -r dummy || true
+```
+
+Output atteso, se il modulo e' disponibile sul sistema:
+
+```text
+event=security_kernel_read_file ... args=pathname=...,dev=...,inode=...,type=READING_MODULE(2),ctime=...
+```
+
+Questo hook si attiva quando il kernel legge file per proprie funzionalita',
+per esempio moduli, firmware, policy o immagini kexec. Se `dummy` non e'
+presente, provare con un modulo disponibile sulla VM, ad esempio:
+
+```bash
+find /lib/modules/$(uname -r) -type f -name '*.ko*' | head
+```
+
+e poi usare `modprobe` sul nome del modulo senza estensione.
+
+## Testare `security_kernel_post_read_file`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events security_kernel_post_read_file --output table --log-level error
+```
+
+Terminale 2:
+
+```bash
+sudo modprobe dummy || true
+sudo modprobe -r dummy || true
+```
+
+Output atteso, se il percorso kernel viene raggiunto:
+
+```text
+event=security_kernel_post_read_file ... args=pathname=...,size=...,type=READING_MODULE(2),dev=...,inode=...,ctime=...
+```
+
+Se non compare nulla, non e' necessariamente un errore del tool: il modulo
+potrebbe non esistere, essere gia' cacheato, oppure il comando scelto potrebbe
+non attraversare il percorso `kernel_read_file` sul kernel corrente.
+
+## Testare `fork`, `vfork` e `clone`
+
+Per `clone`:
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events clone --output table --comms python3
+```
+
+Terminale 2:
+
+```bash
+python3 -c 'import os; pid=os.fork(); os._exit(0) if pid == 0 else os.waitpid(pid, 0)'
+```
+
+Output atteso:
+
+```text
+event=clone ... comm=python3 args=flags=...,stack=0x...,parent_tid=0x...,child_tid=0x...,tls=...,returnValue=child_pid:...
+```
+
+Su Linux/glibc, anche `fork()` puo' essere implementata internamente tramite
+`clone`, quindi e' normale vedere `clone` invece di `fork`.
+
+Per testare direttamente `vfork`, compilare un piccolo programma C:
+
+```c
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+int main(void) {
+    pid_t pid = vfork();
+    if (pid == 0)
+        _exit(0);
+    waitpid(pid, 0, 0);
+    return 0;
+}
+```
+
+Poi:
+
+```bash
+gcc /tmp/test_vfork.c -o /tmp/test_vfork
+sudo ./dist/project --events vfork --output table --comms test_vfork
+/tmp/test_vfork
+```
+
+Output atteso:
+
+```text
+event=vfork ... comm=test_vfork args=returnValue=child_pid:...
+```
+
+## Testare le syscall `set*uid` e `set*gid`
+
+Esempi rapidi, uno per evento. Tenere il tool aperto in un terminale:
+
+```bash
+sudo ./dist/project --events setuid,setgid,setreuid,setregid,setresuid,setresgid,setfsuid,setfsgid --output table --comms python3
+```
+
+Poi lanciare i comandi da un secondo terminale:
+
+```bash
+sudo python3 -c 'import os; os.setuid(65534); print(os.getuid(), os.geteuid())'
+sudo python3 -c 'import os; os.setgid(65534); print(os.getgid(), os.getegid())'
+sudo python3 -c 'import os; os.setreuid(0, 65534); print(os.getuid(), os.geteuid())'
+sudo python3 -c 'import os; os.setregid(0, 65534); print(os.getgid(), os.getegid())'
+sudo python3 -c 'import os; os.setresuid(0, 65534, 0); print(os.getresuid())'
+sudo python3 -c 'import os; os.setresgid(0, 65534, 0); print(os.getresgid())'
+sudo python3 -c 'import ctypes, os; libc=ctypes.CDLL(None, use_errno=True); print(libc.syscall(122, os.getuid()), ctypes.get_errno())'
+sudo python3 -c 'import ctypes, os; libc=ctypes.CDLL(None, use_errno=True); print(libc.syscall(123, os.getgid()), ctypes.get_errno())'
+```
+
+Su x86_64, `122` e `123` sono rispettivamente `setfsuid` e `setfsgid`.
+
+Output atteso:
+
+```text
+event=setuid ... args=uid=65534,returnValue=success
+event=setgid ... args=gid=65534,returnValue=success
+event=setresuid ... args=ruid=0,euid=65534,suid=0,returnValue=success
+```
+
+Questi eventi rappresentano il punto di vista syscall: argomenti richiesti e
+risultato finale. Per vedere le credenziali effettivamente installate usare
+anche `commit_creds`.
+
+## Testare `prlimit64`
+
+Terminale 1:
+
+```bash
+sudo ./dist/project --events prlimit64 --output table --comms prlimit
+```
+
+Terminale 2:
+
+```bash
+prlimit --nofile
+prlimit --pid $$ --nofile=1024:4096
+```
+
+Output atteso:
+
+```text
+event=prlimit64 ... comm=prlimit args=pid=0,resource=RLIMIT_NOFILE(7),new_limit=0x0,old_limit=0x...,returnValue=success
+event=prlimit64 ... comm=prlimit args=pid=...,resource=RLIMIT_NOFILE(7),new_limit=0x...,old_limit=0x0,returnValue=success
+```
+
+I campi `new_limit` e `old_limit` sono puntatori userspace. La prima versione
+non dereferenzia il contenuto della struct `rlimit64`; questa scelta mantiene
+l'evento leggero e vicino al modello Tracee-like entry/exit.
+
+## Testare namespace, mount e unlink
+
+Per osservare la transizione effettiva di namespace:
+
+```bash
+sudo ./dist/project --events switch_task_ns --output table --comms unshare
+sudo unshare -m true
+```
+
+Output verificato:
+
+```text
+event=switch_task_ns ... comm=unshare args=pid=...,new_mnt=...
+```
+
+Per mount e umount usare un tmpfs temporaneo:
+
+```bash
+sudo ./dist/project --events security_sb_mount,security_sb_umount --output table
+sudo mkdir -p /tmp/project-mount-test
+sudo mount -t tmpfs -o nosuid,nodev tmpfs /tmp/project-mount-test
+sudo umount /tmp/project-mount-test
+sudo rmdir /tmp/project-mount-test
+```
+
+Le flag vengono mostrate come `MS_NOSUID|MS_NODEV`; per umount senza opzioni
+il campo e' `flags=0`.
+
+Per unlink:
+
+```bash
+sudo ./dist/project --events security_inode_unlink --output table --comms rm
+touch /tmp/project-unlink-test
+rm /tmp/project-unlink-test
+```
+
+L'evento contiene il path risolto, inode, device e ctime. Questi tre hook LSM
+non portano il return value finale: descrivono il controllo security eseguito
+dal kernel sull'operazione.
 
 ## Testare `security_settime64`
 

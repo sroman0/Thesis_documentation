@@ -148,17 +148,29 @@ nodo:
 --privileged
 --pid=host
 -v /sys/kernel/btf:/sys/kernel/btf:ro
+-v /sys/kernel/tracing:/sys/kernel/tracing:ro
+-v /sys/kernel/debug:/sys/kernel/debug:ro
 -v /sys/fs/bpf:/sys/fs/bpf
 ```
 
 Queste opzioni servono perché il container non ha un kernel proprio. Il tool
-sta osservando il kernel reale della macchina host.
+sta osservando il kernel reale della macchina host. In particolare,
+`/sys/kernel/tracing` e `/sys/kernel/debug` espongono tracefs/debugfs: libbpf li
+usa per trovare gli ID dei tracepoint, ad esempio
+`syscalls/sys_enter_execve`. Senza questi mount il container può caricare il
+binario, ma fallire durante l'attach con un errore del tipo:
+
+```text
+failed to create tracepoint 'syscalls/sys_enter_execve' perf event:
+No such file or directory
+```
 
 ```mermaid
 flowchart TB
     subgraph Host["Nodo host"]
         K[Kernel Linux<br/>verifier, hooks, BPF maps]
         BTF[/sys/kernel/btf/vmlinux]
+        TRACEFS[/sys/kernel/tracing<br/>/sys/kernel/debug]
         BPFFS[/sys/fs/bpf]
     end
 
@@ -168,8 +180,25 @@ flowchart TB
 
     P -->|carica programmi eBPF| K
     P -->|legge BTF| BTF
+    P -->|risolve tracepoint| TRACEFS
     P -->|usa bpffs| BPFFS
 ```
+
+Se `make docker-run` fallisce su un tracepoint, il primo controllo da fare sul
+nodo host è:
+
+```bash
+ls /sys/kernel/tracing/events/syscalls/sys_enter_execve/id
+```
+
+Se il file non esiste, provare il percorso alternativo:
+
+```bash
+ls /sys/kernel/debug/tracing/events/syscalls/sys_enter_execve/id
+```
+
+Se entrambi mancano, il problema non è il Dockerfile: tracefs non è montato o i
+tracepoint syscall non sono esposti dal kernel host.
 
 ## Implicazioni per Kubernetes
 
@@ -204,20 +233,32 @@ spec:
             - name: btf
               mountPath: /sys/kernel/btf
               readOnly: true
+            - name: tracefs
+              mountPath: /sys/kernel/tracing
+              readOnly: true
+            - name: debugfs
+              mountPath: /sys/kernel/debug
+              readOnly: true
             - name: bpffs
               mountPath: /sys/fs/bpf
       volumes:
         - name: btf
           hostPath:
             path: /sys/kernel/btf
+        - name: tracefs
+          hostPath:
+            path: /sys/kernel/tracing
+        - name: debugfs
+          hostPath:
+            path: /sys/kernel/debug
         - name: bpffs
           hostPath:
             path: /sys/fs/bpf
 ```
 
 Questo non è ancora un manifest di produzione completo, ma mostra i concetti
-fondamentali: immagine runtime, privilegi, `hostPID`, BTF e BPF filesystem del
-nodo.
+fondamentali: immagine runtime, privilegi, `hostPID`, BTF, tracefs/debugfs e BPF
+filesystem del nodo.
 
 ## Rete durante la build
 

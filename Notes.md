@@ -3,3 +3,4 @@
 - Idea: preparare dei template ai customers per filtrare gli eventi in base ad una macroarea. Template per il processing, template per il networking, template per security, template per attacchi specifici...
 - Idea: provare ad implementare un sistema di monitoring non solo per eventi singoli, ma anche per pattern di eventi.
 - Idea: implementare delle funzioni per gli hook più frequenti che printano una versione più compatta dell'evento, evitando di printare dati che non ci servono, e che non intasino il terminale
+- controllare la prestazione del tool, deve rimanere al di sotto del 5% di un core.

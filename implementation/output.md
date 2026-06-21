@@ -70,6 +70,145 @@ event=security_file_open ... args=pathname=/etc/hostname,flags=32768,dev=...,ino
 Questo formato sacrifica alcuni metadati dettagliati per rendere l'output
 leggibile mentre il tracer gira.
 
+## Eventi di gestione memoria
+
+Per `mmap`, `mprotect` e `pkey_mprotect`, il layer di output converte le
+bitmask numeriche in nomi Linux:
+
+```text
+prot=PROT_READ|PROT_WRITE
+flags=MAP_PRIVATE|MAP_ANONYMOUS
+```
+
+Il valore restituito da `mmap` viene mostrato come indirizzo esadecimale:
+
+```text
+returnValue=address:0x7f001000
+```
+
+Un errore mantiene sia il nome errno sia il valore kernel:
+
+```text
+returnValue=ENOMEM(-12): cannot allocate memory
+```
+
+Le syscall `mprotect` e `pkey_mprotect`, che restituiscono zero in caso di
+successo, vengono mostrate come:
+
+```text
+returnValue=success
+```
+
+I bit non ancora riconosciuti non vengono persi: sono mantenuti in forma
+esadecimale accanto alle flag note.
+
+Per `process_vm_readv` e `process_vm_writev`, i puntatori agli array `iovec`
+vengono mostrati in esadecimale e il risultato positivo indica il numero di
+byte trasferiti:
+
+```text
+local_iov=0x7fa94e5dc3c8
+remote_iov=0x7fa94e5dc450
+returnValue=bytes:13
+```
+
+Un risultato negativo continua a usare il mapping errno comune, ad esempio
+`EPERM(-1): operation not permitted`.
+
+Per `commit_creds`, l'output table mantiene separate le vecchie e nuove
+credenziali:
+
+```text
+old_cred={uid:1000,...,euid:1000,...,cap_effective:0x0}
+new_cred={uid:1000,...,euid:0,...,cap_effective:0x1ffffffffff}
+```
+
+Nel formato JSON entrambi i valori sono oggetti strutturati con nomi
+snake_case, quindi possono essere consumati direttamente da una futura policy
+senza parsing testuale.
+
+Per `setns`, il tipo numerico del namespace viene convertito nel corrispondente
+nome Linux:
+
+```text
+nstype=CLONE_NEWNS
+returnValue=success
+```
+
+Il valore zero viene mostrato come `AUTO`, per indicare che il kernel ricava il
+tipo di namespace dal file descriptor. I valori non riconosciuti restano
+visibili in esadecimale, mentre gli errori usano il mapping errno comune.
+
+Per `unshare`, l'output interpreta la bitmask completa e puo' mostrare piu'
+risorse nella stessa riga:
+
+```text
+flags=CLONE_NEWUSER|CLONE_NEWNS
+returnValue=success
+```
+
+Sono riconosciuti sia i flag namespace `CLONE_NEW*` sia `CLONE_FS`,
+`CLONE_FILES` e `CLONE_SYSVSEM`. I bit sconosciuti vengono mantenuti in
+esadecimale.
+
+## Namespace e filesystem
+
+`switch_task_ns` non ripete tutti i namespace del processo. Mostra il PID del
+task e soltanto gli ID realmente sostituiti:
+
+```text
+event=switch_task_ns ... args=pid=3550453,new_mnt=4026532233
+```
+
+Questo rende l'evento adatto alla correlazione con `setns` e `unshare`: i due
+eventi syscall mostrano richiesta ed esito, mentre `switch_task_ns` descrive la
+transizione effettiva applicata dal kernel.
+
+Per mount e umount, le bitmask numeriche vengono convertite in nomi Linux:
+
+```text
+event=security_sb_mount ... args=dev_name=tmpfs,path=/tmp/project-mount-test,type=tmpfs,flags=MS_NOSUID|MS_NODEV
+event=security_sb_umount ... args=mountpoint=/tmp/project-mount-test,type=tmpfs,flags=0
+```
+
+Sono riconosciute le principali flag `MS_*`, `MNT_*` e `UMOUNT_*`. Eventuali
+bit non noti restano visibili in esadecimale.
+
+`security_inode_unlink` non richiede arricchimenti simbolici, ma fornisce
+direttamente metadati stabili del file risolto dal kernel:
+
+```text
+event=security_inode_unlink ... args=pathname=/tmp/project-unlink-test,inode=...,dev=...,ctime=...
+```
+
+## Hardening kernel
+
+Gli eventi di hardening kernel espongono spesso indirizzi di funzioni o
+strutture. Il formato `table` li mostra in esadecimale per evitare ambiguita'
+con normali interi:
+
+```text
+event=proc_create ... args=name=example,proc_ops_addr=0xffffffffc0123450
+event=kallsyms_lookup_name ... args=symbol_name=printk,address=0xffffffff810...
+```
+
+Per `register_kprobe`, il return value viene trattato come stato operativo:
+
+```text
+event=register_kprobe ... args=symbol_name=cap_capable,pre_handler=0xffffffffc...,post_handler=0x0,returnValue=success
+```
+
+Un errore negativo continua a usare il mapping errno comune, ad esempio:
+
+```text
+returnValue=ENOENT(-2): no such file or directory
+```
+
+Questi eventi non sono pensati per essere letti da soli: diventano piu'
+informativi quando vengono correlati con caricamento moduli, creazione di
+entry procfs, lookup di simboli kernel e futura logica su debugfs o hidden
+modules.
+
 ## Test
 
 I test del package output verificano:
@@ -79,6 +218,15 @@ I test del package output verificano:
 - che capability numeriche come `21` vengano convertite in `CAP_SYS_ADMIN`;
 - che segnali numerici come `15` vengano convertiti in `SIGTERM`;
 - che richieste ptrace come `16` vengano convertite in `PTRACE_ATTACH`;
+- che i permessi memoria vengano convertiti in `PROT_*`;
+- che le flag di mapping vengano convertite in `MAP_*`;
+- che indirizzi, successi ed errno delle syscall di memoria siano leggibili;
+- che `process_vm_writev` mostri puntatori esadecimali e byte scritti;
+- che le flag mount e umount vengano convertite nei nomi simbolici;
+- che puntatori kernel e indirizzi di callback vengano mostrati in
+  esadecimale;
+- che il return value degli eventi di registrazione kernel venga mostrato come
+  successo o errno;
 - che il formato table contenga i campi essenziali;
 - che formati non supportati vengano rifiutati dalla factory.
 
@@ -90,10 +238,12 @@ GOCACHE=/tmp/go-build go test ./pkg/output -v
 
 ## Limiti attuali
 
-Il mapping simbolico e' presente per Linux capabilities, segnali POSIX comuni e
-richieste `ptrace`. Altri valori numerici, come syscall, resource limit o
-opzioni `prctl`, sono ancora stampati come numeri e potranno essere arricchiti
-nello stesso layer.
+Il mapping simbolico e' presente per Linux capabilities, segnali POSIX comuni,
+richieste `ptrace`, errno, file descriptor, eventi eBPF, tipi `READING_*`,
+permessi `MAY_*`, modalita' `UMH_*` e flag relative a file, memoria, namespace,
+mount e umount. Altri valori numerici, come syscall, alcune opzioni `prctl`,
+socket option o comandi driver-specific, sono ancora stampati come numeri e
+potranno essere arricchiti nello stesso layer.
 
 Esempio:
 

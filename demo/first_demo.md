@@ -5,7 +5,8 @@
 This demo shows the current end-to-end pipeline:
 
 - selected kernel hooks are attached from Go;
-- events are sent through ring buffer or perf buffer;
+- active hooks send events through the perf buffer;
+- ring buffer support remains available for fallback and experiments;
 - userspace decodes raw bytes into structured events;
 - filters reduce noise;
 - output is printed as `table` or `json`.
@@ -22,10 +23,9 @@ flowchart TD
     B --> C[Load eBPF module with libbpfgo]
     C --> D[Select probes with --events and --drop-events]
     D --> E[Attach raw tracepoints and kprobes]
-    E --> F1[Ring buffer: events_ringbuf]
     E --> F2[Perf buffer: events]
-    F1 --> G[handleRawEvent]
-    F2 --> G
+    R[Ring buffer support retained] -. optional .-> G
+    F2 --> G[handleRawEvent]
     G --> H[Decode event context and args]
     H --> I[Filter event name]
     I --> J[Filter comm with --comms]
@@ -40,8 +40,8 @@ flowchart TD
 - Probe registry in `pkg/ebpf/probes`.
 - Event selection with `--events` and `--drop-events`.
 - Command-name filtering with `--comms`.
-- Ring buffer reader for process/security events.
-- Perf buffer reader for Tracee-like/networking events.
+- Perf buffer as the current event transport.
+- Ring buffer support retained for future fallback or comparison.
 - Output layer with `json` and `table`.
 
 ## Event Groups
@@ -58,9 +58,32 @@ mindmap
       task_rename
     Security
       cap_capable
+      security_bprm_check
+      security_file_open
       security_task_setrlimit
       security_settime64
       security_task_prctl
+      security_task_fix_setuid
+      security_task_kill
+      security_sb_mount
+      security_sb_umount
+      ptrace
+    File operations
+      open
+      chmod
+      chown
+      memfd_create
+      security_inode_unlink
+    Memory security
+      mmap
+      mprotect
+      pkey_mprotect
+      process_vm_readv
+      process_vm_writev
+      setns
+      unshare
+      switch_task_ns
+      commit_creds
     Networking
       security_socket_create
       security_socket_listen
@@ -167,6 +190,36 @@ What to explain:
 - It requires privileges such as `CAP_SYS_TIME`.
 - Use this only on a test VM.
 
+### 5. Show Namespace and Filesystem Events
+
+Terminal 1:
+
+```bash
+sudo ./dist/project \
+  --events switch_task_ns,security_sb_mount,security_sb_umount,security_inode_unlink \
+  --output table
+```
+
+Terminal 2:
+
+```bash
+sudo unshare -m true
+sudo mkdir -p /tmp/project-mount-test
+sudo mount -t tmpfs -o nosuid,nodev tmpfs /tmp/project-mount-test
+sudo umount /tmp/project-mount-test
+sudo rmdir /tmp/project-mount-test
+touch /tmp/project-unlink-test
+rm /tmp/project-unlink-test
+```
+
+What to explain:
+
+- `setns` and `unshare` describe syscall requests and results.
+- `switch_task_ns` reports the namespace IDs actually replaced by the kernel.
+- mount and unlink hooks expose kernel-resolved paths and filesystem metadata.
+- these security hooks describe the kernel validation point and do not include
+  the final syscall return value.
+
 ## Architecture Talking Points
 
 ```mermaid
@@ -201,8 +254,8 @@ Key points:
 - Socket addresses and socket constants need better human-readable formatting.
 - `--comms` is a userspace filter, so it improves output readability but does
   not reduce kernel-side work.
-- The final transport strategy still needs consolidation: keep both ring/perf
-  buffers, or converge to perf buffer in a more Tracee-like design.
+- Perf buffer is the current transport; ring buffer support is retained but is
+  not used by the active hooks.
 - Detection logic and MITRE ATT&CK mapping are future work.
 
 ## Short Closing

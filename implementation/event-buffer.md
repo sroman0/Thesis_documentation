@@ -160,6 +160,108 @@ perf buffer: il percorso principale usa `events_perf_submit`, mentre
 `events_ringbuf_submit` e la mappa `events_ringbuf` restano disponibili per
 esperimenti, fallback o confronti futuri senza dover ricostruire il runtime.
 
+## Correlazione syscall entry/exit
+
+Gli eventi che richiedono il valore di ritorno non vengono inviati direttamente
+dal tracepoint `sys_enter_*`. L'entry salva gli argomenti in `args_map`, usando
+una chiave composta da:
+
+```text
+event ID + thread ID
+```
+
+Il tracepoint `sys_exit_*` usa la stessa chiave per:
+
+1. recuperare gli argomenti;
+2. eliminare la voce temporanea dalla mappa;
+3. aggiungere il return value;
+4. serializzare e inviare un solo evento completo.
+
+Il pattern e' usato, tra gli altri, da:
+
+- `open`;
+- `chmod`;
+- `chown`;
+- `memfd_create`;
+- `mmap`;
+- `mprotect`;
+- `pkey_mprotect`;
+- `process_vm_readv`;
+- `process_vm_writev`;
+- `setns`;
+- `unshare`.
+
+La struttura condivisa `args_t` contiene sette slot `unsigned long`. Il settimo
+slot e' necessario per le syscall con piu' metadati, in particolare `chown`.
+Anche `load_args` copia tutti e sette gli slot dalla mappa alla struttura
+locale.
+
+Questo modello evita due eventi separati per la stessa syscall e consente al
+decoder di ricevere direttamente una rappresentazione che include l'esito
+finale.
+
+## Eventi di gestione memoria
+
+I nuovi eventi usano lo stesso protocollo degli altri record perf buffer:
+
+```text
+mmap:
+  addr, length, prot, flags, fd, offset, returnValue
+
+mprotect:
+  addr, length, prot, returnValue
+
+pkey_mprotect:
+  addr, length, prot, pkey, returnValue
+
+process_vm_writev:
+  pid, local_iov, liovcnt, remote_iov, riovcnt, flags, returnValue
+
+process_vm_readv:
+  pid, local_iov, liovcnt, remote_iov, riovcnt, flags, returnValue
+
+setns:
+  fd, nstype, returnValue
+
+unshare:
+  flags, returnValue
+
+switch_task_ns:
+  pid, new_mnt?, new_pid?, new_uts?, new_ipc?, new_net?, new_cgroup?
+
+security_sb_mount:
+  dev_name?, path, type?, flags
+
+security_sb_umount:
+  mountpoint, type?, flags
+
+security_inode_unlink:
+  pathname, inode, dev, ctime
+```
+
+Gli indirizzi e i campi `unsigned long` vengono serializzati come valori a 64
+bit sul target x86_64. `returnValue` resta signed per conservare gli errno
+negativi restituiti dal kernel.
+
+Il punto interrogativo indica un argomento opzionale. In particolare,
+`switch_task_ns` serializza solo gli ID diversi dal vecchio `nsproxy`; il
+decoder usa gli indici registrati nel record e mantiene comunque il corretto
+nome del campo.
+
+## Credenziali strutturate
+
+`commit_creds` usa due record `CredT` da 80 byte:
+
+```text
+commit_creds:
+  old_cred, new_cred
+```
+
+Ogni record contiene UID/GID, effective/saved/filesystem ID, user namespace,
+securebits e cinque maschere capability. Il decoder Go legge esplicitamente il
+layout little-endian di `slim_cred_t`, evitando cast dipendenti dalla memoria
+del processo userspace.
+
 ## Collegamenti
 
 - [Timeline](../timeline.md)

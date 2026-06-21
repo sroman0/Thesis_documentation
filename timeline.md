@@ -24,6 +24,9 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [2026-05-19 - Execve dedicata, log libbpf e direzione target-specific](daily/2026-05-19.md)
 - [2026-05-20 - Security bprm check e decoder per array di stringhe](daily/2026-05-20.md)
 - [2026-05-26 - security_task_fix_setuid e studio delle flag LSM_SETID](daily/2026-05-26.md)
+- [2026-06-10 - Memory protection e process_vm_writev](daily/2026-06-10.md)
+- [2026-06-16 - Hook process/security ad alta copertura](daily/2026-06-16.md)
+- [2026-06-17 - Hook BPF object, ioctl, cgroup e signal handling](daily/2026-06-17.md)
 
 ### Implementazione
 
@@ -34,6 +37,8 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [Output layer e formati eventi](implementation/output.md)
 - [Hook implementati](implementation/hooks.md)
 - [Docker nel progetto](implementation/docker.md)
+- [Misurazione prestazioni](implementation/performance.md)
+- [Roadmap hook process e security](implementation/hook-roadmap.md)
 
 ### Debugging
 
@@ -523,6 +528,47 @@ migrati al perf buffer. `events_ringbuf_submit`, la mappa `events_ringbuf` e il
 reader Go restano disponibili, ma per ora il transport principale e' `events`
 tramite `events_perf_submit`.
 
+## 2026-06-10 - Memory mapping e protection changes
+
+Sono stati aggiunti gli eventi `mmap`, `mprotect` e `pkey_mprotect` usando
+tracepoint syscall dedicati in coppia entry/exit. Gli argomenti vengono salvati
+all'ingresso e uniti al valore di ritorno all'uscita, prima dell'invio tramite
+perf buffer.
+
+Il layer di output traduce ora i bit `PROT_*` e `MAP_*`, mostra gli indirizzi
+restituiti da `mmap` in esadecimale e converte gli errori negativi in errno
+simbolici. Per `mprotect` e `pkey_mprotect`, il risultato zero viene mostrato
+come `success`.
+
+E' stata inoltre estesa da sei a sette slot la struttura condivisa `args_t` e
+la relativa helper `load_args`. La correzione rende valido il settimo campo
+gia' usato dall'evento `chown` e mantiene un unico meccanismo di correlazione
+entry/exit per le syscall.
+
+E' stato poi aggiunto `process_vm_writev`, evento ad alto impatto per osservare
+scritture dirette nella memoria di un processo. L'implementazione conserva i
+metadati degli `iovec` e il numero di byte scritti, senza copiare il payload,
+ed e' pronta a supportare una futura policy per process injection.
+
+Infine e' stato aggiunto `setns`, correlando entry ed exit per distinguere i
+cambi di namespace riusciti dai tentativi negati. L'output traduce `nstype`
+nei nomi `CLONE_NEW*`, rendendo l'evento utilizzabile in future policy su
+isolamento e container escape.
+
+La copertura dei namespace e' stata completata con `unshare`. L'evento mostra
+la bitmask `CLONE_*` e il risultato della syscall, distinguendo quindi la
+creazione o separazione effettiva di risorse da un semplice tentativo.
+
+Sono stati poi aggiunti `process_vm_readv` e `commit_creds`. Il primo completa
+la visibilita' sugli accessi diretti alla memoria cross-process senza copiare
+il payload. Il secondo confronta credenziali vecchie e nuove realmente
+applicate, incluse capability e user namespace.
+
+La copertura e' stata poi estesa alle transizioni namespace e alle operazioni
+filesystem semantiche: `switch_task_ns`, `security_sb_mount`,
+`security_sb_umount` e `security_inode_unlink`. I test live hanno verificato
+un nuovo mount namespace, mount/umount di un tmpfs e cancellazione di un file.
+
 **File tecnici principali:**
 
 - `demo_project/pkg/ebpf/c/project.bpf.c`
@@ -535,6 +581,85 @@ tramite `events_perf_submit`.
 
 **Note collegate:**
 
-- [Diario dettagliato del giorno](daily/2026-05-26.md)
+- [Diario dettagliato del giorno](daily/2026-06-10.md)
 - [Hook implementati](implementation/hooks.md)
 - [Comandi utili](debugging/commands.md)
+
+## 2026-06-16 - Hook process/security ad alta copertura
+
+Sono stati aggiunti nuovi hook verificati nel sorgente locale di Tracee:
+`security_bpf`, `security_kernel_read_file`,
+`security_bprm_creds_for_exec`, `clone`, `fork`, `vfork`, la famiglia
+`set*uid`/`set*gid` e `prlimit64`.
+
+L'obiettivo della giornata e' stato aumentare la copertura process/security
+senza introdurre hook generici troppo rumorosi. Gli eventi syscall usano il
+modello entry/exit quando serve il valore di ritorno; gli hook security
+rimangono invece semanticamente vicini agli oggetti kernel gia' risolti.
+
+Il layer di output e' stato arricchito con mapping human-readable per comandi
+`bpf(2)`, tipi `kernel_read_file`, flag `CLONE_*` e risorse `RLIMIT_*`.
+`prlimit64` e' stato adattato al formato tracepoint del kernel Rocky Linux
+4.18, usando slot a 8 byte per evitare truncation dei puntatori.
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-06-16.md)
+- [Hook implementati](implementation/hooks.md)
+- [Comandi utili](debugging/commands.md)
+
+## 2026-06-17 - Hook BPF object, cgroup, moduli e signal handling
+
+La copertura security/process e' stata estesa con nuovi hook aggiuntivi:
+`security_bpf_map`, `security_bpf_prog`, `security_kernel_post_read_file`,
+`security_file_ioctl`, `security_file_permission`, `cgroup_attach_task`,
+`cgroup_mkdir`, `cgroup_rmdir`, `call_usermodehelper`, `do_sigaction`,
+`module_load`, `module_free`, `do_init_module` e `process_execute_failed`.
+
+Questi eventi completano alcune aree gia' aperte il giorno precedente:
+`security_bpf` ora puo' essere affiancato da eventi sugli oggetti eBPF
+specifici, `security_kernel_read_file` ha un checkpoint successivo alla lettura
+del file, e il percorso file include anche ioctl e controlli successivi di
+permesso su file gia' aperti. Inoltre il tool osserva ora migrazioni tra
+cgroup, creazione/rimozione di cgroup, helper userspace avviati dal kernel,
+modifiche alla gestione dei segnali, lifecycle dei moduli kernel e tentativi
+falliti di exec.
+
+Il layer di output e' stato aggiornato con label per `BPF_PROG_TYPE_*`,
+`READING_*`, maschere `MAY_*`, comandi ioctl noti, modalita' `UMH_*` e metodi
+handler `SIG_*`. Per i nuovi eventi sono stati aggiunti anche mapping per il
+return value di `do_init_module` e per l'operazione `execve`/`execveat` fallita.
+La mappa `kernel_read_file_id` e' stata corretta per il kernel target: su Rocky
+Linux 4.18 `READING_MODULE` corrisponde a `2`.
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-06-17.md)
+- [Hook implementati](implementation/hooks.md)
+- [Comandi utili](debugging/commands.md)
+- [Roadmap hook process e security](implementation/hook-roadmap.md)
+
+## 2026-06-18 - Hook di hardening kernel
+
+Sono stati aggiunti tre hook orientati al kernel tampering e al comportamento
+dei moduli: `proc_create`, `register_kprobe` e `kallsyms_lookup_name`.
+
+`proc_create` rende visibile la creazione di entry procfs, utile per osservare
+moduli che espongono interfacce di controllo sotto `/proc`. `register_kprobe`
+usa una coppia kprobe/kretprobe per mostrare il simbolo osservato, gli handler
+registrati e l'esito della registrazione. `kallsyms_lookup_name` osserva lookup
+runtime di simboli kernel e stampa il nome richiesto insieme all'indirizzo
+restituito.
+
+Il layer di output e' stato aggiornato per mostrare correttamente puntatori e
+indirizzi kernel in esadecimale e per tradurre il `returnValue` di
+`register_kprobe` in `success` o errno. I test hanno verificato build eBPF,
+test Go, build del binario, presenza degli eventi in `--list-events` e attach
+runtime dei nuovi hook.
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-06-18.md)
+- [Hook implementati](implementation/hooks.md)
+- [Comandi utili](debugging/commands.md)
+- [Roadmap hook process e security](implementation/hook-roadmap.md)
