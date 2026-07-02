@@ -76,6 +76,7 @@ The CLI can select events with `--events` and `--drop-events`.
 | raw tracepoint | `AttachRawTracepoint` |
 | tracepoint | `AttachTracepoint` |
 | kprobe | `AttachKprobe` |
+| kretprobe | `AttachKretprobe` |
 
 ### eBPF Maps
 
@@ -97,9 +98,23 @@ Defined in `pkg/ebpf/c/maps.h`:
 5. Add the event/program/hook mapping in `pkg/ebpf/probes/probes.go`.
 6. Add probe-selection, decoder and output tests as needed.
 
-### Work Division
+### Current Hook Coverage
 
-- **Simone**: process hooks (`sched_process_fork`, `sched_process_exec`, `sched_process_exit`)
-- **Giuseppe**: network hooks (`security_socket_connect`, `security_socket_accept`, `security_socket_bind`)
+The tool now covers several macro-areas:
+
+- process lifecycle and exec: `sched_process_*`, `task_rename`, `execve`,
+  `execveat`, `process_execute_failed`, `fork`, `vfork`, `clone`;
+- credentials and privilege changes: `setuid`, `setgid`, `setreuid`,
+  `setregid`, `setresuid`, `setresgid`, `setfsuid`, `setfsgid`,
+  `security_task_fix_setuid`, `commit_creds`;
+- files, memory and namespaces: `open`, `chmod`, `chown`, `mmap`,
+  `mprotect`, `pkey_mprotect`, `memfd_create`, `process_vm_readv`,
+  `process_vm_writev`, `setns`, `unshare`, `switch_task_ns`;
+- security/VFS hooks: `security_file_open`, `security_file_permission`,
+  `security_file_ioctl`, `security_inode_*`, `security_sb_*`;
+- kernel hardening: `security_bpf*`, `security_kernel_*_read_file`,
+  `module_load`, `module_free`, `do_init_module`, `proc_create`,
+  `register_kprobe`, `kallsyms_lookup_name`;
+- cgroup, signal and networking hooks.
 
 The final detection engine is still in progress.

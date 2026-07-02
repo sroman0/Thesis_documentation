@@ -1,6 +1,7 @@
-- Per la comunicazione tra userspace e kernel space, conviene utilizzare un ring buffer oppure un perf buffer? Risolto: usiamo entrambe
+- Per la comunicazione tra userspace e kernel space, conviene utilizzare un ring buffer oppure un perf buffer? Risolto: il runtime supporta entrambi, ma gli hook correnti usano il perf buffer come percorso operativo principale. Ring buffer resta come alternativa/fallback.
 - Chiedere se è necessario implementare un file .yaml su .github per le github actions, cosi che ad ogni push viene effettuato un test sul codice.
 - Idea: preparare dei template ai customers per filtrare gli eventi in base ad una macroarea. Template per il processing, template per il networking, template per security, template per attacchi specifici...
 - Idea: provare ad implementare un sistema di monitoring non solo per eventi singoli, ma anche per pattern di eventi.
-- Idea: implementare delle funzioni per gli hook più frequenti che printano una versione più compatta dell'evento, evitando di printare dati che non ci servono, e che non intasino il terminale
-- controllare la prestazione del tool, deve rimanere al di sotto del 5% di un core.
+- Idea: implementare profili/policy di eventi, per esempio `process`, `filesystem`, `memory`, `kernel-hardening`, `network`, invece di lanciare sempre tutti gli hook.
+- Idea: introdurre kernel-side filtering minimo per UID, PID, namespace, cgroup/container e `comm`, cosi' da ridurre rumore e costo prima del perf buffer.
+- controllare la prestazione del tool, idealmente sotto il 5% di un core in steady-state con profili realistici, non necessariamente con tutti gli hook abilitati insieme.

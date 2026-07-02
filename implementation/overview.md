@@ -143,7 +143,7 @@ decodifica gli eventi raw e li passa a un printer configurabile.
 Completato per MVP:
 
 - load dell'oggetto eBPF;
-- attach raw tracepoint, tracepoint classici e kprobe;
+- attach raw tracepoint, tracepoint classici, kprobe e kretprobe;
 - registry selezionabile degli eventi/probe;
 - ring buffer reader;
 - perf buffer reader;
@@ -157,6 +157,11 @@ Completato per MVP:
   `syscalls/sys_enter_execve` e `syscalls/sys_enter_execveat`;
 - payload `argv` per `execve`/`execveat`;
 - filtro dei log libbpf/CO-RE tramite `--log-level`;
+- eventi `fork`, `vfork` e `clone` con correlazione entry/exit;
+- eventi `setuid`, `setgid`, `setreuid`, `setregid`, `setresuid`,
+  `setresgid`, `setfsuid`, `setfsgid` e `prlimit64`;
+- evento `security_bprm_creds_for_exec` per osservare la fase di preparazione
+  delle credenziali nel percorso exec;
 - eventi syscall enter/exit per `chmod`, `chown`, `open` e `memfd_create`;
 - eventi di gestione memoria `mmap`, `mprotect` e `pkey_mprotect`;
 - evento `process_vm_writev` per osservare scritture dirette nella memoria di
@@ -196,6 +201,8 @@ Completato per MVP:
 Manca ancora:
 
 - detection engine;
+- policy file e detector YAML caricabili a runtime;
+- output separato per alert correlati;
 - mapping MITRE;
 - arricchimento dell'output con mapping di syscall, alcune opzioni `prctl`,
   socket option e costanti driver-specific;
@@ -213,3 +220,4 @@ Manca ancora:
 - [Hook implementati](hooks.md)
 - [Docker nel progetto](docker.md)
 - [Misurazione prestazioni](performance.md)
+- [Prossimi step del tool](../next-steps/README.md)

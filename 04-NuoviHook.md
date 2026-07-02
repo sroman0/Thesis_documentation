@@ -13,6 +13,15 @@ Ecco gli hook principali implementati, con spiegazione breve:
 - `clone`: osserva la creazione di nuovi processi/thread.
 - `fork`: osserva fork classiche.
 - `vfork`: osserva vfork.
+- `setuid`: osserva cambi UID richiesti tramite syscall.
+- `setgid`: osserva cambi GID richiesti tramite syscall.
+- `setreuid`: osserva cambi separati di real/effective UID.
+- `setregid`: osserva cambi separati di real/effective GID.
+- `setresuid`: osserva cambi real/effective/saved UID.
+- `setresgid`: osserva cambi real/effective/saved GID.
+- `setfsuid`: osserva cambi filesystem UID.
+- `setfsgid`: osserva cambi filesystem GID.
+- `prlimit64`: osserva lettura/modifica dei resource limit.
 - `setns`: osserva ingresso in namespace esistenti.
 - `unshare`: osserva creazione/separazione di namespace.
 - `switch_task_ns`: osserva il cambio effettivo dei namespace del task.
@@ -59,6 +68,10 @@ Ecco gli hook principali implementati, con spiegazione breve:
 - `module_free`: osserva rimozione/liberazione di moduli kernel.
 - `do_init_module`: osserva inizializzazione moduli kernel con return value.
 - `call_usermodehelper`: osserva helper userspace avviati dal kernel.
+- `proc_create`: osserva creazione di entry procfs da kernel/moduli.
+- `register_kprobe`: osserva registrazione dinamica di kprobe con handler e
+  return value.
+- `kallsyms_lookup_name`: osserva lookup runtime di simboli kernel.
 
 - `cgroup_attach_task`: osserva spostamento di task tra cgroup.
 - `cgroup_mkdir`: osserva creazione di cgroup.

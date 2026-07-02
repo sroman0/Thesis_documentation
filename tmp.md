@@ -1,4 +1,4 @@
-Quelli implementati questa settimana sono:
+Ultimi hook e gruppi completati:
 
 - `security_bpf_map`: osserva operazioni security su mappe eBPF già esistenti.
 - `security_bpf_prog`: osserva operazioni security su programmi eBPF già caricati.
@@ -17,3 +17,11 @@ Quelli implementati questa settimana sono:
 - `proc_create`: intercetta la creazione di entry in /proc, utile per moduli che espongono interfacce di controllo.
 - `register_kprobe`: intercetta la registrazione dinamica di kprobe, con symbol_name, handler e returnValue.
 - `kallsyms_lookup_name`: intercetta lookup di simboli kernel, con simbolo cercato e indirizzo restituito.
+
+Questa lista completa la copertura piu' recente lato BPF object, cgroup,
+moduli, signal handling, exec fallite e hardening kernel. Per la lista completa
+degli eventi supportati usare:
+
+```bash
+./dist/project --list-events
+```

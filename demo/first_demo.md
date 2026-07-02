@@ -22,7 +22,7 @@ flowchart TD
     A[CLI config] --> B[Resolve embedded or external eBPF object]
     B --> C[Load eBPF module with libbpfgo]
     C --> D[Select probes with --events and --drop-events]
-    D --> E[Attach raw tracepoints and kprobes]
+    D --> E[Attach tracepoints, raw tracepoints, kprobes and kretprobes]
     E --> F2[Perf buffer: events]
     R[Ring buffer support retained] -. optional .-> G
     F2 --> G[handleRawEvent]
@@ -54,17 +54,32 @@ mindmap
       sched_process_exec
       execve
       execveat
+      process_execute_failed
+      fork
+      vfork
+      clone
       sched_process_exit
       task_rename
-    Security
+    Security and credentials
       cap_capable
       security_bprm_check
+      security_bprm_creds_for_exec
       security_file_open
       security_task_setrlimit
       security_settime64
       security_task_prctl
       security_task_fix_setuid
       security_task_kill
+      commit_creds
+      setuid
+      setgid
+      setreuid
+      setregid
+      setresuid
+      setresgid
+      setfsuid
+      setfsgid
+      prlimit64
       security_sb_mount
       security_sb_umount
       ptrace
@@ -73,17 +88,41 @@ mindmap
       chmod
       chown
       memfd_create
+      security_file_permission
+      security_file_ioctl
       security_inode_unlink
+      security_inode_rename
+      security_inode_symlink
+      security_inode_mknod
     Memory security
       mmap
       mprotect
       pkey_mprotect
+      security_mmap_file
+      security_file_mprotect
       process_vm_readv
       process_vm_writev
+    Namespace and cgroup
       setns
       unshare
       switch_task_ns
-      commit_creds
+      cgroup_attach_task
+      cgroup_mkdir
+      cgroup_rmdir
+    Kernel hardening
+      security_bpf
+      security_bpf_map
+      security_bpf_prog
+      security_kernel_read_file
+      security_kernel_post_read_file
+      module_load
+      module_free
+      do_init_module
+      call_usermodehelper
+      do_sigaction
+      proc_create
+      register_kprobe
+      kallsyms_lookup_name
     Networking
       security_socket_create
       security_socket_listen
@@ -219,6 +258,32 @@ What to explain:
 - mount and unlink hooks expose kernel-resolved paths and filesystem metadata.
 - these security hooks describe the kernel validation point and do not include
   the final syscall return value.
+
+### 6. Show Kernel-Hardening Events
+
+Terminal 1:
+
+```bash
+sudo ./dist/project \
+  --events module_load,module_free,do_init_module,proc_create,register_kprobe,kallsyms_lookup_name \
+  --output table \
+  --log-level error
+```
+
+Terminal 2:
+
+```bash
+sudo modprobe dummy || true
+sudo modprobe -r dummy || true
+```
+
+What to explain:
+
+- module events show normal load/unload lifecycle;
+- `do_init_module` includes the initialization return value;
+- `proc_create`, `register_kprobe` and `kallsyms_lookup_name` are useful
+  signals for kernel tampering analysis;
+- `kallsyms_lookup_name` only prints if some kernel path actually calls it.
 
 ## Architecture Talking Points
 

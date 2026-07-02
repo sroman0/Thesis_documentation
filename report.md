@@ -22,8 +22,8 @@ Target principale:
 
 - OS: Rocky Linux 8.10 / RHEL-compatible
 - Kernel: `4.18.0-553.109.1.el8_10.x86_64`
-- Feature eBPF disponibili/usate sul target: BTF/CO-RE, raw tracepoint, kprobe,
-  ring buffer, perf event array
+- Feature eBPF disponibili/usate sul target: BTF/CO-RE, raw tracepoint,
+  tracepoint, kprobe, kretprobe, ring buffer, perf event array
 - BTF nativo atteso in: `/sys/kernel/btf/vmlinux`
 
 Il progetto genera l'oggetto eBPF in `dist/project.bpf.o` e lo include nel
@@ -98,35 +98,60 @@ Nota: questa chiamata richiede privilegi adeguati. Nella sandbox Codex fallisce 
 
 Un punto fondamentale: caricare una collection eBPF non basta. I programmi devono essere attaccati ai rispettivi hook.
 
-Sono stati aggiunti due gruppi:
+Gli attach passano dal registry in `pkg/ebpf/probes/probes.go`. Ogni voce
+associa:
 
-- raw tracepoint:
-  - `tracepoint__sched__sched_process_fork` -> `sched_process_fork`
-  - `tracepoint__sched__sched_process_exec` -> `sched_process_exec`
-  - `tracepoint__sched__sched_process_exit` -> `sched_process_exit`
-  - `tracepoint__task__task_rename` -> `task_rename`
+- nome evento esposto alla CLI;
+- nome del programma eBPF dentro `project.bpf.o`;
+- hook kernel;
+- strategia di attach.
 
-- syscall tracepoint:
-  - `tracepoint__syscalls__sys_enter_execve` -> `execve`
-  - `tracepoint__syscalls__sys_enter_execveat` -> `execveat`
+Il registry supporta oggi:
 
-- kprobe:
-  - `trace_cap_capable` -> `cap_capable`
-  - `trace_security_task_setrlimit` -> `security_task_setrlimit`
-  - `trace_security_settime64` -> `security_settime64`
-  - `trace_security_task_prctl` -> `security_task_prctl`
+| Tipo probe | Uso nel progetto |
+|---|---|
+| raw tracepoint | lifecycle processi, cgroup, moduli, raw syscall |
+| tracepoint | syscall enter/exit con return value |
+| kprobe | hook security/LSM-like, VFS, memoria, BPF, moduli |
+| kretprobe | eventi in cui serve il valore di ritorno della funzione kernel |
 
-Nel codice Go gli attach passano ora dal registry in
-`pkg/ebpf/probes/probes.go` e dalle API `libbpfgo`.
+La copertura attuale include gruppi diversi:
 
-Nella prima versione gli attach usavano:
+- process lifecycle: `sched_process_fork`, `sched_process_exec`,
+  `sched_process_exit`, `task_rename`;
+- exec e credenziali: `execve`, `execveat`, `process_execute_failed`,
+  `security_bprm_check`, `security_bprm_creds_for_exec`, `commit_creds`;
+- creazione processi e privilege changes: `fork`, `vfork`, `clone`,
+  `setuid`, `setgid`, `setreuid`, `setregid`, `setresuid`, `setresgid`,
+  `setfsuid`, `setfsgid`, `security_task_fix_setuid`;
+- file e filesystem: `open`, `chmod`, `chown`, `security_file_open`,
+  `security_file_permission`, `security_file_ioctl`,
+  `security_inode_unlink`, `security_inode_rename`,
+  `security_inode_symlink`, `security_inode_mknod`;
+- memoria e process injection surface: `mmap`, `mprotect`, `pkey_mprotect`,
+  `security_mmap_file`, `security_file_mprotect`, `memfd_create`,
+  `process_vm_readv`, `process_vm_writev`;
+- namespace e mount: `setns`, `unshare`, `switch_task_ns`,
+  `security_sb_mount`, `security_sb_umount`;
+- eBPF/kernel/module hardening: `security_bpf`, `security_bpf_map`,
+  `security_bpf_prog`, `security_kernel_read_file`,
+  `security_kernel_post_read_file`, `module_load`, `module_free`,
+  `do_init_module`, `proc_create`, `register_kprobe`,
+  `kallsyms_lookup_name`;
+- cgroup e kernel helper: `cgroup_attach_task`, `cgroup_mkdir`,
+  `cgroup_rmdir`, `call_usermodehelper`;
+- signal/security operations: `security_task_kill`, `do_sigaction`,
+  `security_task_prctl`, `security_task_setrlimit`, `security_settime64`,
+  `cap_capable`;
+- networking security hooks: `security_socket_create`,
+  `security_socket_listen`, `security_socket_connect`,
+  `security_socket_accept`, `security_socket_bind`,
+  `security_socket_setsockopt`, `security_socket_recvmsg`,
+  `security_socket_sendmsg`.
 
-```go
-link.AttachRawTracepoint(...)
-link.Kprobe(...)
-```
-
-Ora il concetto resta lo stesso, ma gli handle sono gestiti tramite `libbpfgo`.
+Gli handle sono gestiti tramite `libbpfgo`. La selezione `--events` evita di
+attaccare programmi non richiesti, quindi il costo runtime dipende anche dal
+set di eventi scelto.
 
 ## 5. Confronto con Tracee
 
@@ -447,7 +472,7 @@ Trade-off:
 
 ## 9. Stato attuale
 
-Verifiche locali completate:
+Verifiche tipiche:
 
 ```bash
 make bpf
@@ -468,25 +493,32 @@ cd /home/simone/project/demo_project
 make run
 ```
 
-Ultimo esito osservato sulla VM:
+Esempi di output osservabili oggi:
 
 ```text
-event=sched_process_exec pid=... tid=... uid=1000 comm=ls args=filename=/usr/bin/ls
+event=execve ... args=pathname=/usr/bin/whoami,argv=["whoami"]
+event=open ... args=operation=openat(2),pathname=/etc/hostname,returnValue=fd:3
+event=security_bprm_check ... args=pathname=/usr/bin/bash,dev=...,inode=...,argc=...
+event=register_kprobe ... args=symbol_name=cap_capable,pre_handler=0x...,returnValue=success
 ```
 
-Questo indica che il programma e' riuscito a superare le fasi precedenti che fallivano:
+Questo indica che il programma ha superato stabilmente le fasi che
+inizialmente erano bloccanti:
 
-- lettura dell'oggetto eBPF;
+- lettura dell'oggetto eBPF embedded o esterno;
 - load della collection;
 - apertura di ring buffer e perf buffer;
-- attach dei programmi eBPF;
-- ingresso nel loop runtime.
+- attach selettivo dei programmi eBPF;
+- ingresso nel loop runtime;
+- decode userspace;
+- output `table`/`json`;
+- mapping human-readable di molti valori kernel.
 
 Il fatto che non vengano stampati alert non e' un errore in questa fase: gli
-alert richiedono ancora detection logic. Dopo gli ultimi aggiornamenti, pero',
-il runtime Go non scarta piu' i record: li riceve sia da ring buffer sia da perf
-buffer, li decodifica, applica la selezione eventi, applica l'eventuale filtro
-`comm` e li passa al layer `pkg/output`.
+alert richiedono ancora detection logic. Il runtime riceve i record dal perf
+buffer operativo principale e mantiene anche il reader ring buffer come
+alternativa tecnica. Dopo il decode applica selezione eventi, eventuale filtro
+`comm` e output.
 
 Loop aggiornato in `pkg/ebpf/project.go`:
 
@@ -500,16 +532,19 @@ case raw := <-p.perfBufChannel:
 ```
 
 Quindi, se un evento arriva da uno dei due canali, viene decodificato e viene
-emessa una riga nel formato configurato (`json` o `table`).
+emessa una riga nel formato configurato (`json` o `table`). Gli hook correnti
+usano principalmente `events_perf_submit`; ring buffer e helper relative
+restano nel codice per versatilita' e confronti futuri.
 
 Conclusione dello stato corrente:
 
 - il loader eBPF e' arrivato a uno stato operativo;
-- la pipeline userspace minimale degli eventi e' presente;
+- la pipeline userspace degli eventi e' presente;
 - gli hook producono eventi decodificati e stampabili;
 - il runtime riceve sia eventi ring buffer sia eventi perf buffer;
 - l'output e' separato dal runtime eBPF;
-- per ottenere alert servono ancora enrichment piu' ampio e detection logic.
+- la copertura process/security e' ampia per una demo tecnica;
+- per ottenere alert servono ancora policy, correlazione e detection logic.
 
 ## 10. Limitazioni attuali
 
@@ -536,18 +571,23 @@ Esempio JSON normalizzato:
 
 Limitazioni residue:
 
-- syscall, resource limit e opzioni `prctl` sono ancora numeriche;
+- alcune opzioni `prctl`, socket option e comandi driver-specific sono ancora
+  numerici;
 - nuovi hook richiedono un ID coerente tra C e Go, una voce nello schema
-  statico in `pkg/events/spec.go` e la registrazione della probe.
+  statico in `pkg/events/spec.go` e la registrazione della probe;
+- manca ancora una policy engine che trasformi eventi grezzi in alert.
 
-Il decoder supporta inoltre array di stringhe e credenziali strutturate. Gli
-eventi namespace/filesystem aggiunti piu' di recente usano gli stessi record
-indicizzati:
+Il decoder supporta inoltre array di stringhe, payload NUL-delimited,
+sockaddr, credenziali strutturate e puntatori. Gli eventi
+namespace/filesystem/kernel-hardening aggiunti piu' di recente usano gli stessi
+record indicizzati:
 
 - `switch_task_ns` espone soltanto i namespace realmente cambiati;
 - `security_sb_mount` e `security_sb_umount` espongono mountpoint, filesystem
   type e flag;
 - `security_inode_unlink` espone path, inode, device e ctime.
+- `proc_create`, `register_kprobe` e `kallsyms_lookup_name` espongono nomi,
+  puntatori kernel e return value quando necessario.
 
 ### 10.2 Registry e attach delle probe
 
@@ -562,7 +602,7 @@ Ogni voce associa:
 - nome evento esposto dalla CLI;
 - nome del programma nell'oggetto eBPF;
 - hook kernel;
-- tipo di attach: raw tracepoint, tracepoint o kprobe.
+- tipo di attach: raw tracepoint, tracepoint, kprobe o kretprobe.
 
 La selezione con `--events` evita di attaccare programmi non richiesti. Il
 limite ancora presente e' che la compatibilita' del simbolo kprobe viene
@@ -570,18 +610,21 @@ verificata principalmente durante l'attach. Un miglioramento futuro potra'
 aggiungere discovery preventiva dei simboli e fallback espliciti per kernel
 diversi dal target Rocky Linux.
 
-### 10.3 Stringhe troncate
+### 10.3 Stringhe e payload voluminosi
 
-Le stringhe serializzate sono limitate a 512 byte per evitare errori del verifier.
+Le stringhe serializzate restano limitate lato protocollo per mantenere il
+verifier sotto controllo e impedire payload eccessivi.
 
-Per l'MVP e' accettabile, ma per exec path completi e argv/env sara' necessario un meccanismo migliore.
+Per path e `argv` questa scelta e' accettabile. `envp` non viene raccolto di
+default perche' e' rumoroso e puo' contenere dati sensibili.
 
-### 10.4 Selezione eventi ancora semplice
+### 10.4 Selezione eventi ancora userspace/attach-time
 
 La CLI permette di usare `--events` e `--drop-events`, ma non esiste ancora un
 policy manager completo.
 
-Tracee invece abilita/disabilita probe in base agli eventi richiesti e alla configurazione.
+La selezione attuale riduce il numero di programmi attaccati, ma non implementa
+ancora filtri kernel-side per UID, PID, namespace, container o `comm`.
 
 ### 10.5 Output arricchito ma non completo
 
@@ -590,22 +633,31 @@ rispetto al JSON raw iniziale, ma resta pensato per debugging:
 
 - una riga per evento;
 - filtri disponibili per include/exclude eventi e `comm`;
-- enrichment presente per capability, segnali, errno, memoria, namespace e
-  mount/umount;
-- mapping ancora mancante per `prctl`, socket family/type, resource limit e
-  syscall.
+- enrichment presente per capability, segnali, errno, memoria, namespace,
+  mount/umount, BPF command/type, kernel-read-file type, file permission mask,
+  usermodehelper wait mode, signal handler mode e puntatori kernel;
+- mapping ancora mancante o parziale per alcune opzioni `prctl`, socket
+  option, syscall e valori driver-specific.
 
 ## 11. Prossimi step consigliati
 
-1. Aggiungere lost channel e metriche per il perf buffer.
-2. Rendere configurabile la dimensione del perf buffer.
-3. Valutare se mantenere il reader ring buffer come fallback runtime o solo
-   come compatibilita' di codice.
-4. Aggiungere mapping human-readable per `prctl`, socket family/type, resource
-   limit e syscall.
-5. Aggiungere filtri per UID, PID o processo padre.
-6. Aggiungere policy che correlino eventi syscall ed eventi semantici, ad
-   esempio `unshare` con `switch_task_ns`.
+La roadmap dettagliata e' ora raccolta in
+[next-steps/](next-steps/README.md). I punti principali sono:
+
+1. aggiungere policy YAML userspace-only;
+2. introdurre detector YAML caricabili senza rebuild;
+3. separare output eventi e output alert correlati;
+4. mantenere catene di correlazione corte e leggibili;
+5. introdurre filtri kernel-side minimi solo dopo aver stabilizzato policy e
+   detector in userspace;
+6. continuare a misurare CPU, volume eventi e riduzione rumore.
+
+Restano inoltre validi alcuni task infrastrutturali:
+
+- aggiungere lost channel e metriche per il perf buffer;
+- rendere configurabile la dimensione del perf buffer;
+- completare mapping human-readable per `prctl`, socket option, syscall e
+  valori driver-specific.
 
 ## 12. Comandi utili
 
@@ -640,20 +692,34 @@ Il progetto e' passato da uno userspace che restava semplicemente in attesa a un
 - prepara la config;
 - legge l'oggetto eBPF embedded o da path esplicito;
 - carica la collection;
-- apre la ring buffer tramite `libbpfgo`;
-- apre il perf buffer `events` tramite `libbpfgo`;
-- attacca i programmi eBPF;
+- apre ring buffer e perf buffer tramite `libbpfgo`;
+- seleziona e attacca solo i programmi eBPF richiesti;
+- supporta raw tracepoint, tracepoint, kprobe e kretprobe;
+- decodifica payload scalari, stringhe, array di stringhe, sockaddr,
+  credenziali e puntatori;
+- stampa output `table` e `json` arricchito;
 - gestisce cleanup ordinato.
 
-Le modifiche sono coerenti con l'architettura di Tracee a livello di pattern, ma restano volutamente piu' semplici per l'MVP della tesi.
+Le modifiche sono coerenti con l'architettura di Tracee a livello di pattern,
+ma restano volutamente piu' semplici e target-specific per la tesi.
 
-Il punto raggiunto e' importante: il problema non e' piu' solo il caricamento
-dell'eBPF, ma l'allineamento tra canale kernel/userspace, decoder, output
-human-readable e futuri alert.
+Il punto raggiunto e' importante: il problema non e' piu' caricare eBPF o
+stampare un evento singolo. Il tool ha ora una pipeline end-to-end ampia, con
+copertura process/security, filesystem, memoria, cgroup, moduli, BPF e segnali
+di kernel hardening. La prossima fase riguarda policy, correlazione,
+riduzione del rumore e misurazione sistematica delle prestazioni.
 
-## 14. Buffer.h
+## 14. Note storiche su verifier e helper comuni
 
-Sono stati limitati i possibili valori di offset sul buffer, in entrambe le funzioni, anche per quella di str. sono state cambiate le funzioni di save per rientrare nei limit del verifier.
+Le modifiche iniziali a buffer e helper comuni restano importanti per capire
+come il progetto e' arrivato allo stato attuale:
 
-## 15. common.h
-Aggiunta la funzione barrier, che aiuta a mantenere più prevedibile l'ordine delle operazioni, è più una nota al compilatore per non fare ottimizzazioni troppo creative attraverso questo punto.
+- gli argomenti sono stati serializzati con layout verifier-friendly;
+- gli offset dinamici sono stati sostituiti o limitati con controlli locali;
+- le helper di salvataggio scalari/stringhe sono state adattate per evitare
+  accessi fuori mappa;
+- `barrier()` e' stato aggiunto come nota al compilatore per mantenere piu'
+  prevedibile l'ordine delle operazioni in punti sensibili.
+
+Queste scelte hanno permesso di superare i primi rigetti del verifier e sono
+alla base del protocollo evento ancora usato dal decoder Go.

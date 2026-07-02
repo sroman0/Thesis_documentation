@@ -9,10 +9,14 @@ del tracer.
 
 - `process_vm_readv`: lettura diretta della memoria di un processo;
 - `process_vm_writev`: scrittura diretta nella memoria di un processo;
+- `fork`, `vfork` e `clone`: creazione processi/thread con return value;
+- famiglia `set*uid`/`set*gid` e `prlimit64`: cambi identita' e limiti di
+  risorsa con esito finale;
 - `setns`: ingresso in un namespace esistente;
 - `unshare`: separazione di risorse e creazione di namespace;
 - `commit_creds`: credenziali realmente applicate al task;
 - `switch_task_ns`: cambio effettivo dei namespace del task;
+- `security_bprm_creds_for_exec`: preparazione credenziali nel percorso exec;
 - `security_sb_mount` e `security_sb_umount`: mount e smontaggio risolti dal kernel;
 - `security_inode_unlink`: cancellazione di file con path e inode risolti;
 - `security_bpf`, `security_bpf_map` e `security_bpf_prog`: richieste e oggetti eBPF;

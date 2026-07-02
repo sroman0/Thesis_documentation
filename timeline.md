@@ -27,6 +27,8 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [2026-06-10 - Memory protection e process_vm_writev](daily/2026-06-10.md)
 - [2026-06-16 - Hook process/security ad alta copertura](daily/2026-06-16.md)
 - [2026-06-17 - Hook BPF object, ioctl, cgroup e signal handling](daily/2026-06-17.md)
+- [2026-06-18 - Kernel tampering e superfici procfs/kprobe](daily/2026-06-18.md)
+- [2026-07-02 - Policy engine, detector YAML e prossimi step](daily/2026-07-02.md)
 
 ### Implementazione
 
@@ -39,6 +41,9 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [Docker nel progetto](implementation/docker.md)
 - [Misurazione prestazioni](implementation/performance.md)
 - [Roadmap hook process e security](implementation/hook-roadmap.md)
+- [Tracee Policy Engine](implementation/tracee-policies.md)
+- [Prossimi step del tool](next-steps/README.md)
+- [Detector YAML e alert correlati](next-steps/detectors-and-correlations.md)
 
 ### Debugging
 
@@ -57,8 +62,9 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 ### Riferimenti e note esistenti
 
 - [Report tecnico corrente](report.md)
-- [Domande aperte](Domande.md)
+- [Note operative](Notes.md)
 - [Note nuovi hook](04-NuoviHook.md)
+- [Comandi rapidi](useful_commands.md)
 - [Contesto operativo repository](CLAUDE.md)
 
 ## Timeline
@@ -663,3 +669,28 @@ runtime dei nuovi hook.
 - [Hook implementati](implementation/hooks.md)
 - [Comandi utili](debugging/commands.md)
 - [Roadmap hook process e security](implementation/hook-roadmap.md)
+
+## 2026-07-02 - Policy engine, detector YAML e prossimi step
+
+Il lavoro recente si e' concentrato sul livello superiore alla raccolta eventi:
+policy, detector dichiarativi e alert correlati.
+
+E' stato consolidato il report sul policy engine di Tracee e sono stati
+organizzati i prossimi passi del tool in una nuova cartella dedicata,
+`next-steps/`. La direzione scelta e' userspace-first: prima policy e detector
+YAML caricabili da file, poi eventuale kernel-side filtering minimo per ridurre
+rumore e costo runtime.
+
+Sono stati separati concettualmente:
+
+- eventi singoli;
+- policy di filtro;
+- detector che generano alert;
+- alert correlati costruiti da sequenze brevi di eventi.
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-07-02.md)
+- [Tracee Policy Engine](implementation/tracee-policies.md)
+- [Prossimi step del tool](next-steps/README.md)
+- [Detector YAML e alert correlati](next-steps/detectors-and-correlations.md)

@@ -95,8 +95,15 @@ test sotto workload controllato.
 ## Interpretazione
 
 Il target medio del `5%` e' raggiungibile, ma non e' garantito quando vengono
-abilitati tutti gli hook. I programmi più frequenti sono raw syscall,
-`cap_capable` e alcuni hook security.
+abilitati tutti gli hook. I programmi piu' frequenti dipendono dal workload:
+
+- `cap_capable` puo' essere molto rumoroso su sistemi attivi;
+- `security_file_open` e `security_file_permission` crescono rapidamente con
+  build, shell interattive e processi che aprono molti file;
+- syscall enter/exit come `open`, `mmap`, `mprotect`, `clone` e famiglia
+  `set*id` aggiungono costo in base al numero di chiamate;
+- hook di hardening kernel come `register_kprobe`, `proc_create` e
+  `kallsyms_lookup_name` sono invece piu' rari ma ad alto valore semantico.
 
 Le ottimizzazioni prioritarie sono:
 
@@ -105,6 +112,18 @@ Le ottimizzazioni prioritarie sono:
 3. introdurre filtri kernel-side per UID, PID, namespace e `comm`;
 4. misurare eventi persi e throughput del perf buffer;
 5. confrontare sempre la stessa attività con tool spento e acceso.
+
+Per demo o benchmark manuali e' consigliato partire sempre da un set ristretto:
+
+```bash
+sudo ./dist/project --events execve,open,security_bprm_check --output table
+```
+
+e abilitare eventi ad alto volume solo quando servono davvero:
+
+```bash
+sudo ./dist/project --events security_file_open,security_file_permission --comms cat,bash --output table
+```
 
 ## Metodo consigliato per benchmark
 

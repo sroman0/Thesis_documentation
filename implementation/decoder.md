@@ -27,7 +27,8 @@ File:
 - `protocol.go`: definisce protocollo Go e layout del context evento;
 - `decoder.go`: primitive di lettura binaria (`u8`, `u16`, `u32`, `u64`, bytes, context);
 - `eventsreader.go`: decodifica evento completo e argomenti;
-- `eventsreader_test.go`: test per scalari, stringhe e array di stringhe.
+- `eventsreader_test.go`: test per scalari, stringhe, array di stringhe e
+  payload strutturati.
 
 ## Responsabilita' dei file
 
@@ -59,7 +60,8 @@ E' il livello semantico:
 - legge il context;
 - legge `argnum`;
 - usa lo schema evento da `pkg/events/spec.go`;
-- decodifica scalari, stringhe, sockaddr e array di stringhe;
+- decodifica scalari, stringhe, sockaddr, puntatori, array di stringhe,
+  argomenti NUL-delimited e credenziali strutturate;
 - produce un `Event` completo.
 
 ## `EventContext`
@@ -91,7 +93,7 @@ aggiornamento esplicito del decoder.
 
 ## Argomenti
 
-Dopo il context, il formato inviato sulla ring buffer e':
+Dopo il context, il formato inviato attraverso il canale eventi e':
 
 ```text
 [event_context_t:128][argnum:u8][args...]
@@ -122,13 +124,17 @@ Array di argomenti compatti (`ArgsArrT`):
 ```
 
 `eventsreader.go` usa lo schema statico degli eventi per sapere come leggere gli
-argomenti. Esempio:
+argomenti. Esempi:
 
 - `cap_capable`: `cap` come `INT_T`;
 - `sched_process_exec`: `filename` come `STR_T`;
 - `execve`: `pathname` come `STR_T`, `argv` come `STR_ARR_T`;
 - `execveat`: `dirfd`, `pathname`, `flags`, `argv`;
-- `sched_process_exit`: `exit_code` come `LONG_T`, `group_dead` come `U8_T`.
+- `sched_process_exit`: `exit_code` come `LONG_T`, `group_dead` come `U8_T`;
+- `commit_creds`: `old_cred` e `new_cred` come `CRED_T`;
+- `security_socket_connect`: indirizzo remoto come `SOCKADDR_T`;
+- `proc_create`, `register_kprobe` e `kallsyms_lookup_name`: puntatori kernel
+  come `POINTER_T`.
 
 Il limite massimo per le singole stringhe e' stato allineato al lato eBPF
 (`MAX_STRING_SIZE`, 4096 byte). Questo evita che path o argomenti validi
@@ -155,7 +161,7 @@ Questo conferma la pipeline:
 ```text
 kprobe/cap_capable
   -> evento eBPF
-  -> ring buffer
+  -> perf buffer
   -> decoder Go
   -> output layer
 ```
@@ -218,6 +224,9 @@ separare il blocco in elementi, l'altra di normalizzare una singola stringa.
   `pkg/events/spec.go`.
 - `security_bprm_check` espone `argc`/`envc`, ma non ancora `argv`/`envp`:
   farlo bene richiede una decisione su dipendenze tra hook syscall e hook LSM.
+- Gli eventi kernel-hardening possono esporre puntatori utili alla correlazione,
+  ma il decoder non prova a risolverli in simboli: questa responsabilita'
+  rimane all'output o a una futura fase di enrichment.
 
 ## Verifiche
 
