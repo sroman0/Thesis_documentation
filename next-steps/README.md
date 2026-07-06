@@ -17,6 +17,8 @@ livello superiore capace di:
 1. [Roadmap tecnica](roadmap.md)
 2. [Detector YAML e alert correlati](detectors-and-correlations.md)
 3. [Piano di implementazione](implementation-plan.md)
+4. [Ordine di implementazione policy/detector](policy-detector-implementation-order.md)
+5. [Proposte per allineamento MITRE ATT&CK](mitre-attack-alignment-proposals.md)
 
 ## Idea centrale
 
@@ -32,4 +34,3 @@ event collection
 Il primo livello raccoglie e decodifica eventi. Il secondo decide quali eventi
 singoli meritano attenzione. Il terzo costruisce alert piu' ricchi quando piu'
 eventi, presi insieme, descrivono un comportamento sospetto.
-

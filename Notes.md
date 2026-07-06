@@ -5,3 +5,24 @@
 - Idea: implementare profili/policy di eventi, per esempio `process`, `filesystem`, `memory`, `kernel-hardening`, `network`, invece di lanciare sempre tutti gli hook.
 - Idea: introdurre kernel-side filtering minimo per UID, PID, namespace, cgroup/container e `comm`, cosi' da ridurre rumore e costo prima del perf buffer.
 - controllare la prestazione del tool, idealmente sotto il 5% di un core in steady-state con profili realistici, non necessariamente con tutti gli hook abilitati insieme.
+
+## Nota rollback: flag detector esplicita
+
+Configurazione CLI inizialmente prevista per policy/detector:
+
+```bash
+--policy policy.yaml
+--detectors detectors/
+--enable-detectors
+--alerts
+--alerts-output json
+```
+
+Questa versione separava il path dei detector (`--detectors`) dall'interruttore
+che abilita il motore (`--enable-detectors`). La scelta corrente e' piu'
+semplice per l'utente: se `--detectors` riceve almeno un file o una directory,
+il tool abilita automaticamente i detector in fase di normalizzazione della
+configurazione.
+
+Se in futuro serve distinguere "carica i detector" da "esegui i detector", si
+puo' ripristinare `--enable-detectors` come flag esplicita.

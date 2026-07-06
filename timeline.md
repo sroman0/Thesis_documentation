@@ -29,6 +29,7 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [2026-06-17 - Hook BPF object, ioctl, cgroup e signal handling](daily/2026-06-17.md)
 - [2026-06-18 - Kernel tampering e superfici procfs/kprobe](daily/2026-06-18.md)
 - [2026-07-02 - Policy engine, detector YAML e prossimi step](daily/2026-07-02.md)
+- [2026-07-06 - Runner applicativo per policy e detector](daily/2026-07-06.md)
 
 ### Implementazione
 
@@ -68,6 +69,53 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [Contesto operativo repository](CLAUDE.md)
 
 ## Timeline
+
+### 2026-07-06 - Runner applicativo e modello policy
+
+Sono stati completati gli step 3 e 4 del piano policy/detector.
+
+Il runner applicativo in `demo_project/pkg/cmd/project.go` prepara ora un blocco
+`RuntimeExtensions` prima di avviare il runtime eBPF. Questo blocco raccoglie
+path policy, path detector, stato detector, stato alert e formato alert.
+
+E' stato inoltre creato `demo_project/pkg/policy/policy.go`, che definisce il
+modello interno normalizzato delle policy: `Policy`, `Scope`, `Rule`,
+`EventSelector` ed `EventInput`. Il modello supporta matching minimo su nome
+evento, `comm` e `uid` ed e' indipendente dal futuro formato YAML.
+
+Come elemento di novelty, la policy include anche `PolicyMode` e `PolicyIntent`:
+il primo distingue monitoraggio, detection e soppressione del rumore, mentre il
+secondo descrive lo scopo operativo, per esempio threat hunting, hardening,
+compliance o noise reduction.
+
+E' stato poi aggiunto `demo_project/pkg/policy/loader.go`, che carica policy
+YAML da file o directory e le converte nel modello interno. Il runner
+applicativo carica gia' queste policy in `RuntimeExtensions.Policies`, anche se
+il matching runtime verra' introdotto nello step successivo con il manager.
+
+Lo step manager e' stato completato con `demo_project/pkg/policy/manager.go`.
+Il manager valuta gli eventi rispetto alle policy attive e produce un
+`MatchResult` con policy matchate e segnali operativi `Monitor`, `Detect` e
+`Suppressed`. La regola scelta e' che `suppress` vince su `monitor` e `detect`.
+
+E' stato infine creato `demo_project/pkg/detectors/detector.go`, che definisce
+il contratto dei detector: metadata, inizializzazione, gestione evento, flush
+periodico e alert preliminare. La definizione del detector ora dichiara anche
+gli eventi consumati (`Consumes`) e se il detector e' stateful. Per i detector
+contestuali e' stata introdotta una finestra temporale corta: default `2s`,
+massimo `5s`. Questa scelta abilita correlazioni semplici senza trattenere stato
+per troppo tempo; se i benchmark peggiorano, la feature va mitigata o limitata.
+
+Prima di procedere con `pkg/detectors/definition.go` e' stato preparato anche
+un documento di proposta per allineare detector e policy a MITRE ATT&CK:
+tattiche, tecniche, data source e futura vista di copertura.
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-07-06.md)
+- [Piano di implementazione](next-steps/implementation-plan.md)
+- [Ordine implementazione policy/detector](next-steps/policy-detector-implementation-order.md)
+- [Proposte allineamento MITRE ATT&CK](next-steps/mitre-attack-alignment-proposals.md)
 
 ### 2026-04-29
 
@@ -681,6 +729,13 @@ organizzati i prossimi passi del tool in una nuova cartella dedicata,
 YAML caricabili da file, poi eventuale kernel-side filtering minimo per ridurre
 rumore e costo runtime.
 
+E' stato inoltre avviato il primo passo implementativo nel tool: la
+configurazione centrale ora prevede campi dedicati a policy, detector e alert
+separati (`Policies`, `Detectors`, `Alerts`). La CLI espone ora le prime flag
+per questi campi (`--policy`, `--detectors`, `--alerts`, `--alerts-output`).
+La flag `--detectors` abilita automaticamente il motore detector quando riceve
+almeno un path; il collegamento al runtime verra' fatto nei passi successivi.
+
 Sono stati separati concettualmente:
 
 - eventi singoli;
@@ -694,3 +749,4 @@ Sono stati separati concettualmente:
 - [Tracee Policy Engine](implementation/tracee-policies.md)
 - [Prossimi step del tool](next-steps/README.md)
 - [Detector YAML e alert correlati](next-steps/detectors-and-correlations.md)
+- [Ordine implementazione policy/detector](next-steps/policy-detector-implementation-order.md)

@@ -70,7 +70,7 @@ Prima versione implementabile:
 ```yaml
 type: detector
 name: root-sensitive-file-after-setuid
-within: 10s
+window: 2s
 group_by:
   - process_tree
 steps:
@@ -91,7 +91,7 @@ Esempio:
 ```yaml
 type: detector
 name: drop-and-execute
-within: 30s
+window: 5s
 group_by:
   - process_tree
 steps:
@@ -159,6 +159,9 @@ Esempio:
 - Gli eventi singoli rilevanti devono continuare a essere emessi subito.
 - Gli alert correlati devono avere un output separato.
 - Le sequenze devono restare corte.
+- La finestra temporale deve rispettare il guardrail attuale del contratto
+  detector: default `2s`, massimo `5s`.
 - I detector devono essere caricabili da file.
 - La prima versione deve essere userspace-only.
-
+- I detector dovrebbero dichiarare metadati MITRE ATT&CK quando la detection ha
+  una tecnica o tattica chiaramente associabile.

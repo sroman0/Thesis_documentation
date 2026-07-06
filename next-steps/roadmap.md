@@ -62,9 +62,15 @@ Esempio:
 type: detector
 name: privilege-escalation-chain
 description: setuid followed by sensitive file access
-within: 10s
+window: 2s
 group_by:
   - process_tree
+threat:
+  framework: MITRE ATT&CK Enterprise
+  tactics:
+    - TA0004
+  techniques:
+    - T1548
 steps:
   - event: security_task_fix_setuid
     filters:
@@ -108,10 +114,13 @@ Regola pratica:
 
 ```text
 2-4 step per detector
-finestra temporale breve
+finestra temporale breve: default 2s, massimo 5s nella prima versione
 group_by esplicito
 output con eventi che hanno causato il match
 ```
+
+Quando possibile, ogni detector dovrebbe indicare anche i metadati MITRE
+ATT&CK: tattica, tecnica, eventuale sub-tecnica e data source/data component.
 
 ## Priorita' 5: kernel-side filtering minimo
 
@@ -131,4 +140,3 @@ Seconda fase:
 - eventuali filtri su `target_comm` per signal/process security.
 
 Motivo: ridurre CPU e pressione su perf buffer senza anticipare complessita'.
-

@@ -201,9 +201,10 @@ Completato per MVP:
 Manca ancora:
 
 - detection engine;
-- policy file e detector YAML caricabili a runtime;
+- detector YAML caricabili a runtime;
+- collegamento completo delle policy al runtime eventi;
 - output separato per alert correlati;
-- mapping MITRE;
+- mapping MITRE nei detector e nelle policy;
 - arricchimento dell'output con mapping di syscall, alcune opzioni `prctl`,
   socket option e costanti driver-specific;
 - dipendenze Makefile piu' precise per ricompilare l'oggetto eBPF quando

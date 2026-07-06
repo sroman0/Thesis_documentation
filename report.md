@@ -620,11 +620,13 @@ default perche' e' rumoroso e puo' contenere dati sensibili.
 
 ### 10.4 Selezione eventi ancora userspace/attach-time
 
-La CLI permette di usare `--events` e `--drop-events`, ma non esiste ancora un
-policy manager completo.
+La CLI permette di usare `--events` e `--drop-events`. Inoltre e' stato
+introdotto un primo policy manager userspace, capace di valutare policy caricate
+da YAML su nome evento, `comm` e `uid`.
 
-La selezione attuale riduce il numero di programmi attaccati, ma non implementa
-ancora filtri kernel-side per UID, PID, namespace, container o `comm`.
+La selezione attuale riduce il numero di programmi attaccati e prepara il
+filtering dichiarativo, ma non implementa ancora filtri kernel-side per UID,
+PID, namespace, container o `comm`.
 
 ### 10.5 Output arricchito ma non completo
 
@@ -648,9 +650,11 @@ La roadmap dettagliata e' ora raccolta in
 2. introdurre detector YAML caricabili senza rebuild;
 3. separare output eventi e output alert correlati;
 4. mantenere catene di correlazione corte e leggibili;
-5. introdurre filtri kernel-side minimi solo dopo aver stabilizzato policy e
+5. allineare detector e policy a MITRE ATT&CK tramite metadati di tattica,
+   tecnica e data source;
+6. introdurre filtri kernel-side minimi solo dopo aver stabilizzato policy e
    detector in userspace;
-6. continuare a misurare CPU, volume eventi e riduzione rumore.
+7. continuare a misurare CPU, volume eventi e riduzione rumore.
 
 Restano inoltre validi alcuni task infrastrutturali:
 

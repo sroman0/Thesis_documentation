@@ -113,6 +113,12 @@ Le ottimizzazioni prioritarie sono:
 4. misurare eventi persi e throughput del perf buffer;
 5. confrontare sempre la stessa attività con tool spento e acceso.
 
+Nota sui detector stateful: la prima versione del contratto permette finestre
+temporali brevi per correlare eventi contestuali. La finestra di default e'
+`2s`, con limite massimo `5s`. Se i benchmark superano stabilmente il target
+del `5%`, questa feature non deve essere considerata essenziale: va ridotta,
+abilitata solo per detector selezionati o disabilitata temporaneamente.
+
 Per demo o benchmark manuali e' consigliato partire sempre da un set ristretto:
 
 ```bash

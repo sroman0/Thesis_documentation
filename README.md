@@ -14,6 +14,7 @@ materiale per la tesi.
 - [Hook implementati](implementation/hooks.md)
 - [Roadmap hook process/security](implementation/hook-roadmap.md)
 - [Tracee Policy Engine](implementation/tracee-policies.md)
+- [Workflow runtime Tracee: policy e detector](implementation/tracee-detectors-policies-runtime.md)
 - [Prossimi step del tool](next-steps/README.md)
 - [Comandi utili](debugging/commands.md)
 - [Comandi rapidi](useful_commands.md)
@@ -32,6 +33,8 @@ materiale per la tesi.
 - [Roadmap tecnica](next-steps/roadmap.md)
 - [Detector YAML e alert correlati](next-steps/detectors-and-correlations.md)
 - [Piano di implementazione](next-steps/implementation-plan.md)
+- [Ordine implementazione policy/detector](next-steps/policy-detector-implementation-order.md)
+- [Proposte allineamento MITRE ATT&CK](next-steps/mitre-attack-alignment-proposals.md)
 
 ## Debugging e decisioni
 
