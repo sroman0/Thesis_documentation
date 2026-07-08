@@ -431,6 +431,11 @@ Trade-off:
 - per il MVP questo e' accettabile per sbloccare il verifier;
 - quando verra' implementato il decoder Go, dovra' sapere che gli argomenti stringa usano slot fissi oppure il formato dovra' essere riportato a una serializzazione compatta con una strategia verifier-safe piu' raffinata.
 
+Nota sullo stato corrente: questa mitigazione descrive una fase storica del
+debug verifier. La pipeline attuale non usa piu' slot fissi come formato
+principale degli argomenti; usa record indicizzati compatti
+`[index][payload]`, decodificati tramite `pkg/events/spec.go`.
+
 ### 8.6 Secondo errore su `tracepoint__sched__sched_process_exit`
 
 Errore:
@@ -469,6 +474,11 @@ Trade-off:
 - ogni argomento scalare occupa sempre 16 byte, anche se il valore e' un `u8`;
 - per il MVP questo e' accettabile per rendere gli offset dimostrabili dal verifier;
 - il decoder Go dovra' conoscere questa forma a slot fissi oppure verra' riprogettato quando il protocollo sara' stabilizzato.
+
+Nota sullo stato corrente: anche per gli scalari il formato operativo e' ora
+indicizzato e compatto. Le sezioni sugli slot fissi restano utili per spiegare
+il percorso di debug del verifier, ma non descrivono piu' il wire format finale
+usato dal decoder.
 
 ## 9. Stato attuale
 
@@ -514,20 +524,20 @@ inizialmente erano bloccanti:
 - output `table`/`json`;
 - mapping human-readable di molti valori kernel.
 
-Il fatto che il runtime eBPF non stampi ancora alert non e' un errore in questa
-fase: il layer detector userspace esiste, ma non e' ancora collegato al loop
-principale degli eventi. Il runtime riceve i record dal perf buffer operativo
-principale e mantiene anche il reader ring buffer come alternativa tecnica.
-Dopo il decode applica selezione eventi, eventuale filtro `comm` e output.
+Il runtime eBPF puo' ora stampare anche alert quando il layer detector e'
+configurato. Il runtime riceve i record dal perf buffer operativo principale e
+mantiene anche il reader ring buffer come alternativa tecnica. Dopo il decode
+applica selezione eventi, filtro `comm`, policy userspace, output evento,
+detector engine e output alert.
 
 Loop aggiornato in `pkg/ebpf/project.go`:
 
 ```go
 select {
 case raw := <-p.ringBufChannel:
-    p.handleRawEvent(raw)
+    p.handleRawEvent(ctx, raw)
 case raw := <-p.perfBufChannel:
-    p.handleRawEvent(raw)
+    p.handleRawEvent(ctx, raw)
 }
 ```
 
@@ -559,9 +569,9 @@ demo_project/pkg/bufferdecoder/
 
 Il decoder implementa:
 
-- parsing di `event_context_t` da 128 byte;
+- parsing di `event_context_t` da 136 byte;
 - parsing di `argnum`;
-- parsing degli argomenti taggati a slot fissi (`INT_T`, `UINT_T`, `STR_T`, ecc.);
+- parsing degli argomenti indicizzati (`INT_T`, `UINT_T`, `STR_T`, ecc.);
 - produzione di `bufferdecoder.Event`, poi passato al layer `pkg/output`.
 
 Esempio JSON normalizzato:
@@ -592,6 +602,15 @@ record indicizzati:
 - `proc_create`, `register_kprobe` e `kallsyms_lookup_name` espongono nomi,
   puntatori kernel e return value quando necessario.
 
+Un problema recente di debug ha confermato l'importanza dell'allineamento
+binario tra C e Go. Gli eventi venivano ricevuti e riconosciuti correttamente,
+ma l'output mostrava `args=-` perche' il decoder Go avanzava ancora di 128 byte
+dopo il context, mentre il context reale era diventato di 136 byte con
+`policies_version` e `matched_policies`. Il fix e' stato aggiornare
+`eventContextSize` a 136 in `pkg/bufferdecoder/protocol.go`. Da questo punto in
+poi ogni estensione di `event_context_t` deve essere accompagnata da una
+modifica esplicita del decoder.
+
 ### 10.2 Registry e attach delle probe
 
 Il runtime usa `libbpfgo` e il registry in:
@@ -606,6 +625,13 @@ Ogni voce associa:
 - nome del programma nell'oggetto eBPF;
 - hook kernel;
 - tipo di attach: raw tracepoint, tracepoint, kprobe o kretprobe.
+
+Non tutte le voci del registry sono eventi pubblici. Alcuni programmi eBPF
+servono solo come probe interni, per esempio per aggiornare mappe kernel-side o
+per mantenere correlazioni di supporto. Questi probe restano nel registry, ma
+non sono mostrati da `--list-events` e non sono selezionabili con `--events`.
+La regola operativa e': un probe puo' essere pubblico solo se esiste una
+specifica decoder corrispondente in `pkg/events/spec.go`.
 
 La selezione con `--events` evita di attaccare programmi non richiesti. Il
 limite ancora presente e' che la compatibilita' del simbolo kprobe viene

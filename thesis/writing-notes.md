@@ -22,10 +22,10 @@ Una parte rilevante dell'implementazione e' stata guidata dal verifier eBPF. Alc
 
 Il decoder userspace rappresenta il punto di incontro tra il formato binario
 prodotto dai programmi eBPF e una rappresentazione Go utilizzabile dal resto
-della pipeline. A differenza di Tracee, il progetto usa un `EventContext` piu'
-piccolo e non include campi di policy; per questo il decoder e' stato
-reimplementato in forma custom, pur mantenendo lo stesso principio generale di
-lettura sequenziale da buffer.
+della pipeline. Il progetto usa un decoder custom per mantenere controllo sul
+contratto locale tra `types.h`, `pkg/events/spec.go` e output. Il context
+attuale e' di 136 byte e include anche `policies_version` e
+`matched_policies`, per preparare il passaggio verso policy e detector.
 
 ### Output layer
 

@@ -50,6 +50,10 @@ richiedere `sudo`:
 Questo comando legge il registry in `pkg/ebpf/probes/probes.go` e mostra i nomi
 usabili con `--events` e `--drop-events`.
 
+Nota: la lista contiene solo eventi pubblici con schema decoder. I probe interni
+registrati per aggiornare stato kernel-side non vengono mostrati e non possono
+essere selezionati direttamente.
+
 ## Eseguire solo alcuni eventi
 
 Abilitare solo `sched_process_exec`:
@@ -132,6 +136,71 @@ direttamente, passando i flag CGO quando servono package che importano
 ```bash
 GOCACHE=/tmp/go-build go test ./pkg/bufferdecoder
 ```
+
+## Debug eventi con `args=-`
+
+Sintomo:
+
+```text
+event=security_file_open pid=... comm=git args=-
+event=sched_process_exec pid=... comm=git args=-
+```
+
+Interpretazione:
+
+- se il nome evento e' corretto, il trasporto perf/ring buffer funziona;
+- se `args=-`, il decoder ha prodotto un evento con `argnum=0`;
+- se l'hook dovrebbe sicuramente salvare argomenti, controllare subito il
+  contratto binario tra `event_context_t` e `bufferdecoder.EventContext`.
+
+Controlli utili:
+
+```bash
+rg -n "eventContextSize|MatchedPolicies|matched_policies" \
+  pkg/bufferdecoder pkg/ebpf/c/types.h
+```
+
+Il formato corrente e':
+
+```text
+[event_context_t:136][argnum:u8][args...]
+```
+
+Quindi `eventContextSize` in `pkg/bufferdecoder/protocol.go` deve essere `136`.
+Se resta a `128`, il decoder legge `argnum` dentro `matched_policies` e stampa
+eventi senza argomenti.
+
+Test consigliato dopo la correzione:
+
+```bash
+PKG_CONFIG_PATH=./dist/libbpf/obj \
+CGO_CFLAGS="-I/home/simone/project/demo_project/dist/libbpf/include -I/home/simone/project/demo_project/3rdparty/libbpfgo" \
+CGO_LDFLAGS="-L/home/simone/project/demo_project/dist/libbpf/obj -lbpf" \
+GOCACHE=/tmp/go-build \
+go test ./pkg/bufferdecoder ./pkg/output ./pkg/detectors ./pkg/detectors/yaml ./pkg/policy ./pkg/ebpf ./pkg/cmd
+```
+
+Poi ricompilare il binario:
+
+```bash
+PKG_CONFIG_PATH=./dist/libbpf/obj \
+CGO_CFLAGS="-I/home/simone/project/demo_project/dist/libbpf/include -I/home/simone/project/demo_project/3rdparty/libbpfgo" \
+CGO_LDFLAGS="-L/home/simone/project/demo_project/dist/libbpf/obj -lbpf" \
+GOCACHE=/tmp/go-build \
+go build -o ./dist/project ./cmd/project
+```
+
+E verificare runtime:
+
+```bash
+sudo ./dist/project \
+  --events sched_process_exec,security_file_open \
+  --output table \
+  --log-level error
+```
+
+L'output deve contenere argomenti reali, per esempio `filename=...` o
+`pathname=...,flags=...`.
 
 ## Test selezione probe
 

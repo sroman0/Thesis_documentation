@@ -63,7 +63,7 @@ structs in `pkg/ebpf/c/types.h`. Event IDs must match
 `pkg/events/ids.go`, while argument indexes and types must match
 `pkg/events/spec.go`.
 
-`EventContext` is 128 bytes: `[u64 Ts][TaskContext 104B][EventID u32][Syscall s32][StackID u32][ProcessorID u16][Pad u16]`
+`EventContext` is 136 bytes: `[u64 Ts][TaskContext 104B][EventID u32][Syscall s32][StackID u32][ProcessorID u16][PoliciesVersion u16][MatchedPolicies u64]`
 
 ### Hook Attachment Strategy
 

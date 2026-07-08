@@ -10,10 +10,14 @@ cmd/project/main.go
   -> rootCmd.RunE
   -> initialize.BPFObject(&cfg)
   -> appcmd.NewProjectRunner(cfg)
+  -> load policy manager
+  -> load detector YAML files
+  -> build detector engine
   -> runner.Run(ctx)
-  -> ebpf.New(cfg)
+  -> ebpf.New(cfg, policy manager, detector engine)
   -> selectProbes(cfg.Events.Include, cfg.Events.Exclude)
   -> project.Init(ctx)
+  -> detector engine Init(ctx)
   -> configure libbpf logging from --log-level
   -> open events_ringbuf with InitRingBuf
   -> open events perf buffer with InitPerfBuf
@@ -24,7 +28,10 @@ cmd/project/main.go
   -> bufferdecoder.DecodeEvent(raw)
   -> event selection guard
   -> comm filter guard
+  -> userspace policy filter
   -> output.Printer.Print(event)
+  -> detector engine ProcessEvent(event)
+  -> output.Printer.PrintAlert(alert)
   -> stdout
 ```
 
@@ -55,11 +62,20 @@ privilegi root per ispezionare gli eventi disponibili.
 - `--drop-events`: eventi da disabilitare dopo la selezione iniziale;
 - `--comms`: command names da mantenere dopo la decodifica.
 - `--list-events`: stampa gli eventi supportati e termina.
+- `--policy`: file o directory di policy YAML.
+- `--detectors`: file o directory di detector YAML; abilita automaticamente il
+  layer detector.
+- `--alerts`: abilita la stampa degli alert prodotti dai detector.
+- `--alerts-output`: formato degli alert, `json` o `table`.
 
 Se `--events` non viene passato, il runtime abilita tutti gli eventi supportati.
 `--drop-events cap_capable` e' utile per ridurre il rumore durante i test.
 `--comms ls,whoami` e' utile per demo mirate, perche' stampa solo eventi il cui
 `comm` decodificato corrisponde ai nomi indicati.
+
+Le policy e i detector vengono preparati prima dell'avvio eBPF. Il runner
+carica le policy nel `policy.Manager`, carica i detector YAML, costruisce il
+`detectors.Engine` e passa entrambi a `pkg/ebpf/project.go`.
 
 La config contiene anche `LogLevel`, popolato da `--log-level`. Questo valore
 controlla sia il livello runtime sia il filtro dei log libbpf/CO-RE:
@@ -82,6 +98,17 @@ In `Project.Init()`:
 La selezione dei programmi vive in `pkg/ebpf/probes/probes.go`. Ogni probe
 collega il nome evento decodificato al programma eBPF e all'hook kernel da
 usare.
+
+Il registry distingue ora due categorie:
+
+- probe pubblici, cioe' eventi con schema decoder in `pkg/events/spec.go`,
+  visibili con `--list-events` e selezionabili con `--events`;
+- probe interni, usati per aggiornare stato kernel-side o supportare altre
+  feature, ma non esposti come eventi utente.
+
+Questa separazione evita di promettere in CLI nomi che non producono record
+decodificabili. I test del package `pkg/ebpf/probes` verificano anche che ogni
+probe pubblico abbia una specifica decoder corrispondente.
 
 Il registry supporta:
 

@@ -10,13 +10,15 @@ decide come trasformare l'evento in una riga stampabile.
 Questa scelta riprende in forma ridotta il ruolo del sink stage di Tracee: la
 pipeline non mescola piu' lettura kernel, decoding e formattazione finale.
 La versione corrente prepara anche un modello separato per gli alert dei
-detector, ma questi alert non sono ancora collegati al runtime eBPF.
+detector e i printer JSON/table sanno gia' stamparlo. Gli alert non sono pero'
+ancora collegati al runtime eBPF.
 
 ## File principali
 
-- `printer.go`: definisce l'interfaccia `Printer` e la factory `NewPrinter`.
-- `json.go`: stampa eventi JSON line-oriented.
-- `table.go`: stampa eventi compatti per debug manuale.
+- `printer.go`: definisce l'interfaccia `Printer`, con `Print` per eventi raw
+  e `PrintAlert` per alert detector.
+- `json.go`: stampa eventi e alert JSON line-oriented.
+- `table.go`: stampa eventi e alert compatti per debug manuale.
 - `event.go`: costruisce una vista normalizzata dell'evento e arricchisce alcuni
   argomenti.
 - `alert.go`: costruisce una vista normalizzata degli alert prodotti dai
@@ -238,9 +240,16 @@ La vista table e' intenzionalmente compatta:
 alert=Privilege change followed by exec severity=medium detector=setuid-exec-chain events=2 policies=local-collective
 ```
 
-Questo step prepara il formato, ma non cambia ancora l'interfaccia `Printer`.
-Il prossimo passaggio sara' aggiungere un metodo dedicato agli alert in
-`JSONPrinter` e `TablePrinter`.
+Il metodo `PrintAlert` e' stato aggiunto all'interfaccia `Printer` ed e'
+implementato sia da `JSONPrinter` sia da `TablePrinter`.
+
+Nel formato JSON, un alert viene emesso come record separato con `type=alert`.
+Nel formato table, l'alert resta una riga singola, leggibile durante demo e
+debug manuale.
+
+Il prossimo passaggio non riguarda piu' il package output, ma l'integrazione:
+il runtime dovra' passare gli alert prodotti dal detector engine al printer
+configurato.
 
 ## Test
 

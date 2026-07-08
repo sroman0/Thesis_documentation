@@ -616,29 +616,37 @@ runtime di stampa.
 
 ## Fase 2.9: printer alert
 
-Stato: prossimo step.
+Stato: completata.
 
-Il prossimo file da modificare e':
+File modificati:
 
 ```text
 demo_project/pkg/output/printer.go
+demo_project/pkg/output/json.go
+demo_project/pkg/output/table.go
 ```
 
-Obiettivo: estendere il contratto del printer senza rompere la stampa degli
+Obiettivo completato: estendere il contratto del printer senza rompere la stampa degli
 eventi esistenti. Il runtime dovra' poter stampare eventi raw e alert detector
 attraverso lo stesso boundary di output.
 
-Responsabilita' consigliate:
+Responsabilita' implementate:
 
-- aggiungere un metodo dedicato agli alert, ad esempio `PrintAlert`;
-- implementarlo in `JSONPrinter` e `TablePrinter`;
-- mantenere `Print(event)` per retrocompatibilita' interna;
-- aggiornare i test di `json.go`, `table.go` e `printer.go`;
-- non collegare ancora l'engine al loop eBPF: quello resta lo step successivo.
+- aggiunto `PrintAlert(alert detectors.Alert)` all'interfaccia `Printer`;
+- implementato `PrintAlert` in `JSONPrinter`;
+- implementato `PrintAlert` in `TablePrinter`;
+- mantenuto `Print(event)` per gli eventi raw esistenti;
+- aggiunti test per JSON alert, table alert e uso attraverso l'interfaccia
+  `Printer`.
+
+Nota storica: questo step ha preparato il printer. Lo step successivo ha poi
+collegato l'engine detector al loop eBPF.
 
 ## Fase 3: engine userspace
 
-Inserire il detector engine dopo il decoder e dopo i filtri base.
+Stato: completata per l'MVP locale.
+
+Il detector engine e' stato inserito dopo il decoder e dopo i filtri base.
 
 Pipeline:
 
@@ -652,110 +660,131 @@ raw event
   -> alert output
 ```
 
-Il detector engine deve:
+Implementazione attuale:
 
-1. ricevere eventi decodificati;
-2. calcolare la `group_key`;
-3. controllare se l'evento avanza una sequenza esistente;
-4. controllare se l'evento apre una nuova sequenza;
-5. eliminare stati scaduti;
-6. emettere alert quando una sequenza viene completata.
+- `pkg/cmd/project.go` carica i detector YAML da file o directory;
+- ogni YAML viene convertito in un detector runtime;
+- `detectors.Engine` viene costruito nel runner e passato a `pkg/ebpf`;
+- `pkg/ebpf/project.go` inizializza l'engine in `Init`;
+- `handleRawEvent` applica event filter, comm filter e policy filter;
+- l'evento filtrato viene inviato a `Engine.ProcessEvent`;
+- eventuali errori dei detector vengono scritti su stderr;
+- se `--alerts` e' attivo, gli alert vengono stampati tramite
+  `Printer.PrintAlert`.
+
+Limite attuale: i detector YAML valutano condizioni locali sul singolo evento.
+La correlazione stateful tra piu' eventi, con `group_by` e finestra temporale,
+resta da implementare nel dispatcher/engine.
+
+## Fase 3.1: validazione eventi usati da policy e detector
+
+Stato: prossimo step.
+
+Il prossimo file da analizzare e':
+
+```text
+demo_project/pkg/events/
+```
+
+Obiettivo: fornire helper ufficiali per validare i nomi evento usati da policy
+e detector, evitando che YAML errati vengano accettati fino al runtime.
+
+Responsabilita' consigliate:
+
+- aggiungere una lista stabile dei nomi evento supportati;
+- aggiungere `Exists(name string) bool`;
+- aggiungere `ListNames() []string`;
+- usare questi helper nel loader detector YAML;
+- successivamente usarli anche nel loader policy.
 
 ## Fase 4: output alert
 
-Aggiungere un tipo output separato.
+Stato: completata negli step 2.8 e 2.9.
 
-Possibile struttura:
+E' stato aggiunto un tipo output separato per gli alert e il printer e' stato
+esteso con `PrintAlert`.
+
+Struttura implementata:
 
 ```go
-type Alert struct {
-    Type        string
-    Name        string
-    Description string
-    GroupKey    string
-    StartedAt   uint64
-    CompletedAt uint64
-    Events      []output.Event
+type AlertRecord struct {
+    Type         string
+    DetectorID   string
+    DetectorName string
+    PolicyNames  []string
+    Title        string
+    Description  string
+    Severity     string
+    CreatedAt    time.Time
+    EventCount   int
+    Events       []eventRecord
+    Metadata     map[string]string
 }
 ```
 
-Il formato `table` puo' stampare una riga compatta:
+Il formato `table` stampa una riga compatta:
 
 ```text
-alert=root-sensitive-file-after-setuid group=pid:1234 events=setuid->open duration=1.2s
+alert=Privilege change followed by exec severity=medium detector=setuid-exec-chain events=2
 ```
 
-Il formato `json` deve mantenere tutti gli eventi che hanno composto l'alert.
+Il formato `json` mantiene tutti gli eventi correlati normalizzati.
 
 ## Fase 5: detector iniziali
 
-Creare alcuni detector demo:
+Stato: iniziata.
 
-### Privilege escalation and sensitive file access
+Sono stati aggiunti primi esempi YAML testabili:
 
-```yaml
-type: detector
-name: root-sensitive-file-after-setuid
-window: 2s
-group_by:
-  - process_tree
-threat:
-  framework: MITRE ATT&CK Enterprise
-  tactics:
-    - TA0004
-  techniques:
-    - T1548.001
-steps:
-  - event: security_task_fix_setuid
-    filters:
-      - data.new_euid=0
-  - event: open
-    filters:
-      - data.pathname=/etc/shadow
+```text
+demo_project/rules/detectors/root_exec.yaml
+demo_project/rules/detectors/sensitive_file_open.yaml
+demo_project/rules/policies/demo-detectors.yaml
 ```
 
-### Drop and execute
+Questi esempi seguono una struttura simile agli esempi dichiarativi di Tracee,
+ma usano lo schema semplificato del nostro tool.
 
-```yaml
-type: detector
-name: drop-and-execute
-window: 5s
-group_by:
-  - process_tree
-threat:
-  framework: MITRE ATT&CK Enterprise
-  tactics:
-    - TA0002
-    - TA0005
-steps:
-  - event: open
-    filters:
-      - data.pathname=/tmp/*
-  - event: chmod
-    filters:
-      - data.mode_contains=executable
-  - event: execve
-    filters:
-      - data.pathname=/tmp/*
+Detector disponibili:
+
+- `root-exec`: genera alert su `sched_process_exec` eseguito da `uid=0`;
+- `sensitive-file-open`: genera alert su evento `security_file_open` con
+  `pathname` sotto `/etc/`.
+
+Policy disponibile:
+
+- `demo-detectors`: abilita gli eventi necessari ai due detector demo.
+
+Comando di test:
+
+```bash
+sudo ./dist/project \
+  --events sched_process_exec,security_file_open \
+  --policy rules/policies/demo-detectors.yaml \
+  --detectors rules/detectors \
+  --alerts \
+  --alerts-output table \
+  --output table
 ```
 
-### Suspicious signal
+Comandi esca:
 
-```yaml
-type: detector
-name: suspicious-signal-to-service
-window: 2s
-group_by:
-  - uid
-threat:
-  framework: MITRE ATT&CK Enterprise
-  tactics:
-    - TA0005
-steps:
-  - event: security_task_kill
-    filters:
-      - data.target_comm=sshd
+```bash
+sudo whoami
+cat /etc/hostname
 ```
+
+Nota: questi detector sono ancora locali sul singolo evento. La correlazione
+multi-evento basata su `steps`, `group_by` e `window` resta una fase successiva.
+Gli esempi usano volutamente hook gia' stabili nel runtime
+(`sched_process_exec` e `security_file_open`), cosi' il test del layer
+policy/detector non dipende dal debug dei tracepoint syscall `execve`/`open`.
+
+Detector demo ancora da aggiungere dopo la correlazione stateful:
+
+- `privilege-change-then-exec`;
+- `sensitive-file-open-after-setuid`;
+- `kernel-module-load-and-kprobe`.
 
 ## Fase 6: kernel-side filtering
 

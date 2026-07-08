@@ -21,7 +21,7 @@ Entrambi trasportano lo stesso payload logico. Il decoder Go interpreta i byte
 raw con questo layout:
 
 ```text
-[event_context_t:128][argnum:u8][args...]
+[event_context_t:136][argnum:u8][args...]
 ```
 
 ## `save_to_submit_buf`
@@ -33,71 +33,61 @@ Serializza argomenti scalari come:
 - `u32`;
 - `u64`.
 
-Per rendere il codice accettabile dal verifier, usa slot fissi:
+Ogni record contiene prima l'indice logico dell'argomento e poi il payload:
 
 ```text
-slot scalare = 16 byte
+[index:u8][value]
 ```
 
-Layout concettuale:
-
-```text
-[type_tag][value][padding...]
-```
-
-Il decoder legge questi slot con dimensione costante:
-
-```text
-offset arg N = N * 16
-```
+Il tipo e la dimensione vengono risolti in userspace usando
+`pkg/events/spec.go`.
 
 ## `save_str_to_buf`
 
-Serializza argomenti stringa usando slot fissi:
+Serializza argomenti stringa come record a dimensione variabile:
 
 ```text
-slot stringa = 1 byte tag + 4 byte length + 512 byte payload
+[index:u8][length:int32][payload]
 ```
 
 La lunghezza reale viene salvata nel campo `length`.
 
-Il decoder legge questi slot con dimensione costante:
+## Perche' il formato e' indicizzato?
 
-```text
-offset arg N = N * 517
-```
+Il writer eBPF usa `buf->offset` per appendere record al buffer degli
+argomenti. Ogni record porta il proprio indice (`index`), quindi gli argomenti
+possono essere decodificati e poi riordinati secondo lo schema Go.
 
-## Perche' slot fissi?
+Questo formato evita di dipendere dall'ordine fisico di scrittura e permette a
+un hook di saltare un argomento opzionale senza rompere lo schema degli altri.
 
-La serializzazione compatta originale usava `buf->offset` come offset dinamico.
-
-Il verifier vedeva `offset` come potenzialmente fino a `65535`, generando errori:
+In passato il progetto ha sperimentato slot fissi per semplificare il lavoro
+del verifier. La versione corrente usa invece record indicizzati compatti, con
+controlli di bounds nelle helper eBPF.
 
 ```text
 invalid access to map value, value_size=4280 off=65664
 ```
 
-Gli slot fissi rendono gli offset dimostrabili:
+Errore tipico quando i bounds non sono dimostrabili:
 
 ```text
-arg 0 -> offset costante
-arg 1 -> offset costante
-arg 2 -> offset costante
+invalid access to map value, value_size=4280 off=65664
 ```
 
 ## Trade-off
 
 Vantaggi:
 
-- piu' semplice per il verifier;
-- consente di proseguire con il load eBPF;
-- adatto al debugging MVP.
+- formato piu' compatto degli slot fissi;
+- argomenti opzionali piu' semplici da gestire;
+- contratto esplicito tramite `pkg/events/spec.go`.
 
 Svantaggi:
 
-- formato meno compatto;
-- decoder Go deve conoscere gli slot;
-- in futuro si potra' tornare a un formato compatto piu' raffinato.
+- richiede massima parita' tra layout C e decoder Go;
+- ogni nuovo tipo argomento deve essere supportato esplicitamente dal decoder;
+- errori nella dimensione del context possono spostare la lettura di `argnum`.
 
 ## Decoder userspace
 
@@ -108,8 +98,19 @@ protocollo:
 - `decoder.go`: primitive binarie e `DecodeContext`;
 - `eventsreader.go`: decoding completo degli eventi e argomenti.
 
-Il context e' di 128 byte. Questa e' una differenza voluta rispetto a Tracee,
-che usa 136 byte per includere campi di policy non presenti nell'MVP.
+Il context corrente e' di 136 byte e include:
+
+- task context;
+- event id;
+- syscall id;
+- stack id;
+- processor id;
+- `policies_version`;
+- `matched_policies`.
+
+Nota di debug: se il decoder usa una dimensione errata del context, puo'
+leggere `argnum` dalla posizione sbagliata. Il sintomo osservato e' output con
+nome evento corretto ma `args=-`.
 
 ## Stato verificato
 

@@ -113,8 +113,28 @@ errori.
 E' stato poi introdotto il primo modello di output per gli alert. `AlertRecord`
 separa gli alert dei detector dagli eventi raw, conserva detector, severita',
 metadata, policy names e gli eventi correlati normalizzati. Non e' ancora
-collegato al runtime eBPF: il prossimo passaggio e' estendere il printer
-JSON/table e poi inserire engine e alert output nella pipeline principale.
+collegato al runtime eBPF.
+
+Il printer e' stato quindi esteso con `PrintAlert`. `JSONPrinter` e
+`TablePrinter` possono ora stampare alert detector senza modificare la stampa
+degli eventi raw.
+
+Infine il detector engine e' stato inserito nella pipeline principale. Il runner
+carica detector YAML da file o directory, costruisce l'engine e lo passa al
+runtime eBPF. Dopo decode, event filter, comm filter e policy filter, ogni
+evento viene inviato a `Engine.ProcessEvent`; gli alert prodotti vengono
+stampati con `Printer.PrintAlert` quando `--alerts` e' attivo. Il prossimo
+passaggio e' validare centralmente i nomi evento usati da policy e detector.
+
+Nella stessa giornata e' stato risolto un bug end-to-end della pipeline eventi:
+gli hook producevano eventi con nome corretto ma senza argomenti (`args=-`).
+Il debug ha evidenziato due cause operative. La prima era una ricompilazione
+eBPF incompleta: il Makefile non tracciava gli header `.h`, quindi
+`dist/project.bpf.o` poteva restare obsoleto dopo modifiche a `types.h`. La
+seconda era un mismatch nel decoder: `eventContextSize` era ancora 128 byte,
+mentre il context reale e' 136 byte dopo l'aggiunta di `policies_version` e
+`matched_policies`. Il Makefile ora dipende dagli header eBPF e il decoder usa
+il layout corretto.
 
 **Note collegate:**
 
@@ -245,12 +265,15 @@ ma possono essere trattati come `unmapped`.
 **Attivita' svolte:**
 
 - Aggiunto package `demo_project/pkg/bufferdecoder`.
-- Introdotto `protocol.go` con `EventContext` Go da 128 byte.
+- Introdotto `protocol.go` con il primo layout Go di `EventContext`.
 - Introdotto `decoder.go` con primitive di lettura binaria.
 - Introdotto `eventsreader.go` per decodificare eventi completi e argomenti.
 - Aggiunti test minimi per argomenti scalari e stringhe.
 - Collegato `Project.Run()` al decoder e a output JSON su stdout.
 - Verificato output reale da `cap_capable`, con argomento `cap` decodificato.
+
+Nota successiva: il layout e' stato poi esteso a 136 byte con
+`policies_version` e `matched_policies`.
 
 **File tecnici aggiunti/toccati:**
 

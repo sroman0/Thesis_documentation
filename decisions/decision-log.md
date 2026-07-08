@@ -201,18 +201,25 @@ come override espliciti da filesystem.
 ## 2026-05-04 - Decoder MVP custom invece di copia Tracee
 
 **Contesto:** Tracee ha un decoder completo, ma il progetto usa un protocollo
-MVP diverso: `event_context_t` da 128 byte e argomenti a slot fissi.
+MVP controllato localmente: `event_context_t` del progetto e argomenti
+indicizzati secondo `pkg/events/spec.go`.
 
 **Decisione:** implementare `demo_project/pkg/bufferdecoder` come decoder
 custom ispirato a Tracee, ma adattato al formato del progetto.
 
 **Conseguenze:**
 
-- il decoder legge correttamente il context da 128 byte;
-- non include `policies_version` e `matched_policies`;
+- il decoder legge correttamente il context da 136 byte;
+- include `policies_version` e `matched_policies`;
 - decodifica gli argomenti usando lo schema statico degli eventi correnti;
 - il runtime puo' produrre eventi decodificati da passare al layer output;
 - nuovi hook richiedono aggiornamento dello schema in `protocol.go`.
+
+**Aggiornamento 2026-07-08:** l'introduzione di `policies_version` e
+`matched_policies` ha portato `event_context_t` a 136 byte. Un mismatch rimasto
+in `protocol.go` causava eventi con nome corretto ma `args=-`, perche' il
+decoder leggeva `argnum` dalla posizione sbagliata. La costante
+`eventContextSize` e' stata aggiornata a 136 byte.
 
 ## 2026-05-05 - Registry probe selezionabile invece di policy manager completo
 

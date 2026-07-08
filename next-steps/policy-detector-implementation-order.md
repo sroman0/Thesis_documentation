@@ -31,8 +31,8 @@ eventi eBPF decodificati
 | 13 | `pkg/detectors/dispatch.go` | Instradare eventi verso i detector giusti | Completato: `Dispatcher`, indice `eventName -> []Detector`, wildcard detector, `DispatchResult`, `DetectorError`, `Dispatch`, `Flush`, errori non fatali | `pkg/detectors` | Riceve eventi decodificati, produce alert |
 | 14 | `pkg/detectors/engine.go` | Orchestrare registry e dispatcher | Completato: `Engine`, `NewEngine`, `Register`, `Init`, `ProcessEvent`, `Flush`, `Metrics`; metriche minime ed errori detector isolati | `pkg/detectors` | Punto unico per futuro runtime e output alert |
 | 15 | `pkg/output/alert.go` | Separare output eventi da output alert | Completato: `AlertRecord`, conversione da `detectors.Alert`, eventi correlati normalizzati, metadata, policy names da metadata e formato table compatto | `pkg/output`, `pkg/detectors` | Base per printer e runtime |
-| 16 | `pkg/output/printer.go` | Estendere il printer esistente | Aggiungere metodo per stampare alert senza rompere eventi normali | `pkg/output` | Riceve eventi e alert dal runtime |
-| 17 | `pkg/ebpf/project.go` | Inserire il detector engine nella pipeline eventi | Dopo decode e filtri base, inviare evento al detector engine e stampare eventuali alert | `pkg/bufferdecoder`, `pkg/output`, `pkg/detectors` | Core runtime della pipeline |
+| 16 | `pkg/output/printer.go` | Estendere il printer esistente | Completato: `Printer.PrintAlert`, implementazione JSON/table, test su output alert e compatibilita' interfaccia | `pkg/output`, `pkg/detectors` | Riceve eventi e alert dal runtime |
+| 17 | `pkg/ebpf/project.go` | Inserire il detector engine nella pipeline eventi | Completato: policy manager e detector engine passati al runtime, detector YAML caricati dal runner, `ProcessEvent` dopo filtri base, alert stampati con `PrintAlert` | `pkg/bufferdecoder`, `pkg/output`, `pkg/detectors`, `pkg/policy` | Core runtime della pipeline |
 | 18 | `pkg/events/spec.go` / `pkg/events/ids.go` | Validare eventi usati da policy/detector | Helper `Exists(name)`, `ListNames()`, mapping nome-id stabile | `pkg/events` | Usato da loader policy e detector |
 | 19 | `pkg/bufferdecoder/eventsreader.go` | Garantire evento userspace completo | Assicurarsi che args, comm, pid, uid e timestamp siano disponibili per detector | `pkg/bufferdecoder`, `pkg/output/event.go` | Produce input per policy/detector |
 | 20 | `rules/detectors/*.yaml` | Fornire detector demo | 2-3 detector iniziali: privilege change + execve, file sensibile + chmod/chown, module activity | Formato YAML definito | Caricati da `pkg/detectors/yaml` |
@@ -68,7 +68,7 @@ Un primo comando realistico potrebbe essere:
 
 ```bash
 sudo ./dist/project \
-  --events execve,security_task_fix_setuid,security_file_open,chmod,chown \
+  --events sched_process_exec,security_task_fix_setuid,security_file_open,chmod,chown \
   --policy ./rules/policies/demo.yaml \
   --detectors ./rules/detectors \
   --output table
@@ -77,7 +77,7 @@ sudo ./dist/project \
 L'output desiderato dovrebbe restare separato:
 
 ```text
-event=execve ...
+event=sched_process_exec ...
 alert=suspicious_privilege_execution detector=privilege_change_then_exec ...
 ```
 

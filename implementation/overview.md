@@ -26,7 +26,10 @@ kernel hook eBPF
   -> decoder
   -> event selection
   -> comm filter
+  -> policy filter
   -> output printer
+  -> detector engine
+  -> alert printer
 ```
 
 Stato raggiunto per il layer policy/detector userspace:
@@ -42,9 +45,10 @@ policy paths / detector paths
   -> engine
 ```
 
-Questo layer e' implementato e testato in isolamento, ma non e' ancora inserito
-nel loop eBPF principale. Il prossimo passaggio e' definire l'output degli alert
-e poi collegare l'engine alla pipeline eventi.
+I componenti sono testati in isolamento e il wiring MVP e' inserito nel loop
+eBPF principale: detector YAML, engine e alert printer sono collegati al runtime
+eventi. Resta fuori solo la correlazione stateful avanzata tra piu' eventi,
+che andra' centralizzata nel dispatcher/engine.
 
 ## Componenti principali
 
@@ -96,9 +100,9 @@ demo_project/pkg/bufferdecoder/
 
 Responsabilita':
 
-- leggere `event_context_t` da 128 byte;
+- leggere `event_context_t` da 136 byte;
 - leggere `argnum`;
-- decodificare argomenti a slot fissi;
+- decodificare argomenti indicizzati secondo `pkg/events/spec.go`;
 - produrre `Event` Go serializzabile in JSON.
 
 ### Output
@@ -231,9 +235,12 @@ Manca ancora:
 - policy demo in `rules/policies`;
 - mapping MITRE negli alert finali;
 - arricchimento dell'output con mapping di syscall, alcune opzioni `prctl`,
-  socket option e costanti driver-specific;
-- dipendenze Makefile piu' precise per ricompilare l'oggetto eBPF quando
-  cambiano header `.h` inclusi da `project.bpf.c`.
+  socket option e costanti driver-specific.
+
+Nota build: il Makefile ora considera anche gli header `.h` sotto
+`pkg/ebpf/c` come dipendenze dell'oggetto eBPF. Questo evita mismatch tra
+`types.h`, `ids.go` e `dist/project.bpf.o` quando cambiano ID o layout degli
+eventi.
 
 ## Collegamenti
 
