@@ -9,6 +9,8 @@ decide come trasformare l'evento in una riga stampabile.
 
 Questa scelta riprende in forma ridotta il ruolo del sink stage di Tracee: la
 pipeline non mescola piu' lettura kernel, decoding e formattazione finale.
+La versione corrente prepara anche un modello separato per gli alert dei
+detector, ma questi alert non sono ancora collegati al runtime eBPF.
 
 ## File principali
 
@@ -17,7 +19,9 @@ pipeline non mescola piu' lettura kernel, decoding e formattazione finale.
 - `table.go`: stampa eventi compatti per debug manuale.
 - `event.go`: costruisce una vista normalizzata dell'evento e arricchisce alcuni
   argomenti.
-- `json_test.go` e `table_test.go`: testano i formati output.
+- `alert.go`: costruisce una vista normalizzata degli alert prodotti dai
+  detector.
+- `json_test.go`, `table_test.go` e `alert_test.go`: testano i formati output.
 
 ## Formato JSON
 
@@ -209,6 +213,35 @@ informativi quando vengono correlati con caricamento moduli, creazione di
 entry procfs, lookup di simboli kernel e futura logica su debugfs o hidden
 modules.
 
+## Output alert
+
+Gli eventi raw e gli alert hanno significati diversi:
+
+- un evento raw descrive un fatto osservato dal kernel;
+- un alert descrive una decisione prodotta da un detector.
+
+Per evitare di mescolare questi due livelli, e' stato introdotto `AlertRecord`
+in `alert.go`. Il record contiene:
+
+- `type=alert`;
+- `detector_id` e `detector_name`;
+- `policy_names`, per ora ricavati dai metadata dell'alert quando presenti;
+- titolo, descrizione e severita';
+- timestamp di creazione;
+- numero di eventi correlati;
+- eventi correlati normalizzati con lo stesso schema JSON degli eventi raw;
+- metadata aggiuntivi.
+
+La vista table e' intenzionalmente compatta:
+
+```text
+alert=Privilege change followed by exec severity=medium detector=setuid-exec-chain events=2 policies=local-collective
+```
+
+Questo step prepara il formato, ma non cambia ancora l'interfaccia `Printer`.
+Il prossimo passaggio sara' aggiungere un metodo dedicato agli alert in
+`JSONPrinter` e `TablePrinter`.
+
 ## Test
 
 I test del package output verificano:
@@ -227,6 +260,9 @@ I test del package output verificano:
   esadecimale;
 - che il return value degli eventi di registrazione kernel venga mostrato come
   successo o errno;
+- che gli alert detector vengano convertiti in record separati dagli eventi raw;
+- che la vista table degli alert mantenga detector, severita', policy e numero
+  di eventi correlati;
 - che il formato table contenga i campi essenziali;
 - che formati non supportati vengano rifiutati dalla factory.
 

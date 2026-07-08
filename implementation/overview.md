@@ -29,6 +29,23 @@ kernel hook eBPF
   -> output printer
 ```
 
+Stato raggiunto per il layer policy/detector userspace:
+
+```text
+policy paths / detector paths
+  -> config + runner extensions
+  -> policy loader + manager
+  -> detector YAML parser
+  -> detector runtime
+  -> registry
+  -> dispatcher
+  -> engine
+```
+
+Questo layer e' implementato e testato in isolamento, ma non e' ancora inserito
+nel loop eBPF principale. Il prossimo passaggio e' definire l'output degli alert
+e poi collegare l'engine alla pipeline eventi.
+
 ## Componenti principali
 
 ### eBPF C
@@ -153,6 +170,13 @@ Completato per MVP:
 - output layer separato con formato `json` normalizzato e `table`;
 - filtro userspace per `comm`;
 - workflow Docker per build, shell e demo runtime;
+- config e flag CLI per `--policy`, `--detectors`, `--alerts` e
+  `--alerts-output`;
+- loader YAML e manager userspace per policy;
+- contratto runtime dei detector;
+- schema e parser YAML dei detector;
+- detector YAML eseguibile su evento singolo;
+- registry, dispatcher ed engine detector userspace;
 - eventi `execve` e `execveat` su tracepoint dedicati
   `syscalls/sys_enter_execve` e `syscalls/sys_enter_execveat`;
 - payload `argv` per `execve`/`execveat`;
@@ -200,11 +224,12 @@ Completato per MVP:
 
 Manca ancora:
 
-- detection engine;
-- detector YAML caricabili a runtime;
 - collegamento completo delle policy al runtime eventi;
 - output separato per alert correlati;
-- mapping MITRE nei detector e nelle policy;
+- collegamento dell'engine detector al loop eBPF;
+- detector demo in `rules/detectors`;
+- policy demo in `rules/policies`;
+- mapping MITRE negli alert finali;
 - arricchimento dell'output con mapping di syscall, alcune opzioni `prctl`,
   socket option e costanti driver-specific;
 - dipendenze Makefile piu' precise per ricompilare l'oggetto eBPF quando

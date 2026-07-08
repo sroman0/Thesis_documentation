@@ -184,11 +184,12 @@ Scelte principali:
 - `Alert` e' un risultato preliminare prodotto dai detector;
 - il formato finale degli alert verra' gestito piu' avanti dall'output layer.
 
-La prima novelty inserita nel contratto e' il supporto a detector stateful e
-context-aware. In pratica il detector non e' obbligato a reagire solo al singolo
-evento: puo' trattenere un piccolo stato per correlare sequenze ravvicinate.
-Per non violare il vincolo prestazionale della VM, la finestra temporale resta
-corta:
+La prima novelty inserita nel contratto e' il supporto a detector stateful per
+collective anomalies locali. In pratica il detector non e' obbligato a reagire
+solo al singolo evento: puo' trattenere un piccolo stato per correlare sequenze
+ravvicinate. Non si tratta pero' di contextual anomaly completa: il contesto
+globale di cluster restera' responsabilita' del sistema centralizzato. Per non
+violare il vincolo prestazionale della VM, la finestra temporale resta corta:
 
 ```go
 DefaultStateWindow = 2 * time.Second
@@ -207,14 +208,14 @@ decidera' come mostrarlo.
 
 ## Fase 2.1: definizione estesa detector
 
-Stato: prossimo step.
+Stato: completata.
 
 La definizione estesa va inserita in `demo_project/pkg/detectors/definition.go`
 per evitare che `detector.go` diventi troppo ampio. `detector.go` deve restare
 il contratto runtime, mentre `definition.go` deve descrivere cosa un detector
 consuma, produce e rappresenta.
 
-Strutture iniziali consigliate:
+Strutture implementate:
 
 ```go
 type EventRequirement struct {
@@ -250,7 +251,7 @@ type AttackTechnique struct {
 }
 ```
 
-Validazioni minime:
+Validazioni implementate:
 
 - ID detector obbligatorio;
 - nome detector obbligatorio;
@@ -263,6 +264,377 @@ Validazioni minime:
 Nota MITRE: i metadati ATT&CK devono stare principalmente nella definizione del
 detector, perche' il detector rappresenta la logica di detection. Le policy
 potranno poi selezionare detector anche per tactic/technique.
+
+Helper disponibili:
+
+- `Definition.Validate()`;
+- `Definition.EffectiveWindow()`;
+- `Definition.ValidatePerformanceBounds()`;
+- `Definition.EventNames()`;
+- `Definition.RequiredEventNames()`;
+- `DetectorOutput.NormalizedSeverity()`;
+- `ThreatMetadata.IsMapped()`.
+
+La scelta importante e' che i detector senza metadata MITRE restano validi, ma
+sono distinguibili come `unmapped`. Questo permette di procedere senza bloccare
+lo sviluppo mentre la coverage ATT&CK viene raffinata.
+
+## Fase 2.2: schema YAML dei detector
+
+Stato: completata.
+
+Ora che la definizione interna e' stabile, e' stato creato lo schema esterno in:
+
+```text
+demo_project/pkg/detectors/yaml/schema.go
+```
+
+Lo schema YAML rappresenta il formato scritto dall'utente, separato dalla
+definizione runtime interna. Questa separazione evita di mescolare parsing,
+validazione e logica di detection.
+
+Campi principali rappresentati:
+
+- identificativi e descrizione del detector;
+- eventi richiesti;
+- eventi consumati;
+- stato e finestra temporale;
+- campi di correlazione (`group_by`);
+- condizioni e sequenze future;
+- output dell'alert;
+- metadati MITRE ATT&CK;
+- tag descrittivi.
+
+Strutture implementate:
+
+```text
+File
+EventRequirement
+Condition
+Step
+Output
+Threat
+AttackTactic
+AttackTechnique
+```
+
+E' stato aggiunto un test di unmarshalling in
+`demo_project/pkg/detectors/yaml/schema_test.go`, con un esempio completo di
+detector stateful mappato a MITRE ATT&CK.
+
+La regola e' non mettere logica runtime nello schema. Lo schema deve solo
+descrivere il file utente; il parser dello step successivo lo convertira' nella
+`detectors.Definition` interna.
+
+## Fase 2.3: parser YAML dei detector
+
+Stato: completata.
+
+E' stato implementato:
+
+```text
+demo_project/pkg/detectors/yaml/parser.go
+```
+
+API principali:
+
+```go
+ParseBytes(data []byte, opts ...ParseOption) (Parsed, error)
+ParseFile(path string, opts ...ParseOption) (Parsed, error)
+ParseFiles(paths []string, opts ...ParseOption) ([]Parsed, error)
+ParseFileSchema(file File, opts ...ParseOption) (Parsed, error)
+WithSupportedEvents(events []string) ParseOption
+WithEventValidator(validator EventValidator) ParseOption
+```
+
+Il parser ora:
+
+- legge uno o piu' file YAML;
+- converte `yaml.File` in `detectors.Definition`;
+- parsa `window` con `time.ParseDuration`;
+- normalizza severita', eventi richiesti e metadata MITRE;
+- chiama `Definition.Validate()` prima di restituire il risultato;
+- conserva condizioni e step in una struttura intermedia, perche' verranno
+  usati dal detector YAML runtime nello step successivo.
+
+La validazione dei nomi evento e' opzionale tramite `WithSupportedEvents`.
+Questa scelta evita di legare il package YAML al registry eBPF/libbpfgo. Il
+loader o il registry futuro potranno passare la lista eventi supportati senza
+rendere il parser dipendente dal runtime eBPF.
+
+Sono stati aggiunti test per:
+
+- parsing di un detector YAML completo;
+- derivazione automatica di `Consumes` quando manca nel file;
+- rifiuto di finestre temporali invalide;
+- rifiuto di eventi non supportati quando viene passato il validatore;
+- riuso della validazione interna di `detectors.Definition`;
+- parsing da file.
+
+## Fase 2.4: detector YAML runtime
+
+Stato: completata.
+
+E' stato implementato:
+
+```text
+demo_project/pkg/detectors/yaml/detector.go
+```
+
+Questo step trasforma il risultato del parser in un detector runtime che
+implementa l'interfaccia:
+
+```go
+type Detector interface {
+    Definition() Definition
+    Init(context.Context) error
+    OnEvent(context.Context, Event) ([]Alert, error)
+    Flush(context.Context, time.Time) ([]Alert, error)
+}
+```
+
+Componenti principali:
+
+- `NewDetector(parsed Parsed)`;
+- `Definition()`;
+- `Init()`;
+- `OnEvent()`;
+- `Flush()`;
+- risoluzione campi evento;
+- valutazione condizioni;
+- produzione alert.
+
+Il detector YAML supporta condizioni su:
+
+- nome evento: `event`, `event_name`, `name`;
+- contesto processo: `comm`, `uid`, `pid`, `tid`, `ppid`;
+- contesto host: `host_pid`, `host_tid`;
+- argomenti evento: `args.<nome_argomento>` e `arg.<nome_argomento>`.
+
+Operatori supportati:
+
+- `eq`;
+- `neq`;
+- `contains`;
+- `prefix`;
+- `suffix`;
+- `exists`;
+- `not_exists`;
+- `gt`;
+- `lt`.
+
+Limite intenzionale: questa prima implementazione non fa ancora correlazione
+stateful completa tra eventi diversi. Se il detector contiene `steps`, lo step
+viene valutato come matching locale sul singolo evento. La correlazione ordinata
+su finestra temporale verra' gestita dal dispatcher/engine, per evitare che ogni
+detector mantenga stato in modo indipendente.
+
+Sono stati aggiunti test per:
+
+- matching di condizioni globali;
+- esclusione di eventi non consumati;
+- matching di condizioni per-step su argomenti;
+- confronto numerico;
+- rifiuto di operatori non supportati;
+- `Flush` no-op.
+
+## Fase 2.5: registry detector
+
+Stato: completata.
+
+E' stato implementato:
+
+```text
+demo_project/pkg/detectors/registry.go
+```
+
+Il registry e' il punto centrale dove vengono registrati i detector disponibili.
+Responsabilita' implementate:
+
+- conservare `detectorID -> Detector`;
+- rifiutare ID duplicati;
+- validare le `Definition`;
+- restituire la lista dei detector caricati;
+- esporre gli eventi consumati globalmente dai detector;
+- preparare il terreno per il dispatcher dello step successivo.
+
+API principali:
+
+```go
+NewRegistry(detectors ...Detector) (*Registry, error)
+Register(detector Detector) error
+Get(id string) (Detector, bool)
+List() []Detector
+Len() int
+EventNames() []string
+```
+
+Validazioni implementate:
+
+- detector `nil` rifiutato;
+- definizione detector invalida rifiutata;
+- ID duplicato rifiutato;
+- lista detector mantenuta in ordine stabile per ID;
+- eventi consumati deduplicati e ordinati.
+
+Questo step non chiama ancora `OnEvent`: rende solo ordinato e validato
+l'insieme dei detector disponibili.
+
+## Fase 2.6: dispatcher detector
+
+Stato: completata.
+
+E' stato implementato:
+
+```text
+demo_project/pkg/detectors/dispatch.go
+```
+
+Il dispatcher e' il primo componente che usa davvero il registry per instradare
+eventi verso i detector corretti.
+
+Responsabilita' implementate:
+
+- costruire una mappa `eventName -> []Detector`;
+- ricevere un evento decodificato;
+- chiamare `OnEvent` solo sui detector interessati a quell'evento;
+- raccogliere gli alert prodotti;
+- gestire errori dei detector senza fermare l'intera pipeline;
+- supportare detector senza eventi dichiarati come wildcard detector;
+- chiamare `Flush` su tutti i detector registrati.
+
+API principali:
+
+```go
+NewDispatcher(registry *Registry) (*Dispatcher, error)
+Dispatch(ctx context.Context, event Event) DispatchResult
+Flush(ctx context.Context, now time.Time) DispatchResult
+```
+
+Strutture aggiunte:
+
+```go
+DispatchResult
+DetectorError
+```
+
+`DispatchResult` contiene alert prodotti, errori isolati e numero di detector
+invocati. `DetectorError` conserva l'ID del detector che ha fallito e wrappa
+l'errore originale, cosi' il runtime potra' loggare il problema senza perdere
+gli alert degli altri detector.
+
+Per la direzione architetturale attuale, il dispatcher sara' anche il punto
+giusto dove preparare le future collective anomalies locali. Non deve ancora
+implementare tutta la correlazione stateful, ma deve essere progettato come il
+punto centrale dove questa correlazione verra' aggiunta.
+
+## Fase 2.7: engine detector
+
+Stato: completata.
+
+File implementato:
+
+```text
+demo_project/pkg/detectors/engine.go
+```
+
+L'engine coordina registry e dispatcher e offre al futuro runtime principale
+un'interfaccia unica. In questo modo `pkg/ebpf/project.go` non dovra' conoscere
+i dettagli interni del registry, dell'indice eventi o degli errori dei singoli
+detector.
+
+API implementate:
+
+```go
+NewEngine(detectors ...Detector) (*Engine, error)
+Register(detector Detector) error
+Init(ctx context.Context) error
+ProcessEvent(ctx context.Context, event Event) EngineResult
+Flush(ctx context.Context, now time.Time) EngineResult
+Metrics() Metrics
+Registry() *Registry
+```
+
+Strutture aggiunte:
+
+```go
+Engine
+EngineResult
+Metrics
+```
+
+`ProcessEvent` riceve un evento gia' decodificato, lo passa al dispatcher e
+restituisce alert ed errori in un unico risultato. Gli errori dei detector
+restano isolati come `DetectorError`, quindi un detector difettoso non blocca
+gli altri.
+
+`Flush` prepara il supporto ai detector con finestre temporali corte e alle
+future collective anomalies locali. Le metriche sono volutamente minime:
+eventi processati, flush eseguiti, detector invocati, alert emessi ed errori.
+Questa scelta mantiene basso l'overhead, coerentemente con i limiti
+prestazionali osservati sulla VM.
+
+L'engine non deve ancora essere collegato a `pkg/ebpf/project.go`: quello
+arrivera' nello step dedicato alla pipeline runtime.
+
+## Fase 2.8: output alert
+
+Stato: completata.
+
+File implementato:
+
+```text
+demo_project/pkg/output/alert.go
+```
+
+Questo step separa chiaramente l'output degli eventi dall'output degli
+alert. Gli eventi descrivono cio' che il kernel ha osservato; gli alert
+descrivono invece una decisione prodotta da un detector.
+
+Responsabilita' implementate:
+
+- `AlertRecord` come modello stabile per `detectors.Alert`;
+- campi `detector_id`, `detector_name`, titolo, descrizione, severita',
+  timestamp, numero di eventi correlati e metadata;
+- `policy_names`, ricavati per ora dai metadata dell'alert;
+- eventi correlati normalizzati usando lo stesso modello JSON degli eventi raw;
+- `formatAlert` per una vista table compatta;
+- test unitari per normalizzazione, copia metadata e rendering table.
+
+Una riga table viene preparata in questa forma:
+
+```text
+alert=privilege-change detector=demo.privilege-change severity=high events=2
+```
+
+Il formato JSON conserva piu' dettagli, inclusi gli eventi correlati, perche'
+sara' quello piu' adatto all'integrazione futura con sistemi centralizzati.
+
+Nota: il printer globale non e' ancora stato esteso. Questo avviene nello step
+successivo, per mantenere separata la definizione del DTO dall'integrazione nel
+runtime di stampa.
+
+## Fase 2.9: printer alert
+
+Stato: prossimo step.
+
+Il prossimo file da modificare e':
+
+```text
+demo_project/pkg/output/printer.go
+```
+
+Obiettivo: estendere il contratto del printer senza rompere la stampa degli
+eventi esistenti. Il runtime dovra' poter stampare eventi raw e alert detector
+attraverso lo stesso boundary di output.
+
+Responsabilita' consigliate:
+
+- aggiungere un metodo dedicato agli alert, ad esempio `PrintAlert`;
+- implementarlo in `JSONPrinter` e `TablePrinter`;
+- mantenere `Print(event)` per retrocompatibilita' interna;
+- aggiornare i test di `json.go`, `table.go` e `printer.go`;
+- non collegare ancora l'engine al loop eBPF: quello resta lo step successivo.
 
 ## Fase 3: engine userspace
 

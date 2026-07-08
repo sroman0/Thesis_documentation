@@ -30,6 +30,8 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [2026-06-18 - Kernel tampering e superfici procfs/kprobe](daily/2026-06-18.md)
 - [2026-07-02 - Policy engine, detector YAML e prossimi step](daily/2026-07-02.md)
 - [2026-07-06 - Runner applicativo per policy e detector](daily/2026-07-06.md)
+- [2026-07-07 - Schema e parser YAML dei detector](daily/2026-07-07.md)
+- [2026-07-08 - Runtime detector YAML](daily/2026-07-08.md)
 
 ### Implementazione
 
@@ -70,6 +72,84 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 
 ## Timeline
 
+### 2026-07-08 - Runtime detector YAML
+
+Sono stati completati gli step 11, 12, 13 e 14 del piano policy/detector con
+`demo_project/pkg/detectors/yaml/detector.go` e
+`demo_project/pkg/detectors/registry.go` e
+`demo_project/pkg/detectors/dispatch.go` e
+`demo_project/pkg/detectors/engine.go`.
+
+Il nuovo runtime detector prende un `Parsed` prodotto dal parser YAML e lo
+trasforma in un oggetto che implementa `detectors.Detector`. Il detector valuta
+condizioni globali e condizioni per-step sul singolo evento decodificato, poi
+produce `detectors.Alert` usando titolo, descrizione e severita' dichiarati nel
+file YAML.
+
+Sono supportati campi su evento, contesto processo e argomenti (`args.<nome>`)
+con operatori semplici come `eq`, `neq`, `contains`, `prefix`, `suffix`,
+`exists`, `not_exists`, `gt` e `lt`.
+
+La correlazione stateful tra eventi diversi non e' ancora implementata qui:
+sara' gestita dal futuro dispatcher/engine per mantenere centralizzato lo stato
+e controllare meglio l'impatto prestazionale.
+
+E' stato poi aggiunto il registry dei detector. Il registry registra detector
+validati, rifiuta ID duplicati, mantiene una lista stabile ordinata per ID ed
+espone l'insieme degli eventi consumati globalmente. Questo prepara il dispatcher
+che instradera' gli eventi decodificati verso i detector corretti.
+
+Il dispatcher e' stato implementato come componente separato: costruisce un
+indice `eventName -> []Detector`, chiama solo i detector interessati, raccoglie
+alert e conserva gli errori dei singoli detector senza bloccare l'intero flusso.
+Questo e' il primo punto concreto di collegamento tra eventi decodificati e
+detector caricati.
+
+Infine e' stato aggiunto l'engine detector. L'engine coordina registry e
+dispatcher, inizializza i detector, processa eventi decodificati, supporta
+`Flush` e mantiene metriche minime su eventi, detector invocati, alert ed
+errori.
+
+E' stato poi introdotto il primo modello di output per gli alert. `AlertRecord`
+separa gli alert dei detector dagli eventi raw, conserva detector, severita',
+metadata, policy names e gli eventi correlati normalizzati. Non e' ancora
+collegato al runtime eBPF: il prossimo passaggio e' estendere il printer
+JSON/table e poi inserire engine e alert output nella pipeline principale.
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-07-08.md)
+- [Piano di implementazione](next-steps/implementation-plan.md)
+- [Ordine implementazione policy/detector](next-steps/policy-detector-implementation-order.md)
+
+### 2026-07-07 - Schema e parser YAML dei detector
+
+Sono stati completati gli step 9 e 10 del piano policy/detector con
+`demo_project/pkg/detectors/yaml/schema.go` e
+`demo_project/pkg/detectors/yaml/parser.go`.
+
+Il nuovo package definisce il formato YAML esterno dei detector: identificativi,
+eventi richiesti e consumati, modalita' stateful, finestra temporale,
+`group_by`, condizioni, step, output alert, metadata MITRE ATT&CK e tag.
+
+La scelta architetturale e' mantenere lo schema solo come rappresentazione del
+file utente. La conversione verso il modello runtime interno
+`detectors.Definition` e' stata implementata nel parser YAML.
+
+Il parser espone `ParseBytes`, `ParseFile`, `ParseFiles` e `ParseFileSchema`,
+normalizza severita', finestra temporale e metadata MITRE, conserva condizioni e
+step per il futuro runtime YAML e supporta validazione opzionale dei nomi evento
+tramite `WithSupportedEvents`.
+
+Sono stati aggiunti test di unmarshalling e parsing con un detector YAML
+completo, cosi' da fissare il formato prima di implementare il detector runtime.
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-07-07.md)
+- [Piano di implementazione](next-steps/implementation-plan.md)
+- [Ordine implementazione policy/detector](next-steps/policy-detector-implementation-order.md)
+
 ### 2026-07-06 - Runner applicativo e modello policy
 
 Sono stati completati gli step 3 e 4 del piano policy/detector.
@@ -109,6 +189,12 @@ per troppo tempo; se i benchmark peggiorano, la feature va mitigata o limitata.
 Prima di procedere con `pkg/detectors/definition.go` e' stato preparato anche
 un documento di proposta per allineare detector e policy a MITRE ATT&CK:
 tattiche, tecniche, data source e futura vista di copertura.
+
+Lo step `pkg/detectors/definition.go` e' stato poi completato. La definizione
+dei detector e' stata separata dal contratto runtime e ora include requisiti
+evento, output atteso, severita', metadati MITRE ATT&CK, helper per eventi
+consumati e validazioni minime. I detector senza mapping MITRE restano ammessi,
+ma possono essere trattati come `unmapped`.
 
 **Note collegate:**
 

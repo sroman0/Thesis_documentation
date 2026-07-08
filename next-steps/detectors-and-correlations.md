@@ -31,7 +31,7 @@ decoded event
 
 Il detector engine deve lavorare in userspace, almeno nella prima versione.
 
-## Tipi di anomalie supportabili
+## Tipi di anomalie supportabili nel tool
 
 ### Point anomaly
 
@@ -48,24 +48,11 @@ rules:
       - data.pathname=/etc/shadow
 ```
 
-### Contextual anomaly
+### Collective anomaly locale
 
-Evento normale che diventa sospetto nel contesto corretto.
+Gruppo breve di eventi che insieme descrive un comportamento.
 
 Esempio:
-
-```text
-open /etc/passwd
-```
-
-puo' essere normale. Diventa piu' interessante se:
-
-- arriva da un processo insolito;
-- arriva da un utente insolito;
-- arriva dopo un cambio di credenziali;
-- arriva da un namespace/container inatteso.
-
-Prima versione implementabile:
 
 ```yaml
 type: detector
@@ -82,11 +69,7 @@ steps:
       - data.pathname=/etc/*
 ```
 
-### Collective anomaly
-
-Gruppo di eventi che insieme descrive un comportamento.
-
-Esempio:
+Altro esempio:
 
 ```yaml
 type: detector
@@ -105,6 +88,21 @@ steps:
     filters:
       - data.pathname=/tmp/*
 ```
+
+### Contextual anomaly fuori scope locale
+
+Le anomalie contestuali richiedono contesto piu' ampio: baseline per host,
+utente, pod, namespace Kubernetes, servizio o cluster. Il tool girera' come
+agent in un pod e non avra' una vista globale sufficiente per decidere da solo
+se un evento e' anomalo rispetto all'intero ambiente.
+
+Per questo motivo la prima implementazione locale non deve provare a produrre
+contextual anomalies complete. Il suo compito e':
+
+- emettere point anomalies quando un evento singolo e' chiaramente rilevante;
+- emettere collective anomalies quando una breve sequenza locale e' sospetta;
+- lasciare le contextual anomalies al sistema centralizzato che ricevera' gli
+  alert e avra' visibilita' di cluster.
 
 ## Stato runtime
 
@@ -127,6 +125,9 @@ state[detector][group_key]
 - `uid`;
 - `process_tree`;
 - `container_id`, se disponibile in futuro.
+
+La prima versione deve usare group key semplici e locali. Non deve dipendere da
+informazioni globali di cluster.
 
 ## Output degli alert correlati
 
@@ -163,5 +164,7 @@ Esempio:
   detector: default `2s`, massimo `5s`.
 - I detector devono essere caricabili da file.
 - La prima versione deve essere userspace-only.
+- La prima versione locale deve evitare contextual anomalies basate su baseline
+  globali o contesto Kubernetes completo.
 - I detector dovrebbero dichiarare metadati MITRE ATT&CK quando la detection ha
   una tecnica o tattica chiaramente associabile.

@@ -27,6 +27,7 @@ materiale per la tesi.
 - [Output](implementation/output.md)
 - [Docker](implementation/docker.md)
 - [Performance](implementation/performance.md)
+- [Sintesi ultimi hook implementati](implementation/recent-hooks-summary.md)
 
 ## Prossimi step
 

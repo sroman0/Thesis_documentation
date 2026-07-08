@@ -1,4 +1,9 @@
-Ultimi hook e gruppi completati:
+# Sintesi ultimi hook implementati
+
+Questo documento raccoglie una sintesi compatta degli ultimi gruppi di hook
+aggiunti al tool. La descrizione dettagliata resta in
+[`hooks.md`](hooks.md), mentre i comandi di test sono in
+[`commands.md`](../debugging/commands.md).
 
 - `security_bpf_map`: osserva operazioni security su mappe eBPF già esistenti.
 - `security_bpf_prog`: osserva operazioni security su programmi eBPF già caricati.

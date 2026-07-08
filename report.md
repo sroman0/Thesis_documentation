@@ -514,11 +514,11 @@ inizialmente erano bloccanti:
 - output `table`/`json`;
 - mapping human-readable di molti valori kernel.
 
-Il fatto che non vengano stampati alert non e' un errore in questa fase: gli
-alert richiedono ancora detection logic. Il runtime riceve i record dal perf
-buffer operativo principale e mantiene anche il reader ring buffer come
-alternativa tecnica. Dopo il decode applica selezione eventi, eventuale filtro
-`comm` e output.
+Il fatto che il runtime eBPF non stampi ancora alert non e' un errore in questa
+fase: il layer detector userspace esiste, ma non e' ancora collegato al loop
+principale degli eventi. Il runtime riceve i record dal perf buffer operativo
+principale e mantiene anche il reader ring buffer come alternativa tecnica.
+Dopo il decode applica selezione eventi, eventuale filtro `comm` e output.
 
 Loop aggiornato in `pkg/ebpf/project.go`:
 
@@ -544,7 +544,8 @@ Conclusione dello stato corrente:
 - il runtime riceve sia eventi ring buffer sia eventi perf buffer;
 - l'output e' separato dal runtime eBPF;
 - la copertura process/security e' ampia per una demo tecnica;
-- per ottenere alert servono ancora policy, correlazione e detection logic.
+- per ottenere alert nel flusso reale serve collegare policy manager, detector
+  engine e output alert alla pipeline eventi.
 
 ## 10. Limitazioni attuali
 
@@ -575,7 +576,9 @@ Limitazioni residue:
   numerici;
 - nuovi hook richiedono un ID coerente tra C e Go, una voce nello schema
   statico in `pkg/events/spec.go` e la registrazione della probe;
-- manca ancora una policy engine che trasformi eventi grezzi in alert.
+- il policy manager e il detector engine sono implementati in userspace, ma non
+  sono ancora collegati al loop eBPF principale;
+- manca ancora l'output dedicato agli alert.
 
 Il decoder supporta inoltre array di stringhe, payload NUL-delimited,
 sockaddr, credenziali strutturate e puntatori. Gli eventi
@@ -646,15 +649,16 @@ rispetto al JSON raw iniziale, ma resta pensato per debugging:
 La roadmap dettagliata e' ora raccolta in
 [next-steps/](next-steps/README.md). I punti principali sono:
 
-1. aggiungere policy YAML userspace-only;
-2. introdurre detector YAML caricabili senza rebuild;
-3. separare output eventi e output alert correlati;
-4. mantenere catene di correlazione corte e leggibili;
-5. allineare detector e policy a MITRE ATT&CK tramite metadati di tattica,
+1. completare l'output separato per alert;
+2. collegare policy manager e detector engine al runtime eventi;
+3. fornire detector demo caricabili da YAML senza rebuild;
+4. fornire policy demo per selezionare eventi e detector;
+5. mantenere catene di correlazione corte e leggibili;
+6. allineare detector e policy a MITRE ATT&CK tramite metadati di tattica,
    tecnica e data source;
-6. introdurre filtri kernel-side minimi solo dopo aver stabilizzato policy e
+7. introdurre filtri kernel-side minimi solo dopo aver stabilizzato policy e
    detector in userspace;
-7. continuare a misurare CPU, volume eventi e riduzione rumore.
+8. continuare a misurare CPU, volume eventi e riduzione rumore.
 
 Restano inoltre validi alcuni task infrastrutturali:
 
@@ -702,6 +706,10 @@ Il progetto e' passato da uno userspace che restava semplicemente in attesa a un
 - decodifica payload scalari, stringhe, array di stringhe, sockaddr,
   credenziali e puntatori;
 - stampa output `table` e `json` arricchito;
+- prepara config policy/detector/alert;
+- carica policy YAML e le normalizza in un manager userspace;
+- carica e valida definizioni detector YAML;
+- dispone di registry, dispatcher ed engine detector testati in isolamento;
 - gestisce cleanup ordinato.
 
 Le modifiche sono coerenti con l'architettura di Tracee a livello di pattern,
@@ -710,8 +718,10 @@ ma restano volutamente piu' semplici e target-specific per la tesi.
 Il punto raggiunto e' importante: il problema non e' piu' caricare eBPF o
 stampare un evento singolo. Il tool ha ora una pipeline end-to-end ampia, con
 copertura process/security, filesystem, memoria, cgroup, moduli, BPF e segnali
-di kernel hardening. La prossima fase riguarda policy, correlazione,
-riduzione del rumore e misurazione sistematica delle prestazioni.
+di kernel hardening. In parallelo e' stato preparato il layer userspace per
+policy e detector. La prossima fase riguarda output alert, integrazione nel
+runtime eventi, riduzione del rumore e misurazione sistematica delle
+prestazioni.
 
 ## 14. Note storiche su verifier e helper comuni
 
