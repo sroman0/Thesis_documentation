@@ -112,8 +112,7 @@ errori.
 
 E' stato poi introdotto il primo modello di output per gli alert. `AlertRecord`
 separa gli alert dei detector dagli eventi raw, conserva detector, severita',
-metadata, policy names e gli eventi correlati normalizzati. Non e' ancora
-collegato al runtime eBPF.
+metadata, policy names e gli eventi correlati normalizzati.
 
 Il printer e' stato quindi esteso con `PrintAlert`. `JSONPrinter` e
 `TablePrinter` possono ora stampare alert detector senza modificare la stampa
@@ -124,7 +123,20 @@ carica detector YAML da file o directory, costruisce l'engine e lo passa al
 runtime eBPF. Dopo decode, event filter, comm filter e policy filter, ogni
 evento viene inviato a `Engine.ProcessEvent`; gli alert prodotti vengono
 stampati con `Printer.PrintAlert` quando `--alerts` e' attivo. Il prossimo
-passaggio e' validare centralmente i nomi evento usati da policy e detector.
+passaggio e' migliorare leggibilita' e rumore dell'output alert.
+
+Il test runtime con `rules/policies/demo-detectors.yaml` e
+`rules/detectors/sensitive_file_open.yaml` ha prodotto alert reali:
+
+```text
+type=alert alert=Sensitive system file opened severity=low detector=sensitive-file-open events=1 detector_name=Sensitive file open source_event=security_file_open source_pid=1828 source_uid=0 source_comm=flb-out-stackdr source_args=pathname=/etc/hosts,...
+event=security_file_open ... args=pathname=/etc/hosts,...
+```
+
+Il risultato conferma la pipeline completa policy/detector/alert. Il limite
+emerso e' di leggibilita': eventi raw e alert condividono lo stesso stream, per
+cui durante una demo puo' essere utile filtrare `type=alert` o introdurre una
+futura modalita' `--alerts-only`.
 
 Nella stessa giornata e' stato risolto un bug end-to-end della pipeline eventi:
 gli hook producevano eventi con nome corretto ma senza argomenti (`args=-`).

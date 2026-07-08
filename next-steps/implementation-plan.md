@@ -604,8 +604,23 @@ Responsabilita' implementate:
 Una riga table viene preparata in questa forma:
 
 ```text
-alert=privilege-change detector=demo.privilege-change severity=high events=2
+type=alert alert=privilege-change detector=demo.privilege-change severity=high events=2 source_event=security_task_fix_setuid
 ```
+
+Il test runtime con `sensitive-file-open` ha confermato che la pipeline produce
+alert reali:
+
+```text
+type=alert alert=Sensitive system file opened severity=low detector=sensitive-file-open events=1 detector_name=Sensitive file open source_event=security_file_open source_pid=1828 source_uid=0 source_comm=flb-out-stackdr source_args=pathname=/etc/hosts,...
+event=security_file_open ... args=pathname=/etc/hosts,...
+```
+
+La parte funzionale e' quindi valida: evento decodificato, dispatch verso il
+detector YAML, match sulle condizioni e stampa dell'alert. Il formato table e'
+stato reso piu' esplicito con `type=alert` e campi `source_event`, ma rimane un
+limite di esperienza utente: gli alert sono ancora mescolati agli eventi raw.
+Per una demo o un'integrazione operativa resta utile una flag dedicata
+`--alerts-only`.
 
 Il formato JSON conserva piu' dettagli, inclusi gli eventi correlati, perche'
 sara' quello piu' adatto all'integrazione futura con sistemi centralizzati.
@@ -725,7 +740,7 @@ type AlertRecord struct {
 Il formato `table` stampa una riga compatta:
 
 ```text
-alert=Privilege change followed by exec severity=medium detector=setuid-exec-chain events=2
+type=alert alert=Privilege change followed by exec severity=medium detector=setuid-exec-chain events=2 source_event=security_task_fix_setuid
 ```
 
 Il formato `json` mantiene tutti gli eventi correlati normalizzati.

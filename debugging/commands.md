@@ -84,6 +84,65 @@ Nota: per eventi presi all'ingresso della syscall, come `execve`, il campo
 `comm` puo' ancora essere quello del processo chiamante. Per questo e'
 preferibile testare `execve` filtrando per evento, non per `comm`.
 
+## Testare policy, detector e alert
+
+Il test minimo del layer detector usa i file demo:
+
+```text
+demo_project/rules/policies/demo-detectors.yaml
+demo_project/rules/detectors/root_exec.yaml
+demo_project/rules/detectors/sensitive_file_open.yaml
+```
+
+Da `demo_project`, avviare il runtime con policy, detector e alert:
+
+```bash
+sudo ./dist/project \
+  --policy rules/policies/demo-detectors.yaml \
+  --detectors rules/detectors \
+  --alerts \
+  --alerts-output table \
+  --output table \
+  --log-level error
+```
+
+In un secondo terminale generare eventi semplici:
+
+```bash
+cat /etc/hosts
+sudo whoami
+```
+
+Output atteso per il detector `sensitive-file-open`:
+
+```text
+type=alert alert=Sensitive system file opened severity=low detector=sensitive-file-open events=1 detector_name=Sensitive file open source_event=security_file_open source_pid=1828 source_uid=0 source_comm=flb-out-stackdr source_args=pathname=/etc/hosts,...
+event=security_file_open ... args=pathname=/etc/hosts,...
+```
+
+Questo output dimostra che il detector sta funzionando: l'evento
+`security_file_open` viene decodificato, passa dal dispatcher, soddisfa la
+condizione YAML su `args.pathname` e genera un alert.
+
+Nota di leggibilita': nella versione attuale eventi raw e alert sono stampati
+sullo stesso stream. Quindi e' normale vedere molte righe `event=...` tra una
+riga `type=alert` e l'altra. Per debug manuale conviene cercare esplicitamente
+le righe che iniziano con `type=alert` oppure filtrare l'output:
+
+```bash
+sudo ./dist/project \
+  --policy rules/policies/demo-detectors.yaml \
+  --detectors rules/detectors \
+  --alerts \
+  --alerts-output table \
+  --output table \
+  --log-level error | grep '^type=alert'
+```
+
+Limite da ricordare: una futura flag `--alerts-only` renderebbe questo test
+molto piu' leggibile, perche' permetterebbe di stampare solo il risultato della
+detection e non tutti gli eventi sorgente.
+
 ## Log libbpf e relocation CO-RE
 
 Per run normali, il default `--log-level info` nasconde i log verbose di

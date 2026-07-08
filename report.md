@@ -554,8 +554,22 @@ Conclusione dello stato corrente:
 - il runtime riceve sia eventi ring buffer sia eventi perf buffer;
 - l'output e' separato dal runtime eBPF;
 - la copertura process/security e' ampia per una demo tecnica;
-- per ottenere alert nel flusso reale serve collegare policy manager, detector
-  engine e output alert alla pipeline eventi.
+- policy manager, detector engine e output alert sono collegati alla pipeline
+  eventi e possono produrre alert da detector YAML.
+
+Test runtime osservato:
+
+```text
+type=alert alert=Sensitive system file opened severity=low detector=sensitive-file-open events=1 detector_name=Sensitive file open source_event=security_file_open source_pid=1828 source_uid=0 source_comm=flb-out-stackdr source_args=pathname=/etc/hosts,...
+event=security_file_open ... args=pathname=/etc/hosts,...
+```
+
+Questo mostra il funzionamento end-to-end: evento kernel, decode userspace,
+policy selection, dispatcher detector, match YAML e output alert. Il limite
+principale emerso non e' funzionale ma di leggibilita': eventi raw e alert sono
+ancora stampati nello stesso stream. Per migliorare demo e uso operativo sono
+previsti un formato table piu' esplicito per gli alert e una possibile modalita'
+`--alerts-only`.
 
 ## 10. Limitazioni attuali
 
@@ -744,10 +758,10 @@ ma restano volutamente piu' semplici e target-specific per la tesi.
 Il punto raggiunto e' importante: il problema non e' piu' caricare eBPF o
 stampare un evento singolo. Il tool ha ora una pipeline end-to-end ampia, con
 copertura process/security, filesystem, memoria, cgroup, moduli, BPF e segnali
-di kernel hardening. In parallelo e' stato preparato il layer userspace per
-policy e detector. La prossima fase riguarda output alert, integrazione nel
-runtime eventi, riduzione del rumore e misurazione sistematica delle
-prestazioni.
+di kernel hardening. In parallelo e' stato preparato e collegato al runtime il
+layer userspace per policy, detector e alert. La prossima fase riguarda
+leggibilita' degli alert, riduzione del rumore, primi detector correlati e
+misurazione sistematica delle prestazioni.
 
 ## 14. Note storiche su verifier e helper comuni
 

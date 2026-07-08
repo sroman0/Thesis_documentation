@@ -234,10 +234,10 @@ in `alert.go`. Il record contiene:
 - eventi correlati normalizzati con lo stesso schema JSON degli eventi raw;
 - metadata aggiuntivi.
 
-La vista table e' intenzionalmente compatta:
+La vista table e' compatta ma distinguibile dagli eventi raw:
 
 ```text
-alert=Privilege change followed by exec severity=medium detector=setuid-exec-chain events=2 policies=local-collective
+type=alert alert=Privilege change followed by exec severity=medium detector=setuid-exec-chain events=2 policies=local-collective source_event=security_task_fix_setuid
 ```
 
 Il metodo `PrintAlert` e' stato aggiunto all'interfaccia `Printer` ed e'
