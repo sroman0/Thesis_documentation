@@ -113,6 +113,37 @@ Le ottimizzazioni prioritarie sono:
 4. misurare eventi persi e throughput del perf buffer;
 5. confrontare sempre la stessa attività con tool spento e acceso.
 
+## Logging e overhead
+
+Il logging runtime puo' influire sulle misure se viene usato in modo troppo
+verboso. Per questo il piano di migrazione verso `zap` deve rispettare due
+regole:
+
+- `info` deve contenere solo lifecycle essenziale;
+- `debug` deve essere considerato modalita' diagnostica, non profilo normale.
+
+Nella hot path:
+
+```text
+raw event -> decode -> filters -> output -> detectors
+```
+
+non bisogna costruire stringhe pesanti quando il livello debug e' disabilitato.
+I campi diagnostici devono essere passati come campi strutturati del logger,
+per esempio `event_id`, `event_name`, `comm` e `drop_reason`.
+
+Durante i benchmark vanno confrontate almeno tre configurazioni:
+
+```bash
+sudo ./dist/project --events execve,security_file_open --output table --log-level error
+sudo ./dist/project --events execve,security_file_open --output table --log-level info
+sudo ./dist/project --events execve,security_file_open --output table --log-level debug
+```
+
+Il risultato atteso e' che `error` e `info` abbiano overhead simile nelle run
+normali, mentre `debug` puo' costare di piu' ed e' accettabile solo per
+diagnostica mirata.
+
 Nota sui detector stateful: la prima versione del contratto permette finestre
 temporali brevi per correlare sequenze locali di eventi. La finestra di default
 e' `2s`, con limite massimo `5s`. Questa scelta serve a coprire collective

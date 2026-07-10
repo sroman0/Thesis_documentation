@@ -689,21 +689,26 @@ rispetto al JSON raw iniziale, ma resta pensato per debugging:
 La roadmap dettagliata e' ora raccolta in
 [next-steps/](next-steps/README.md). I punti principali sono:
 
-1. completare l'output separato per alert;
-2. collegare policy manager e detector engine al runtime eventi;
-3. fornire detector demo caricabili da YAML senza rebuild;
-4. fornire policy demo per selezionare eventi e detector;
-5. mantenere catene di correlazione corte e leggibili;
-6. allineare detector e policy a MITRE ATT&CK tramite metadati di tattica,
+1. mantenere output separato e leggibile per eventi e alert;
+2. migliorare la leggibilita' operativa degli alert, eventualmente con una
+   futura modalita' `--alerts-only`;
+3. introdurre logging runtime strutturato con `zap`, separato da eventi e
+   alert;
+4. fornire detector demo caricabili da YAML senza rebuild;
+5. fornire policy demo per selezionare eventi e detector;
+6. mantenere catene di correlazione corte e leggibili;
+7. allineare detector e policy a MITRE ATT&CK tramite metadati di tattica,
    tecnica e data source;
-7. introdurre filtri kernel-side minimi solo dopo aver stabilizzato policy e
+8. introdurre filtri kernel-side minimi solo dopo aver stabilizzato policy e
    detector in userspace;
-8. continuare a misurare CPU, volume eventi e riduzione rumore.
+9. continuare a misurare CPU, volume eventi e riduzione rumore.
 
 Restano inoltre validi alcuni task infrastrutturali:
 
 - aggiungere lost channel e metriche per il perf buffer;
 - rendere configurabile la dimensione del perf buffer;
+- migrare le stampe runtime manuali a un logger strutturato con livelli
+  `error`, `warn`, `info` e `debug`;
 - completare mapping human-readable per `prctl`, socket option, syscall e
   valori driver-specific.
 
@@ -760,8 +765,8 @@ stampare un evento singolo. Il tool ha ora una pipeline end-to-end ampia, con
 copertura process/security, filesystem, memoria, cgroup, moduli, BPF e segnali
 di kernel hardening. In parallelo e' stato preparato e collegato al runtime il
 layer userspace per policy, detector e alert. La prossima fase riguarda
-leggibilita' degli alert, riduzione del rumore, primi detector correlati e
-misurazione sistematica delle prestazioni.
+leggibilita' degli alert, logging runtime strutturato, riduzione del rumore,
+primi detector correlati e misurazione sistematica delle prestazioni.
 
 ## 14. Note storiche su verifier e helper comuni
 

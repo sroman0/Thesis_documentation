@@ -801,6 +801,38 @@ Detector demo ancora da aggiungere dopo la correlazione stateful:
 - `sensitive-file-open-after-setuid`;
 - `kernel-module-load-and-kprobe`.
 
+## Fase 5.1: logging runtime strutturato
+
+Stato: pianificata.
+
+Prima di spostare filtri nel kernel e prima di aggiungere detector piu'
+complessi, conviene stabilizzare il logging applicativo.
+
+Obiettivo:
+
+```text
+runtime logs  -> zap logger
+raw events    -> output printer
+alerts        -> alert printer
+```
+
+La fase prevede:
+
+- creazione di `demo_project/pkg/logging/logger.go`;
+- test unitari del mapping `debug|info|warn|error`;
+- wiring del logger nel runner applicativo;
+- passaggio esplicito del logger al runtime eBPF;
+- migrazione graduale dei log non-hot-path;
+- migrazione dei log debug solo dopo avere fissato il lifecycle.
+
+Questa fase non deve cambiare eventi, policy, detector o alert. Serve a
+rendere piu' pulita la diagnostica e a ridurre il rumore durante benchmark e
+demo.
+
+Piano dettagliato:
+
+- [Piano logging strutturato con zap](zap-logging-plan.md)
+
 ## Fase 6: kernel-side filtering
 
 Solo dopo la stabilizzazione del detector engine:

@@ -36,6 +36,7 @@ materiale per la tesi.
 - [Piano di implementazione](next-steps/implementation-plan.md)
 - [Ordine implementazione policy/detector](next-steps/policy-detector-implementation-order.md)
 - [Proposte allineamento MITRE ATT&CK](next-steps/mitre-attack-alignment-proposals.md)
+- [Piano logging strutturato con zap](next-steps/zap-logging-plan.md)
 
 ## Debugging e decisioni
 

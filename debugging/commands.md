@@ -158,6 +158,32 @@ I messaggi `field_exists`, `byte_off` e `no matching targets found` non sono
 necessariamente errori: spesso indicano che libbpf sta patchando il programma
 in base ai campi disponibili nel BTF del kernel target.
 
+## Logging runtime e zap
+
+Il piano di migrazione prevede di usare `go.uber.org/zap` per i log runtime.
+La distinzione da mantenere e':
+
+```text
+log runtime -> stderr
+eventi      -> output printer
+alert       -> alert printer
+```
+
+Quindi `--log-level` dovra' controllare il rumore applicativo senza cambiare la
+semantica degli eventi stampati.
+
+Comandi utili per confrontare i profili:
+
+```bash
+sudo ./dist/project --events execve,security_file_open --output table --log-level error
+sudo ./dist/project --events execve,security_file_open --output table --log-level info
+sudo ./dist/project --events execve,security_file_open --output table --log-level debug
+```
+
+`debug` deve essere usato solo per diagnostica mirata, perche' puo' stampare
+attach probe, drop reason e dettagli di decode. Per benchmark e demo operative
+usare `error` o `info`.
+
 ## Build binario
 
 ```bash

@@ -39,6 +39,39 @@ Nota: l'entrypoint operativo e' `demo_project/cmd/project`. Il vecchio
 `main.go` nella root non deve essere usato come riferimento per il comando
 principale.
 
+## Logging runtime
+
+Il logging applicativo deve restare separato dall'output di sicurezza.
+
+Il modello previsto e':
+
+```text
+runtime logs  -> zap logger
+raw events    -> pkg/output event printer
+alerts        -> pkg/output alert printer
+```
+
+Questa distinzione e' necessaria per non confondere tre tipi di informazione:
+
+- stato del runtime, per esempio startup, attach probe, errori e cleanup;
+- eventi kernel decodificati, per esempio `execve` o `security_file_open`;
+- alert generati dai detector.
+
+La prossima migrazione introdurra' `go.uber.org/zap` come logger strutturato
+del runtime. Il logger verra' costruito nel runner applicativo e passato al
+runtime eBPF come dipendenza esplicita. Non deve essere una variabile globale.
+
+La flag `--log-level` continuera' a controllare la verbosita', ma i messaggi
+runtime useranno livelli strutturati:
+
+- `error`: solo errori rilevanti;
+- `warn`: condizioni anomale non fatali;
+- `info`: lifecycle essenziale;
+- `debug`: diagnostica come attach probe, drop reason e primi eventi ricevuti.
+
+Il piano dettagliato e' in
+[Piano logging strutturato con zap](../next-steps/zap-logging-plan.md).
+
 ## Preparazione config
 
 `initialize.BPFObject()` prepara:

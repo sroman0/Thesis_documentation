@@ -122,6 +122,31 @@ output con eventi che hanno causato il match
 Quando possibile, ogni detector dovrebbe indicare anche i metadati MITRE
 ATT&CK: tattica, tecnica, eventuale sub-tecnica e data source/data component.
 
+## Priorita' trasversale: logging strutturato
+
+Prima di ampliare ancora il runtime conviene sostituire le stampe diagnostiche
+manuali con un logger strutturato basato su `zap`.
+
+Questa attivita' non cambia la semantica di eventi, policy o detector. Serve a
+rendere piu' pulita la gestione operativa del tool:
+
+- log runtime separati da eventi e alert;
+- livelli coerenti `error`, `warn`, `info`, `debug`;
+- messaggi di lifecycle leggibili;
+- diagnostica debug filtrabile;
+- minore rischio di rumore nella hot path.
+
+La regola architetturale e':
+
+```text
+runtime logs  -> zap logger
+raw events    -> output printer
+alerts        -> alert printer
+```
+
+Il piano dettagliato e' documentato in
+[Piano logging strutturato con zap](zap-logging-plan.md).
+
 ## Priorita' 5: kernel-side filtering minimo
 
 Solo dopo aver stabilizzato policy e detector in userspace conviene riportare

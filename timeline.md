@@ -32,6 +32,7 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [2026-07-06 - Runner applicativo per policy e detector](daily/2026-07-06.md)
 - [2026-07-07 - Schema e parser YAML dei detector](daily/2026-07-07.md)
 - [2026-07-08 - Runtime detector YAML](daily/2026-07-08.md)
+- [2026-07-10 - Piano logging strutturato con zap](daily/2026-07-10.md)
 
 ### Implementazione
 
@@ -47,6 +48,7 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [Tracee Policy Engine](implementation/tracee-policies.md)
 - [Prossimi step del tool](next-steps/README.md)
 - [Detector YAML e alert correlati](next-steps/detectors-and-correlations.md)
+- [Piano logging strutturato con zap](next-steps/zap-logging-plan.md)
 
 ### Debugging
 
@@ -71,6 +73,29 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [Contesto operativo repository](CLAUDE.md)
 
 ## Timeline
+
+### 2026-07-10 - Piano logging strutturato con zap
+
+E' stato definito il piano di migrazione del logging runtime verso
+`go.uber.org/zap`. La scelta nasce dalla necessita' di separare in modo netto
+tre flussi diversi: log applicativi, eventi raw e alert detector.
+
+Il piano stabilisce che eventi e alert restano responsabilita' del layer
+`pkg/output`, mentre i messaggi di lifecycle, debug, errore e diagnostica
+devono passare da un logger strutturato. La prima implementazione prevista
+creera' un package `pkg/logging`, poi colleghera' il logger al runner e al
+runtime eBPF senza usare variabili globali.
+
+La migrazione sara' progressiva: prima i log non-hot-path, poi la diagnostica
+debug, infine eventuali benchmark per verificare che il logging non peggiori il
+target prestazionale del 5% di un core nelle run normali.
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-07-10.md)
+- [Piano logging strutturato con zap](next-steps/zap-logging-plan.md)
+- [Userspace lifecycle](implementation/userspace-lifecycle.md)
+- [Misurazione prestazioni](implementation/performance.md)
 
 ### 2026-07-08 - Runtime detector YAML
 
