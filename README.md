@@ -49,6 +49,7 @@ materiale per la tesi.
 - [Spunti scrittura](thesis/writing-notes.md)
 - [Prima demo](demo/first_demo.md)
 - [Discorso demo](demo/speech.md)
+- [Materiale testuale per NotebookLM](presentation/README.md)
 
 ## Note sul tracciamento git
 
