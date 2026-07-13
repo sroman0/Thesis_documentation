@@ -556,20 +556,36 @@ Conclusione dello stato corrente:
 - la copertura process/security e' ampia per una demo tecnica;
 - policy manager, detector engine e output alert sono collegati alla pipeline
   eventi e possono produrre alert da detector YAML.
+- policy e detector YAML vengono validati contro il registry eventi del
+  decoder prima dell'avvio eBPF, evitando configurazioni che referenziano eventi
+  inesistenti o non decodificabili.
+- l'evento userspace espone helper `Arg`, `ArgString`, `ArgInt64`, `ArgUint64`
+  e `ArgBool`, usati dai detector per leggere argomenti decodificati in modo
+  uniforme.
+- il set demo include detector YAML mappati a MITRE per root execution, accesso
+  a file sensibili, cambio effective UID a root e inizializzazione di moduli
+  kernel.
 
 Test runtime osservato:
 
 ```text
-type=alert alert=Sensitive system file opened severity=low detector=sensitive-file-open events=1 detector_name=Sensitive file open source_event=security_file_open source_pid=1828 source_uid=0 source_comm=flb-out-stackdr source_args=pathname=/etc/hosts,...
-event=security_file_open ... args=pathname=/etc/hosts,...
+type=alert alert=Sensitive system file opened severity=medium detector=sensitive-file-open events=1 detector_name=Sensitive file open source_event=security_file_open source_pid=... source_uid=... source_comm=cat source_args=pathname=/etc/passwd,...
+event=security_file_open ... args=pathname=/etc/passwd,...
 ```
 
 Questo mostra il funzionamento end-to-end: evento kernel, decode userspace,
 policy selection, dispatcher detector, match YAML e output alert. Il limite
-principale emerso non e' funzionale ma di leggibilita': eventi raw e alert sono
-ancora stampati nello stesso stream. Per migliorare demo e uso operativo sono
-previsti un formato table piu' esplicito per gli alert e una possibile modalita'
-`--alerts-only`.
+principale emerso non era funzionale ma di leggibilita': eventi raw e alert
+erano stampati nello stesso stream. Questo punto e' stato mitigato con
+`--alerts-only`, che stampa solo gli alert lasciando comunque gli eventi nella
+pipeline interna per policy e detector.
+
+Il detector `sensitive-file-open` e' stato poi reso piu' stringente: invece di
+fare match su tutto il prefisso `/etc/`, usa l'operatore YAML `in` su una lista
+esplicita di file critici (`/etc/passwd`, `/etc/shadow`, `/etc/sudoers`,
+`/etc/ssh/sshd_config`, `/root/.ssh/authorized_keys`). Questo riduce alert
+rumorosi prodotti da aperture lecite e frequenti come `/etc/hosts` e
+`/etc/ld.so.cache`.
 
 ## 10. Limitazioni attuali
 
@@ -690,8 +706,8 @@ La roadmap dettagliata e' ora raccolta in
 [next-steps/](next-steps/README.md). I punti principali sono:
 
 1. mantenere output separato e leggibile per eventi e alert;
-2. migliorare la leggibilita' operativa degli alert, eventualmente con una
-   futura modalita' `--alerts-only`;
+2. usare `--alerts-only` per demo e run detector-focused, in modo da stampare
+   solo gli alert senza perdere gli eventi necessari ai detector;
 3. introdurre logging runtime strutturato con `zap`, separato da eventi e
    alert;
 4. fornire detector demo caricabili da YAML senza rebuild;
@@ -707,8 +723,8 @@ Restano inoltre validi alcuni task infrastrutturali:
 
 - aggiungere lost channel e metriche per il perf buffer;
 - rendere configurabile la dimensione del perf buffer;
-- migrare le stampe runtime manuali a un logger strutturato con livelli
-  `error`, `warn`, `info` e `debug`;
+- mantenere separati log runtime, eventi e alert: zap gestisce la diagnostica,
+  mentre `pkg/output` resta il sink dei dati di monitoraggio;
 - completare mapping human-readable per `prctl`, socket option, syscall e
   valori driver-specific.
 
@@ -764,9 +780,10 @@ Il punto raggiunto e' importante: il problema non e' piu' caricare eBPF o
 stampare un evento singolo. Il tool ha ora una pipeline end-to-end ampia, con
 copertura process/security, filesystem, memoria, cgroup, moduli, BPF e segnali
 di kernel hardening. In parallelo e' stato preparato e collegato al runtime il
-layer userspace per policy, detector e alert. La prossima fase riguarda
-leggibilita' degli alert, logging runtime strutturato, riduzione del rumore,
-primi detector correlati e misurazione sistematica delle prestazioni.
+layer userspace per policy, detector e alert. Il logging runtime e' stato
+strutturato con zap mantenendo separati eventi e alert. La prossima fase
+riguarda leggibilita' degli alert, riduzione del rumore, primi detector
+correlati e misurazione sistematica delle prestazioni.
 
 ## 14. Note storiche su verifier e helper comuni
 

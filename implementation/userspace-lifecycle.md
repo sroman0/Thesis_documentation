@@ -57,9 +57,57 @@ Questa distinzione e' necessaria per non confondere tre tipi di informazione:
 - eventi kernel decodificati, per esempio `execve` o `security_file_open`;
 - alert generati dai detector.
 
-La prossima migrazione introdurra' `go.uber.org/zap` come logger strutturato
-del runtime. Il logger verra' costruito nel runner applicativo e passato al
-runtime eBPF come dipendenza esplicita. Non deve essere una variabile globale.
+La prima parte della migrazione ha introdotto
+`demo_project/pkg/logging/logger.go`, che costruisce un `*zap.Logger` da una
+configurazione minimale:
+
+```go
+type Config struct {
+    Level  string
+    Format string
+}
+```
+
+Il logger supporta `debug`, `info`, `warn`, `error`, usa `info` come default,
+scrive su `stderr` e supporta formato `console` o `json`.
+
+La CLI espone ora anche `--log-format`, separato da `--output` e
+`--alerts-output`:
+
+- `--output` controlla gli eventi;
+- `--alerts-output` controlla gli alert;
+- `--log-format` controlla solo i log runtime.
+
+Questa separazione e' importante in container/Kubernetes: eventi e alert
+possono restare nel formato piu' comodo per il consumo del tool, mentre i log
+runtime possono essere emessi in JSON per una pipeline centralizzata.
+
+Il runner applicativo ora costruisce il logger da `cfg.LogLevel`, usa zap per i
+messaggi di lifecycle del layer applicativo e passa il logger al runtime eBPF
+con `projectebpf.WithLogger(logger)`. Nel runtime eBPF il logger e' una
+dipendenza esplicita; se non viene fornito, il default e' `zap.NewNop()` per
+mantenere test e usi programmatici silenziosi.
+
+Le stampe interne residue in `pkg/ebpf/project.go` sono state migrate a zap per
+i messaggi gestiti dal runtime:
+
+- attach probe;
+- primi eventi ricevuti/decodificati;
+- drop reason in debug;
+- eventi persi dal perf buffer;
+- errori decode/output;
+- errori detector e alert printer.
+
+Anche il callback libbpf passa dal logger zap. I messaggi CO-RE restano
+controllati da `--log-level` e vengono marcati con:
+
+```text
+source=libbpf
+libbpf_level=<livello numerico libbpf>
+```
+
+Questo mantiene un solo sink diagnostico senza confondere i messaggi libbpf con
+eventi o alert.
 
 La flag `--log-level` continuera' a controllare la verbosita', ma i messaggi
 runtime useranno livelli strutturati:
@@ -100,6 +148,7 @@ privilegi root per ispezionare gli eventi disponibili.
   layer detector.
 - `--alerts`: abilita la stampa degli alert prodotti dai detector.
 - `--alerts-output`: formato degli alert, `json` o `table`.
+- `--log-format`: formato dei log runtime, `console` o `json`.
 
 Se `--events` non viene passato, il runtime abilita tutti gli eventi supportati.
 `--drop-events cap_capable` e' utile per ridurre il rumore durante i test.
@@ -110,12 +159,21 @@ Le policy e i detector vengono preparati prima dell'avvio eBPF. Il runner
 carica le policy nel `policy.Manager`, carica i detector YAML, costruisce il
 `detectors.Engine` e passa entrambi a `pkg/ebpf/project.go`.
 
+Durante questa fase il runner valida anche i nomi evento dichiarati da policy e
+detector contro `pkg/events/spec.go`. Se un file YAML usa un evento non presente
+nel registry decoder, il tool fallisce prima dell'avvio eBPF. Questo evita run
+ambigue in cui una policy o un detector sembra caricato, ma in realta' ascolta
+un evento che userspace non puo' decodificare.
+
 La config contiene anche `LogLevel`, popolato da `--log-level`. Questo valore
 controlla sia il livello runtime sia il filtro dei log libbpf/CO-RE:
 
 - `debug`: mostra anche le relocation verbose;
 - `info`: nasconde i log `LIBBPF_DEBUG`;
 - `warn`/`error`: mantiene solo warning libbpf.
+
+I log libbpf ammessi dal filtro vengono emessi da zap: warning libbpf a livello
+`warn`, diagnostica libbpf a livello `debug`.
 
 ## Load e attach
 

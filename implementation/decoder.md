@@ -27,6 +27,7 @@ File:
 - `protocol.go`: definisce protocollo Go e layout del context evento;
 - `decoder.go`: primitive di lettura binaria (`u8`, `u16`, `u32`, `u64`, bytes, context);
 - `eventsreader.go`: decodifica evento completo e argomenti;
+- `event_args.go`: helper per accedere agli argomenti decodificati per nome;
 - `eventsreader_test.go`: test per scalari, stringhe, array di stringhe e
   payload strutturati.
 
@@ -63,6 +64,47 @@ E' il livello semantico:
 - decodifica scalari, stringhe, sockaddr, puntatori, array di stringhe,
   argomenti NUL-delimited e credenziali strutturate;
 - produce un `Event` completo.
+
+### `event_args.go`
+
+Espone helper sul tipo `bufferdecoder.Event`:
+
+```text
+Arg(name)
+ArgString(name)
+ArgInt64(name)
+ArgUint64(name)
+ArgBool(name)
+```
+
+Questi helper centralizzano l'accesso agli argomenti decodificati. I detector
+YAML usano ora `ArgString` per valutare campi come `args.pathname`, evitando di
+duplicare la scansione manuale di `Event.Args`.
+
+La scelta e' importante per i futuri detector Go e per le correlazioni:
+l'evento userspace diventa un contratto stabile, non solo una struct da leggere
+manualmente.
+
+### `pkg/events/spec.go`
+
+Questo file e' il registry userspace degli eventi decodificabili. Ogni entry
+associa:
+
+- ID numerico emesso da eBPF;
+- nome pubblico dell'evento;
+- lista ordinata degli argomenti;
+- tipo di decode di ogni argomento.
+
+Il registry espone anche helper usati dal layer policy/detector:
+
+```text
+ListNames()
+Exists(name)
+IDByName(name)
+```
+
+Questi helper permettono di rifiutare policy e detector YAML che referenziano
+eventi non decodificabili prima dell'avvio eBPF.
 
 ## `EventContext`
 

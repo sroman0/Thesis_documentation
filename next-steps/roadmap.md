@@ -89,6 +89,10 @@ Il tool deve distinguere:
 - eventi singoli;
 - alert correlati.
 
+Stato attuale: la modalita' `--alerts-only` permette gia' di stampare solo gli
+alert detector senza stampare gli eventi raw. Gli eventi restano comunque nella
+pipeline interna e continuano ad alimentare policy e detector.
+
 Formato concettuale:
 
 ```json

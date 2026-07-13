@@ -68,7 +68,9 @@ essere il default nei percorsi che processano eventi.
 
 ## Fase 1 - Package logging
 
-Creare:
+Stato: completata.
+
+Creati:
 
 ```text
 demo_project/pkg/logging/logger.go
@@ -98,37 +100,64 @@ Test minimi:
 
 - livello `debug` accettato;
 - livello `info` accettato;
+- livelli `warn` ed `error` accettati;
 - livello invalido rifiutato;
+- formato `json` accettato;
+- formato invalido rifiutato;
 - logger non nil;
 - `Sync()` chiamabile senza panic nei test.
 
+Verifica:
+
+```bash
+GOCACHE=/tmp/go-build go test ./pkg/logging
+```
+
+La Fase 1 non cambia ancora il comportamento runtime del tool. Introduce solo
+il costruttore del logger e la dipendenza `go.uber.org/zap`.
+
 ## Fase 2 - Wiring nel runner
 
-Collegare il logger nel runner applicativo:
+Stato: completata.
+
+Collegato il logger nel runner applicativo:
 
 ```text
 demo_project/pkg/cmd/project.go
 ```
 
-Il runner deve:
+Il runner ora:
 
-1. leggere `cfg.LogLevel`;
-2. costruire il logger con `pkg/logging`;
-3. passarlo al runtime eBPF;
-4. fare `defer logger.Sync()`.
+1. legge `cfg.LogLevel`;
+2. costruisce il logger con `pkg/logging`;
+3. stampa i log lifecycle del runner con campi zap;
+4. passa il logger al runtime eBPF;
+5. esegue `defer logger.Sync()`.
 
 Non usare variabili globali per il logger. Il logger deve essere una dipendenza
 esplicita, come policy manager e detector engine.
 
+Verifica:
+
+```bash
+PKG_CONFIG_PATH=./dist/libbpf/obj \
+CGO_CFLAGS="$(PKG_CONFIG_PATH=./dist/libbpf/obj pkg-config --cflags libbpf 2>/dev/null) -I$(pwd)/3rdparty/libbpfgo" \
+CGO_LDFLAGS="$(PKG_CONFIG_PATH=./dist/libbpf/obj pkg-config --libs libbpf 2>/dev/null)" \
+GOCACHE=/tmp/go-build \
+go test ./pkg/logging ./pkg/cmd ./pkg/ebpf
+```
+
 ## Fase 3 - Wiring nel runtime eBPF
 
-Modificare:
+Stato: completata per il wiring, non ancora per la migrazione dei log interni.
+
+Modificato:
 
 ```text
 demo_project/pkg/ebpf/project.go
 ```
 
-Aggiungere:
+Aggiunto:
 
 ```go
 logger *zap.Logger
@@ -148,41 +177,40 @@ zap.NewNop()
 
 Questo mantiene i test silenziosi e impedisce nil pointer.
 
+Il prossimo passaggio non e' piu' wiring, ma migrazione graduale delle stampe
+interne di `pkg/ebpf/project.go`.
+
 ## Fase 4 - Migrazione log non-hot-path
 
-Prima sostituire solo i messaggi di lifecycle:
+Stato: completata.
 
-- startup runtime;
-- bpf object e BTF selezionati;
-- policy layer configurato;
-- detector layer configurato;
-- alert output configurato;
+Sono stati migrati i messaggi runtime interni non gestiti dal callback libbpf:
+
 - numero di probe attaccati;
-- errori di init e cleanup.
+- eventi persi dal perf buffer;
+- errori di decode;
+- errori di stampa evento;
+- errori detector;
+- errori di stampa alert.
 
-Esempio:
+Esempio implementato:
 
 ```go
-logger.Info("project runtime started",
-    zap.String("bpf_object", cfg.BPFObject),
-    zap.String("btf", cfg.BTF),
-    zap.String("output", cfg.Output),
-    zap.String("log_level", cfg.LogLevel),
-)
+p.logger.Warn("perf buffer lost events", zap.Uint64("lost_events", lost))
 ```
 
 Questa fase non deve cambiare il comportamento degli eventi o degli alert.
 
 ## Fase 5 - Migrazione diagnostica debug
 
-Poi sostituire i messaggi diagnostici aggiunti durante il debug:
+Stato: completata per la diagnostica eBPF interna.
+
+Sono stati sostituiti i messaggi diagnostici aggiunti durante il debug:
 
 - `attached probe`;
 - `received first raw event`;
 - `decoded first event`;
 - `drop event reason=...`;
-- `detector error`;
-- `print alert error`.
 
 Esempio:
 
@@ -231,18 +259,27 @@ logger.Debug("event decoded",
 
 ## Fase 7 - libbpf logs
 
-Tenere separati:
+Stato: completata.
 
-- log del nostro tool;
-- log verbose di libbpf/CO-RE.
+I log prodotti da libbpf sono stati collegati allo stesso logger zap del
+runtime, ma restano distinguibili tramite campi strutturati:
 
-Prima versione:
+```text
+source=libbpf
+libbpf_level=<livello numerico libbpf>
+```
+
+La policy di filtro resta quella originale:
 
 ```text
 --log-level debug -> abilita debug tool + log verbose libbpf
 --log-level info  -> lifecycle normale, libbpf silenzioso
---log-level error -> solo errori applicativi
+--log-level warn  -> mostra warning libbpf
+--log-level error -> mostra warning libbpf
 ```
+
+I messaggi `LIBBPF_WARN` vengono mappati a `logger.Warn`, mentre gli altri
+messaggi libbpf ammessi dal filtro vengono mappati a `logger.Debug`.
 
 Se servira' piu' controllo, aggiungere in futuro:
 
@@ -250,15 +287,32 @@ Se servira' piu' controllo, aggiungere in futuro:
 --libbpf-log-level
 ```
 
-Non introdurla nella prima migrazione.
+Non e' stata introdotta nella prima migrazione per evitare di aggiungere una
+seconda flag prima di avere misure reali sul rumore prodotto.
 
 ## Fase 8 - Documentazione e benchmark
 
-Dopo la migrazione:
+Stato: completata per la parte configurazione/documentazione.
 
-- aggiornare `README.md`;
-- aggiornare `documentation/debugging/commands.md`;
-- aggiornare `documentation/implementation/userspace-lifecycle.md`;
+E' stata aggiunta la flag:
+
+```text
+--log-format console|json
+```
+
+Il formato controlla solo i log runtime. Non modifica eventi e alert:
+
+```text
+--output        -> eventi
+--alerts-output -> alert
+--log-format    -> log runtime
+```
+
+Questo rende il tool piu' adatto a container e pod Kubernetes, dove i log
+runtime possono essere raccolti in JSON da una pipeline centralizzata.
+
+Resta da fare la parte benchmark:
+
 - misurare CPU con:
 
 ```bash
@@ -271,6 +325,8 @@ Confrontare almeno:
 --log-level error
 --log-level info
 --log-level debug
+--log-format console
+--log-format json
 ```
 
 Il target operativo resta mantenere il tool sotto circa il 5% di un core nelle
@@ -285,8 +341,10 @@ profilo di produzione.
 4. Passare il logger al runtime eBPF.
 5. Migrare log di lifecycle.
 6. Migrare log diagnostici.
-7. Aggiornare documentazione utente.
-8. Eseguire test e benchmark rapidi.
+7. Instradare libbpf nel logger.
+8. Aggiungere `--log-format`.
+9. Aggiornare documentazione utente.
+10. Eseguire test e benchmark rapidi.
 
 ## Criteri di accettazione
 
@@ -299,3 +357,28 @@ profilo di produzione.
 - non vengono costruite stringhe pesanti nella hot path quando debug e'
   disabilitato.
 
+## Stato finale della prima migrazione
+
+La prima migrazione zap e' completa.
+
+Implementato:
+
+- package `pkg/logging`;
+- flag `--log-level`;
+- flag `--log-format console|json`;
+- log runtime su `stderr`;
+- libbpf/CO-RE instradato in zap;
+- rimozione delle stampe runtime manuali principali;
+- documentazione e test mirati.
+
+Decisione architetturale finale: zap resta il sink della diagnostica runtime.
+Eventi e alert restano nel package `pkg/output`, perche' sono dati di
+monitoraggio e non log applicativi.
+
+Prossimi miglioramenti, separati da zap:
+
+- rendere il formato table degli alert ancora piu' esplicito;
+- usare `--alerts-only` nelle demo detector-focused quando serve mostrare solo
+  gli alert senza stampare gli eventi raw;
+- documentare meglio lo schema JSON degli eventi;
+- valutare destinazioni separate per eventi, alert e log runtime.

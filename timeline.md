@@ -33,6 +33,7 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [2026-07-07 - Schema e parser YAML dei detector](daily/2026-07-07.md)
 - [2026-07-08 - Runtime detector YAML](daily/2026-07-08.md)
 - [2026-07-10 - Piano logging strutturato con zap](daily/2026-07-10.md)
+- [2026-07-13 - Validazione eventi per policy e detector](daily/2026-07-13.md)
 
 ### Implementazione
 
@@ -74,6 +75,38 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 
 ## Timeline
 
+### 2026-07-13 - Validazione eventi per policy e detector
+
+Sono stati completati gli step 18 e 19 del piano policy/detector. Il package
+`demo_project/pkg/events` espone ora helper ufficiali per interrogare il
+registry eventi del decoder: `ListNames()`, `Exists(name)` e `IDByName(name)`.
+
+Il runner applicativo usa questi helper per validare i nomi evento dichiarati
+da policy e detector YAML prima dell'avvio eBPF. Se un file dichiarativo
+referenzia un evento non presente nel decoder, il tool fallisce subito durante
+il bootstrap invece di partire con una configurazione silenziosamente inutile.
+
+Sono stati aggiunti test per il registry eventi e per il rifiuto di policy e
+detector con eventi inesistenti.
+
+Inoltre e' stato rafforzato il contratto dell'evento userspace passato ai
+detector. Il package `pkg/bufferdecoder` espone ora helper `Event.Arg*` per
+leggere argomenti per nome, e il detector YAML usa `event.ArgString` invece di
+scorrere manualmente `Event.Args`. Un test end-to-end verifica che
+`DecodeEvent` preservi context e argomenti essenziali.
+
+Infine sono stati aggiunti due detector demo locali con mapping MITRE:
+`privileged-uid-change` su `security_task_fix_setuid` e
+`kernel-module-activity` su `do_init_module`. La policy demo e' stata estesa
+per includere gli eventi necessari. Il detector su `mprotect` e' stato rimandato
+perche' richiede operatori bitmask espliciti nel runtime YAML.
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-07-13.md)
+- [Ordine implementazione policy/detector](next-steps/policy-detector-implementation-order.md)
+- [Userspace Go e lifecycle eBPF](implementation/userspace-lifecycle.md)
+
 ### 2026-07-10 - Piano logging strutturato con zap
 
 E' stato definito il piano di migrazione del logging runtime verso
@@ -82,9 +115,51 @@ tre flussi diversi: log applicativi, eventi raw e alert detector.
 
 Il piano stabilisce che eventi e alert restano responsabilita' del layer
 `pkg/output`, mentre i messaggi di lifecycle, debug, errore e diagnostica
-devono passare da un logger strutturato. La prima implementazione prevista
-creera' un package `pkg/logging`, poi colleghera' il logger al runner e al
-runtime eBPF senza usare variabili globali.
+devono passare da un logger strutturato.
+
+La Fase 1 e' stata implementata con `demo_project/pkg/logging/logger.go` e
+`demo_project/pkg/logging/logger_test.go`. Il package costruisce un
+`*zap.Logger` con livelli `debug`, `info`, `warn`, `error`, output su `stderr`
+e formato `console` o `json`.
+
+La Fase 2 ha collegato il logger al runner applicativo in
+`demo_project/pkg/cmd/project.go` e al runtime eBPF in
+`demo_project/pkg/ebpf/project.go` tramite `projectebpf.WithLogger(logger)`.
+Il runtime usa `zap.NewNop()` se nessun logger viene fornito.
+
+La fase successiva ha migrato i log diagnostici interni di
+`pkg/ebpf/project.go`: attach probe, primi eventi ricevuti e decodificati,
+drop reason, eventi persi dal perf buffer, errori di decode/output, errori
+detector e print alert. Eventi raw e alert restano sui rispettivi printer.
+
+Il callback libbpf e' stato poi instradato nello stesso logger zap. I messaggi
+CO-RE/libbpf restano filtrati da `--log-level`, ma ora sono distinguibili con
+`source=libbpf` e `libbpf_level=<livello>`.
+
+E' stata aggiunta anche la flag `--log-format console|json`, separata da
+`--output` e `--alerts-output`. In questo modo il tool puo' produrre eventi e
+alert nel formato scelto dal monitoraggio, ma tenere i log runtime in JSON per
+ambienti containerizzati o pipeline centralizzate.
+
+La fase zap e' stata chiusa con una decisione esplicita: zap non viene usato
+per stampare eventi eBPF o alert detector. Gli eventi e gli alert restano nel
+package `pkg/output`, perche' sono dati di monitoraggio e non diagnostica
+applicativa.
+
+E' stata poi aggiunta la modalita' `--alerts-only`: gli eventi raw continuano a
+entrare nella pipeline e ad alimentare policy/detector, ma non vengono stampati
+su stdout. Questo rende piu' leggibili demo e test dei detector, perche'
+l'output mostra solo gli alert prodotti.
+
+La verifica finale eseguita e':
+
+```bash
+PKG_CONFIG_PATH=./dist/libbpf/obj \
+CGO_CFLAGS="$(PKG_CONFIG_PATH=./dist/libbpf/obj pkg-config --cflags libbpf 2>/dev/null) -I$(pwd)/3rdparty/libbpfgo" \
+CGO_LDFLAGS="$(PKG_CONFIG_PATH=./dist/libbpf/obj pkg-config --libs libbpf 2>/dev/null)" \
+GOCACHE=/tmp/go-build \
+go test ./pkg/config ./pkg/cmd/cobra ./pkg/logging ./pkg/cmd ./pkg/ebpf ./cmd/project/cmd
+```
 
 La migrazione sara' progressiva: prima i log non-hot-path, poi la diagnostica
 debug, infine eventuali benchmark per verificare che il logging non peggiori il
@@ -112,7 +187,7 @@ produce `detectors.Alert` usando titolo, descrizione e severita' dichiarati nel
 file YAML.
 
 Sono supportati campi su evento, contesto processo e argomenti (`args.<nome>`)
-con operatori semplici come `eq`, `neq`, `contains`, `prefix`, `suffix`,
+con operatori semplici come `eq`, `neq`, `contains`, `in`, `prefix`, `suffix`,
 `exists`, `not_exists`, `gt` e `lt`.
 
 La correlazione stateful tra eventi diversi non e' ancora implementata qui:
@@ -154,14 +229,19 @@ Il test runtime con `rules/policies/demo-detectors.yaml` e
 `rules/detectors/sensitive_file_open.yaml` ha prodotto alert reali:
 
 ```text
-type=alert alert=Sensitive system file opened severity=low detector=sensitive-file-open events=1 detector_name=Sensitive file open source_event=security_file_open source_pid=1828 source_uid=0 source_comm=flb-out-stackdr source_args=pathname=/etc/hosts,...
-event=security_file_open ... args=pathname=/etc/hosts,...
+type=alert alert=Sensitive system file opened severity=medium detector=sensitive-file-open events=1 detector_name=Sensitive file open source_event=security_file_open source_pid=... source_uid=... source_comm=cat source_args=pathname=/etc/passwd,...
+event=security_file_open ... args=pathname=/etc/passwd,...
 ```
 
 Il risultato conferma la pipeline completa policy/detector/alert. Il limite
 emerso e' di leggibilita': eventi raw e alert condividono lo stesso stream, per
-cui durante una demo puo' essere utile filtrare `type=alert` o introdurre una
-futura modalita' `--alerts-only`.
+cui durante una demo e' utile usare `--alerts-only` oppure filtrare
+`type=alert`.
+
+In seguito il detector e' stato ristretto per ridurre rumore: la condizione su
+`args.pathname` non usa piu' un prefisso generico `/etc/`, ma `operator: in` su
+una lista esplicita di file sensibili. In questo modo aperture ricorrenti e
+legittime come `/etc/hosts` e `/etc/ld.so.cache` non generano piu' alert.
 
 Nella stessa giornata e' stato risolto un bug end-to-end della pipeline eventi:
 gli hook producevano eventi con nome corretto ma senza argomenti (`args=-`).

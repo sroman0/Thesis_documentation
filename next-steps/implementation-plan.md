@@ -416,6 +416,7 @@ Operatori supportati:
 - `eq`;
 - `neq`;
 - `contains`;
+- `in`;
 - `prefix`;
 - `suffix`;
 - `exists`;
@@ -611,23 +612,24 @@ Il test runtime con `sensitive-file-open` ha confermato che la pipeline produce
 alert reali:
 
 ```text
-type=alert alert=Sensitive system file opened severity=low detector=sensitive-file-open events=1 detector_name=Sensitive file open source_event=security_file_open source_pid=1828 source_uid=0 source_comm=flb-out-stackdr source_args=pathname=/etc/hosts,...
-event=security_file_open ... args=pathname=/etc/hosts,...
+type=alert alert=Sensitive system file opened severity=medium detector=sensitive-file-open events=1 detector_name=Sensitive file open source_event=security_file_open source_pid=... source_uid=... source_comm=cat source_args=pathname=/etc/passwd,...
+event=security_file_open ... args=pathname=/etc/passwd,...
 ```
 
 La parte funzionale e' quindi valida: evento decodificato, dispatch verso il
 detector YAML, match sulle condizioni e stampa dell'alert. Il formato table e'
 stato reso piu' esplicito con `type=alert` e campi `source_event`, ma rimane un
-limite di esperienza utente: gli alert sono ancora mescolati agli eventi raw.
-Per una demo o un'integrazione operativa resta utile una flag dedicata
-`--alerts-only`.
+limite di esperienza utente quando si usa `--alerts`: gli alert sono mescolati
+agli eventi raw. Per una demo o un'integrazione operativa si usa
+`--alerts-only`, che sopprime la stampa degli eventi raw mantenendoli comunque
+disponibili per policy e detector.
 
 Il formato JSON conserva piu' dettagli, inclusi gli eventi correlati, perche'
 sara' quello piu' adatto all'integrazione futura con sistemi centralizzati.
 
-Nota: il printer globale non e' ancora stato esteso. Questo avviene nello step
-successivo, per mantenere separata la definizione del DTO dall'integrazione nel
-runtime di stampa.
+Nota: il printer globale e' stato esteso con `PrintAlert`; la scelta tra output
+eventi+alert e output solo alert viene gestita dal runtime tramite
+`--alerts-only`.
 
 ## Fase 2.9: printer alert
 
@@ -641,9 +643,9 @@ demo_project/pkg/output/json.go
 demo_project/pkg/output/table.go
 ```
 
-Obiettivo completato: estendere il contratto del printer senza rompere la stampa degli
-eventi esistenti. Il runtime dovra' poter stampare eventi raw e alert detector
-attraverso lo stesso boundary di output.
+Obiettivo completato: estendere il contratto del printer senza rompere la
+stampa degli eventi esistenti. Il runtime stampa gia' eventi raw e alert
+detector attraverso lo stesso boundary di output.
 
 Responsabilita' implementate:
 
@@ -693,24 +695,94 @@ resta da implementare nel dispatcher/engine.
 
 ## Fase 3.1: validazione eventi usati da policy e detector
 
-Stato: prossimo step.
+Stato: completata.
 
-Il prossimo file da analizzare e':
+File aggiornati:
 
 ```text
-demo_project/pkg/events/
+demo_project/pkg/events/spec.go
+demo_project/pkg/events/spec_test.go
+demo_project/pkg/cmd/project.go
+demo_project/pkg/cmd/project_test.go
 ```
 
-Obiettivo: fornire helper ufficiali per validare i nomi evento usati da policy
-e detector, evitando che YAML errati vengano accettati fino al runtime.
+Obiettivo completato: fornire helper ufficiali per validare i nomi evento usati
+da policy e detector, evitando che YAML errati vengano accettati fino al
+runtime.
 
-Responsabilita' consigliate:
+Responsabilita' implementate:
 
-- aggiungere una lista stabile dei nomi evento supportati;
-- aggiungere `Exists(name string) bool`;
-- aggiungere `ListNames() []string`;
-- usare questi helper nel loader detector YAML;
-- successivamente usarli anche nel loader policy.
+- `events.ListNames()` restituisce i nomi evento conosciuti dal decoder in
+  ordine stabile;
+- `events.Exists(name)` usa una mappa `name -> spec`, evitando scansioni
+  ripetute della registry;
+- `events.IDByName(name)` restituisce l'ID numerico associato al nome evento;
+- il caricamento dei detector YAML usa `detectoryaml.WithEventValidator` con
+  `events.Exists`;
+- il runner valida anche gli eventi dichiarati nelle policy prima di costruire
+  il `policy.Manager`;
+- i test coprono lista ordinata, lookup nome/ID e rifiuto di policy/detector
+  con eventi inesistenti.
+
+Questa fase rafforza il contratto tra eBPF, decoder e layer dichiarativo:
+policy e detector possono riferirsi solo a eventi che userspace sa decodificare.
+
+## Fase 3.2: contratto evento userspace per detector
+
+Stato: completata.
+
+File aggiornati:
+
+```text
+demo_project/pkg/bufferdecoder/event_args.go
+demo_project/pkg/bufferdecoder/event_args_test.go
+demo_project/pkg/bufferdecoder/eventsreader_test.go
+demo_project/pkg/detectors/yaml/detector.go
+```
+
+Obiettivo completato: garantire che i detector ricevano un evento userspace
+stabile e che l'accesso agli argomenti non venga duplicato in ogni detector.
+
+Responsabilita' implementate:
+
+- aggiunto `Event.Arg(name)` per cercare un argomento decodificato per nome;
+- aggiunto `Event.ArgString(name)` per ottenere una rappresentazione stringa
+  coerente di stringhe, array di stringhe, numeri e tipi con `String()`;
+- aggiunti helper numerici `ArgInt64`, `ArgUint64` e `ArgBool`;
+- aggiornato il detector YAML per usare `event.ArgString` invece di scorrere
+  manualmente `event.Args`;
+- aggiunto un test end-to-end su `DecodeEvent` per verificare preservazione di
+  `EventName`, timestamp, pid, tid, uid, comm e argomenti.
+
+Questa fase prepara i detector Go e le correlazioni future: ogni componente
+puo' accedere agli argomenti con lo stesso comportamento, invece di creare
+piccoli resolver privati e potenzialmente divergenti.
+
+## Fase 3.3: detector demo locali
+
+Stato: completata per lo step 20A.
+
+File aggiornati:
+
+```text
+demo_project/rules/detectors/privileged_uid_change.yaml
+demo_project/rules/detectors/kernel_module_activity.yaml
+demo_project/rules/policies/demo-detectors.yaml
+demo_project/README.md
+```
+
+Detector aggiunti:
+
+- `privileged-uid-change`: usa `security_task_fix_setuid` e genera alert quando
+  `args.new_euid == 0`;
+- `kernel-module-activity`: usa `do_init_module` e genera alert quando
+  `args.returnValue == 0`.
+
+Entrambi includono mapping MITRE ATT&CK Enterprise. Lo step resta
+intenzionalmente stateless: questi detector devono funzionare subito con il
+runtime YAML attuale. Le sequenze collective verranno implementate nello step
+successivo, quando il dispatcher/engine avra' una gestione centralizzata dello
+stato temporale.
 
 ## Fase 4: output alert
 
@@ -764,7 +836,7 @@ Detector disponibili:
 
 - `root-exec`: genera alert su `sched_process_exec` eseguito da `uid=0`;
 - `sensitive-file-open`: genera alert su evento `security_file_open` con
-  `pathname` sotto `/etc/`.
+  `pathname` incluso in una lista esplicita di file critici.
 
 Policy disponibile:
 
@@ -803,7 +875,7 @@ Detector demo ancora da aggiungere dopo la correlazione stateful:
 
 ## Fase 5.1: logging runtime strutturato
 
-Stato: pianificata.
+Stato: iniziata.
 
 Prima di spostare filtri nel kernel e prima di aggiungere detector piu'
 complessi, conviene stabilizzare il logging applicativo.
@@ -816,18 +888,45 @@ raw events    -> output printer
 alerts        -> alert printer
 ```
 
-La fase prevede:
+Le prime parti sono state completate:
 
 - creazione di `demo_project/pkg/logging/logger.go`;
 - test unitari del mapping `debug|info|warn|error`;
+- supporto iniziale a formato `console` e `json`;
+- output runtime su `stderr`;
 - wiring del logger nel runner applicativo;
-- passaggio esplicito del logger al runtime eBPF;
-- migrazione graduale dei log non-hot-path;
-- migrazione dei log debug solo dopo avere fissato il lifecycle.
+- passaggio esplicito del logger al runtime eBPF tramite `WithLogger`;
+- default `zap.NewNop()` nel runtime se nessun logger viene fornito.
+- migrazione dei log diagnostici interni in `pkg/ebpf/project.go`.
+- instradamento del callback libbpf nel logger zap con campi `source=libbpf`
+  e `libbpf_level`.
+- flag `--log-format console|json` per scegliere il formato dei log runtime.
+
+Verifica:
+
+```bash
+PKG_CONFIG_PATH=./dist/libbpf/obj \
+CGO_CFLAGS="$(PKG_CONFIG_PATH=./dist/libbpf/obj pkg-config --cflags libbpf 2>/dev/null) -I$(pwd)/3rdparty/libbpfgo" \
+CGO_LDFLAGS="$(PKG_CONFIG_PATH=./dist/libbpf/obj pkg-config --libs libbpf 2>/dev/null)" \
+GOCACHE=/tmp/go-build \
+go test ./pkg/logging ./pkg/cmd ./pkg/ebpf
+```
+
+Passaggi ancora da completare:
+
+- benchmark comparativo tra `--log-level error|info|debug` e
+  `--log-format console|json`.
 
 Questa fase non deve cambiare eventi, policy, detector o alert. Serve a
 rendere piu' pulita la diagnostica e a ridurre il rumore durante benchmark e
 demo.
+
+Nota: non e' stata introdotta una flag separata `--libbpf-log-level`. Per ora
+`--log-level` controlla sia i log runtime sia i log CO-RE/libbpf, mantenendo il
+comportamento operativo gia' documentato.
+
+`--log-format` resta invece separato da `--output` e `--alerts-output`: serve
+solo per i log diagnostici, non per eventi e alert.
 
 Piano dettagliato:
 

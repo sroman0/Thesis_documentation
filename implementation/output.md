@@ -13,6 +13,52 @@ La versione corrente prepara anche un modello separato per gli alert dei
 detector e i printer JSON/table sanno gia' stamparlo. Gli alert non sono pero'
 ancora collegati al runtime eBPF.
 
+## Relazione con zap
+
+Gli eventi eBPF e gli alert detector non vengono stampati tramite zap.
+
+La separazione corretta e':
+
+```text
+runtime diagnostics -> zap
+libbpf diagnostics  -> zap
+eBPF events         -> pkg/output
+detector alerts     -> pkg/output
+```
+
+Motivo: zap descrive cosa sta facendo il programma, mentre eventi e alert sono
+dati di monitoraggio prodotti dal tool. Mescolare questi flussi renderebbe piu'
+difficile filtrare, esportare e consumare i dati di sicurezza.
+
+Esempi di log runtime:
+
+```text
+project runtime started
+attached probe
+decode event failed
+perf buffer lost events
+```
+
+Esempi di output di prodotto:
+
+```text
+event=security_file_open pid=... args=pathname=/etc/passwd
+type=alert alert=Sensitive system file opened severity=...
+```
+
+Per questo `--log-format` controlla solo i log runtime, mentre:
+
+- `--output` controlla gli eventi;
+- `--alerts-output` controlla gli alert.
+
+Il layer output puo' comunque evolvere con una qualita' piu' strutturata:
+campo `type=event`, timestamp coerente, schema JSON documentato e possibili
+destinazioni separate per eventi e alert.
+
+La modalita' `--alerts-only` e' gia' disponibile: sopprime la stampa degli
+eventi raw, ma lascia gli eventi nella pipeline affinche' policy e detector
+possano continuare a lavorare.
+
 ## File principali
 
 - `printer.go`: definisce l'interfaccia `Printer`, con `Print` per eventi raw
@@ -237,7 +283,7 @@ in `alert.go`. Il record contiene:
 La vista table e' compatta ma distinguibile dagli eventi raw:
 
 ```text
-type=alert alert=Privilege change followed by exec severity=medium detector=setuid-exec-chain events=2 policies=local-collective source_event=security_task_fix_setuid
+type=alert alert=Privilege change followed by exec severity=medium detector=setuid-exec-chain events=2 policies=local-collective source_event=security_task_fix_setuid source_pid=1234 source_uid=1000 source_comm=bash source_args=old_uid=1000,new_uid=0
 ```
 
 Il metodo `PrintAlert` e' stato aggiunto all'interfaccia `Printer` ed e'
@@ -245,11 +291,14 @@ implementato sia da `JSONPrinter` sia da `TablePrinter`.
 
 Nel formato JSON, un alert viene emesso come record separato con `type=alert`.
 Nel formato table, l'alert resta una riga singola, leggibile durante demo e
-debug manuale.
+debug manuale. La riga table include anche il primo evento sorgente con i campi
+`source_event`, `source_pid`, `source_uid`, `source_comm` e `source_args`.
+Questo permette di capire subito quale evento ha fatto scattare il detector
+senza dover stampare anche gli eventi raw.
 
-Il prossimo passaggio non riguarda piu' il package output, ma l'integrazione:
-il runtime dovra' passare gli alert prodotti dal detector engine al printer
-configurato.
+Il runtime passa gia' gli alert prodotti dal detector engine al printer
+configurato. Con `--alerts-only` viene stampato solo l'alert, mentre gli eventi
+raw restano disponibili internamente per policy e detector.
 
 ## Test
 

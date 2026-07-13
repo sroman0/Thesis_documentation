@@ -92,9 +92,55 @@ Il test minimo del layer detector usa i file demo:
 demo_project/rules/policies/demo-detectors.yaml
 demo_project/rules/detectors/root_exec.yaml
 demo_project/rules/detectors/sensitive_file_open.yaml
+demo_project/rules/detectors/privileged_uid_change.yaml
+demo_project/rules/detectors/kernel_module_activity.yaml
 ```
 
 Da `demo_project`, avviare il runtime con policy, detector e alert:
+
+```bash
+sudo ./dist/project \
+  --policy rules/policies/demo-detectors.yaml \
+  --detectors rules/detectors \
+  --alerts-only \
+  --alerts-output table \
+  --output table \
+  --log-level error
+```
+
+In un secondo terminale generare eventi semplici:
+
+```bash
+cat /etc/passwd
+sudo whoami
+sudo true
+```
+
+Output atteso per il detector `sensitive-file-open`:
+
+```text
+type=alert alert=Sensitive system file opened severity=medium detector=sensitive-file-open events=1 detector_name=Sensitive file open source_event=security_file_open source_pid=... source_uid=... source_comm=cat source_args=pathname=/etc/passwd,...
+```
+
+Questo output dimostra che il detector sta funzionando: l'evento
+`security_file_open` viene decodificato, passa dal dispatcher, soddisfa la
+condizione YAML su `args.pathname` e genera un alert.
+
+Nota: il detector non usa piu' il prefisso generico `/etc/`, perche' produceva
+troppo rumore su file benigni come `/etc/hosts` e `/etc/ld.so.cache`. Ora usa
+`operator: in` su una lista di path critici.
+
+Altri alert possibili con la stessa policy:
+
+- `root-exec`: esecuzione di un processo come UID 0;
+- `privileged-uid-change`: transizione di effective UID a 0;
+- `kernel-module-activity`: inizializzazione riuscita di un modulo kernel.
+
+`--alerts-only` sopprime la stampa degli eventi raw, ma non li elimina dalla
+pipeline: gli eventi continuano a essere decodificati, filtrati e inviati ai
+detector. Questo rende i test e le demo piu' leggibili.
+
+Se invece vuoi vedere sia eventi raw sia alert, usa `--alerts`:
 
 ```bash
 sudo ./dist/project \
@@ -105,43 +151,6 @@ sudo ./dist/project \
   --output table \
   --log-level error
 ```
-
-In un secondo terminale generare eventi semplici:
-
-```bash
-cat /etc/hosts
-sudo whoami
-```
-
-Output atteso per il detector `sensitive-file-open`:
-
-```text
-type=alert alert=Sensitive system file opened severity=low detector=sensitive-file-open events=1 detector_name=Sensitive file open source_event=security_file_open source_pid=1828 source_uid=0 source_comm=flb-out-stackdr source_args=pathname=/etc/hosts,...
-event=security_file_open ... args=pathname=/etc/hosts,...
-```
-
-Questo output dimostra che il detector sta funzionando: l'evento
-`security_file_open` viene decodificato, passa dal dispatcher, soddisfa la
-condizione YAML su `args.pathname` e genera un alert.
-
-Nota di leggibilita': nella versione attuale eventi raw e alert sono stampati
-sullo stesso stream. Quindi e' normale vedere molte righe `event=...` tra una
-riga `type=alert` e l'altra. Per debug manuale conviene cercare esplicitamente
-le righe che iniziano con `type=alert` oppure filtrare l'output:
-
-```bash
-sudo ./dist/project \
-  --policy rules/policies/demo-detectors.yaml \
-  --detectors rules/detectors \
-  --alerts \
-  --alerts-output table \
-  --output table \
-  --log-level error | grep '^type=alert'
-```
-
-Limite da ricordare: una futura flag `--alerts-only` renderebbe questo test
-molto piu' leggibile, perche' permetterebbe di stampare solo il risultato della
-detection e non tutti gli eventi sorgente.
 
 ## Log libbpf e relocation CO-RE
 
@@ -158,9 +167,24 @@ I messaggi `field_exists`, `byte_off` e `no matching targets found` non sono
 necessariamente errori: spesso indicano che libbpf sta patchando il programma
 in base ai campi disponibili nel BTF del kernel target.
 
+Dopo la migrazione a zap, anche i messaggi libbpf passano dal logger runtime.
+Sono riconoscibili dai campi:
+
+```text
+source=libbpf
+libbpf_level=<livello numerico libbpf>
+```
+
+La policy resta:
+
+- `debug`: mostra anche i dettagli CO-RE/libbpf;
+- `info`: nasconde la diagnostica verbose libbpf;
+- `warn`/`error`: mostra solo warning libbpf.
+
 ## Logging runtime e zap
 
-Il piano di migrazione prevede di usare `go.uber.org/zap` per i log runtime.
+Il runtime usa `go.uber.org/zap` per i log applicativi e per i messaggi libbpf
+ammessi dal filtro.
 La distinzione da mantenere e':
 
 ```text
@@ -183,6 +207,19 @@ sudo ./dist/project --events execve,security_file_open --output table --log-leve
 `debug` deve essere usato solo per diagnostica mirata, perche' puo' stampare
 attach probe, drop reason e dettagli di decode. Per benchmark e demo operative
 usare `error` o `info`.
+
+Per ambienti containerizzati o pipeline centralizzate, usare log runtime JSON:
+
+```bash
+sudo ./dist/project \
+  --events execve,security_file_open \
+  --output json \
+  --log-level info \
+  --log-format json
+```
+
+Nota: `--log-format` non cambia il formato degli eventi o degli alert. Per
+quelli restano validi `--output` e `--alerts-output`.
 
 ## Build binario
 
