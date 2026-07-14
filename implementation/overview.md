@@ -27,8 +27,8 @@ kernel hook eBPF
   -> event selection
   -> comm filter
   -> policy filter
-  -> output printer
   -> detector engine
+  -> output printer
   -> alert printer
 ```
 
@@ -47,8 +47,9 @@ policy paths / detector paths
 
 I componenti sono testati in isolamento e il wiring MVP e' inserito nel loop
 eBPF principale: detector YAML, engine e alert printer sono collegati al runtime
-eventi. Resta fuori solo la correlazione stateful avanzata tra piu' eventi,
-che andra' centralizzata nel dispatcher/engine.
+eventi. Il detector engine applica anche un dedup temporale breve sugli alert
+ripetuti. Resta fuori solo la correlazione stateful avanzata tra piu' eventi,
+che andra' centralizzata nello stesso engine.
 
 ## Componenti principali
 
@@ -89,6 +90,9 @@ Responsabilita':
 - decodificare record raw da ring buffer o perf buffer;
 - applicare filtro eventi e filtro `comm`;
 - inviare eventi decodificati al printer configurato.
+- inviare eventi decodificati al detector engine quando configurato;
+- stampare alert tramite il printer dedicato, anche in modalita'
+  `--alerts-only`.
 
 ### Decoder
 
@@ -120,6 +124,8 @@ Responsabilita':
 - produrre output `table` compatto per debug manuale;
 - convertire campi C-style come `comm` e `uts_name` in stringhe leggibili;
 - arricchire capability numeriche con nomi Linux come `CAP_SYS_ADMIN`.
+- stampare alert detector in formato `json` o `table`;
+- mantenere separati eventi, alert e log runtime.
 
 ### CLI
 
@@ -181,6 +187,14 @@ Completato per MVP:
 - schema e parser YAML dei detector;
 - detector YAML eseguibile su evento singolo;
 - registry, dispatcher ed engine detector userspace;
+- dedup temporale degli alert ripetuti nel detector engine;
+- primo detector collective MVP con sequenza
+  `security_task_fix_setuid -> sched_process_exec`;
+- modalita' `--alerts-only` per stampare solo alert senza rimuovere gli eventi
+  dalla pipeline interna;
+- logging runtime strutturato con zap, separato da eventi e alert;
+- detector demo YAML per root execution, file sensibili, cambio effective UID a
+  root e inizializzazione moduli kernel;
 - eventi `execve` e `execveat` su tracepoint dedicati
   `syscalls/sys_enter_execve` e `syscalls/sys_enter_execveat`;
 - payload `argv` per `execve`/`execveat`;
@@ -228,14 +242,19 @@ Completato per MVP:
 
 Manca ancora:
 
-- collegamento completo delle policy al runtime eventi;
-- output separato per alert correlati;
-- collegamento dell'engine detector al loop eBPF;
-- detector demo in `rules/detectors`;
-- policy demo in `rules/policies`;
-- mapping MITRE negli alert finali;
+- una correlazione process-tree persistente completa: oggi `group_by:
+  process_tree` correla stesso processo e parent-child usando il context locale
+  dell'evento, ma non mantiene un grafo processi globale;
+- supporto YAML per operatori piu' espressivi, ad esempio bitmask e range;
+- eventuale configurazione esplicita della finestra di dedup alert, se i test
+  reali mostrano che il default di 5 secondi e' troppo aggressivo o troppo
+  permissivo;
+- uso del mapping MITRE anche per selezione policy/detector e report di
+  copertura ATT&CK;
 - arricchimento dell'output con mapping di syscall, alcune opzioni `prctl`,
-  socket option e costanti driver-specific.
+  socket option e costanti driver-specific;
+- filtri kernel-side minimi dopo la stabilizzazione del layer policy/detector
+  userspace.
 
 Nota build: il Makefile ora considera anche gli header `.h` sotto
 `pkg/ebpf/c` come dipendenze dell'oggetto eBPF. Questo evita mismatch tra

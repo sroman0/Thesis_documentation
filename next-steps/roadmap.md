@@ -93,6 +93,11 @@ Stato attuale: la modalita' `--alerts-only` permette gia' di stampare solo gli
 alert detector senza stampare gli eventi raw. Gli eventi restano comunque nella
 pipeline interna e continuano ad alimentare policy e detector.
 
+Il detector engine applica anche un dedup temporale breve sugli alert uguali:
+alert con stesso detector e stessa sorgente evento vengono emessi una sola
+volta nella finestra di default di 5 secondi. Questo riduce il rumore prodotto
+da daemon o processi che aprono ripetutamente lo stesso file.
+
 Formato concettuale:
 
 ```json
@@ -109,10 +114,27 @@ Formato concettuale:
 
 Motivo: gli alert correlati non devono sporcare l'output operativo degli eventi.
 
+Il dedup non sostituisce i detector: serve solo a rendere leggibile l'output.
+Gli eventi continuano a essere processati, ma gli alert ripetuti vengono
+soppressi a livello di engine.
+
 ## Priorita' 4: correlazioni corte e leggibili
 
 Le sequenze devono essere brevi. Una catena troppo lunga e' fragile, difficile da
 spiegare e rischia di generare alert tardivi.
+
+Stato attuale: sono presenti piu' detector collective locali. La correlazione
+usa `group_by: process_tree`, implementato con informazioni gia' disponibili in
+`event_context_t`: `host_pid`, `host_ppid`, `start_time` e
+`parent_start_time`. Questo permette di correlare stesso processo e relazione
+parent-child senza usare una chiave `global`.
+
+Detector collective correnti:
+
+- `privilege-exec-chain`;
+- `privilege-sensitive-file-chain`;
+- `memfd-exec-chain`;
+- `kernel-module-kprobe-chain`.
 
 Regola pratica:
 
@@ -125,6 +147,10 @@ output con eventi che hanno causato il match
 
 Quando possibile, ogni detector dovrebbe indicare anche i metadati MITRE
 ATT&CK: tattica, tecnica, eventuale sub-tecnica e data source/data component.
+
+Prossimo miglioramento tecnico: misurare l'impatto delle correlazioni
+`process_tree` e decidere se rendere configurabili window e dedup per singolo
+detector, senza richiedere contesto Kubernetes globale.
 
 ## Priorita' trasversale: logging strutturato
 

@@ -31,6 +31,22 @@ decoded event
 
 Il detector engine deve lavorare in userspace, almeno nella prima versione.
 
+La pipeline applica anche una protezione anti-rumore: il detector engine
+mantiene una piccola cache temporale degli alert appena emessi e sopprime gli
+alert identici prodotti entro pochi secondi. Questo e' utile soprattutto per
+point anomalies come `security_file_open`, dove un processo puo' aprire lo
+stesso file molte volte in rapida sequenza.
+
+Il dedup e' intenzionalmente locale e corto:
+
+```text
+detector_id + titolo + severita' + evento sorgente + pid + uid + comm + args
+```
+
+Se cambia processo, path, detector o contenuto degli argomenti, l'alert resta
+visibile. Se invece lo stesso processo ripete lo stesso comportamento nella
+finestra di default, il tool stampa un solo alert.
+
 ## Tipi di anomalie supportabili nel tool
 
 ### Point anomaly
@@ -52,7 +68,39 @@ rules:
 
 Gruppo breve di eventi che insieme descrive un comportamento.
 
-Esempio:
+Primo caso implementato nel tool:
+
+```yaml
+id: privilege-exec-chain
+stateful: true
+window: 5s
+group_by:
+  - process_tree
+steps:
+  - event: security_task_fix_setuid
+    conditions:
+      - field: args.new_euid
+        operator: eq
+        value: "0"
+  - event: sched_process_exec
+    conditions:
+      - field: uid
+        operator: eq
+        value: "0"
+```
+
+Questo detector produce un alert quando una transizione a effective UID root e'
+seguita da una esecuzione come UID 0 entro una finestra breve. La chiave
+`process_tree` e' piu' stretta della vecchia chiave demo `global`: correla
+eventi dello stesso processo o di una relazione parent-child usando solo il
+contesto locale dell'evento.
+
+Il parser dei detector valida ora i campi `group_by` durante il caricamento.
+Questo evita configurazioni ambigue: se un detector usa una chiave non ancora
+supportata, il tool fallisce in modo esplicito
+invece di caricare una regola che non produrra' mai match.
+
+Esempio target futuro:
 
 ```yaml
 type: detector
@@ -123,11 +171,45 @@ state[detector][group_key]
 - `pid`;
 - `tid`;
 - `uid`;
-- `process_tree`;
+- `comm`;
+- `host_pid`;
+- `host_tid`;
+- `global`, utile solo per detector demo o segnali ravvicinati dove la stessa
+  catena puo' attraversare PID diversi;
+- `process_tree`, implementato come correlazione locale tra processo corrente e
+  parent tramite `host_pid`, `host_ppid`, `start_time` e `parent_start_time`;
 - `container_id`, se disponibile in futuro.
 
-La prima versione deve usare group key semplici e locali. Non deve dipendere da
-informazioni globali di cluster.
+La prima versione usa solo group key locali. Non dipende da informazioni
+globali di cluster.
+
+`process_tree` non ricostruisce l'intero albero dei processi in memoria. Per
+mantenere basso l'overhead, calcola chiavi brevi a partire dal contesto gia'
+presente nell'evento:
+
+```text
+self   = host_pid:task_start_time
+parent = host_ppid:parent_start_time
+```
+
+Quando un detector stateful riceve il primo evento della sequenza, salva lo
+stato sulla chiave `self`. Quando riceve gli eventi successivi, prova sia
+`self` sia `parent`. In questo modo la sequenza puo' completarsi nello stesso
+processo oppure tra parent e child, senza usare una chiave `global`.
+
+Detector collective correnti:
+
+| Detector | Sequenza | Scopo |
+| --- | --- | --- |
+| `privilege-exec-chain` | `security_task_fix_setuid` -> `sched_process_exec` | Cambio privilegi seguito da exec root. |
+| `privilege-sensitive-file-chain` | `security_task_fix_setuid` -> `security_file_open` | Cambio privilegi seguito da accesso root a file sensibili, con esclusione degli helper legittimi di `sudo`. |
+| `memfd-exec-chain` | `memfd_create` -> `sched_process_exec` | Creazione file anonimo in memoria seguita da exec da path memfd. |
+| `kernel-module-kprobe-chain` | `do_init_module` -> `register_kprobe` | Modulo kernel inizializzato seguito da registrazione kprobe dinamica. |
+
+Nota sui detector demo: alcune regole escludono helper legittimi e molto
+rumorosi, in particolare `sudo` e `unix_chkpwd`. Questa scelta riduce falsi
+positivi durante demo e test locali; non impedisce di creare in futuro detector
+piu' conservativi che includano anche questi processi.
 
 ## Output degli alert correlati
 
@@ -139,6 +221,7 @@ Un alert correlato deve contenere:
 - durata della sequenza;
 - lista degli eventi che hanno completato il match;
 - motivazione leggibile.
+- mapping MITRE ATT&CK quando dichiarato dal detector.
 
 Esempio:
 
@@ -154,6 +237,17 @@ Esempio:
   ]
 }
 ```
+
+Stato attuale: i metadata MITRE dichiarati nel detector YAML vengono propagati
+fino all'alert runtime. L'output table espone una sintesi compatta:
+
+```text
+mitre=TA0004|T1548|TA0007|T1083
+```
+
+L'output JSON espone invece un blocco strutturato `threat` con framework,
+versione, tattiche, tecniche, data source e data component. Questo mantiene il
+table leggibile durante demo e rende il JSON adatto a integrazioni SOC/SIEM.
 
 ## Regole operative
 

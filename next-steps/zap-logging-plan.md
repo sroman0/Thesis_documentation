@@ -61,7 +61,8 @@ Motivo:
 - campi strutturati e tipizzati (`zap.String`, `zap.Int`, `zap.Error`);
 - minore overhead rispetto a formattazione `printf`;
 - migliore controllo sulle allocazioni nella hot path;
-- output piu' facile da filtrare o convertire in JSON in futuro.
+- output piu' facile da filtrare, incluso il formato JSON gia' esposto tramite
+  `--log-format json`.
 
 Il `SugaredLogger` puo' restare fuori dal runtime critico, ma non dovrebbe
 essere il default nei percorsi che processano eventi.
@@ -83,7 +84,7 @@ Responsabilita':
 - tradurre stringhe `debug|info|warn|error` in livelli zap;
 - scegliere output iniziale su `stderr`;
 - usare formato console leggibile come default;
-- rendere semplice un futuro formato JSON.
+- supportare formato `console` e `json`.
 
 API proposta:
 

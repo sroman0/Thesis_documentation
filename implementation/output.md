@@ -10,8 +10,9 @@ decide come trasformare l'evento in una riga stampabile.
 Questa scelta riprende in forma ridotta il ruolo del sink stage di Tracee: la
 pipeline non mescola piu' lettura kernel, decoding e formattazione finale.
 La versione corrente prepara anche un modello separato per gli alert dei
-detector e i printer JSON/table sanno gia' stamparlo. Gli alert non sono pero'
-ancora collegati al runtime eBPF.
+detector e i printer JSON/table sanno stamparlo. Gli alert sono collegati al
+runtime eBPF tramite il detector engine: dopo decode e filtri base, l'evento
+puo' produrre uno o piu' alert stampati dal printer configurato.
 
 ## Relazione con zap
 
@@ -58,6 +59,21 @@ destinazioni separate per eventi e alert.
 La modalita' `--alerts-only` e' gia' disponibile: sopprime la stampa degli
 eventi raw, ma lascia gli eventi nella pipeline affinche' policy e detector
 possano continuare a lavorare.
+
+Il detector engine applica anche un dedup temporale breve sugli alert ripetuti.
+Questa logica non appartiene al printer: il printer riceve solo gli alert che
+l'engine ha deciso di emettere. In questo modo il layer output resta semplice e
+non deve conoscere lo stato dei detector.
+
+Gli alert possono includere anche metadati MITRE ATT&CK dichiarati nel detector
+YAML. Nel formato table vengono sintetizzati in un campo compatto:
+
+```text
+mitre=TA0004|TA0007|T1548|T1083
+```
+
+Nel formato JSON restano invece nel blocco strutturato `threat`, piu' adatto a
+integrazioni SOC/SIEM e report automatici.
 
 ## File principali
 
@@ -283,7 +299,7 @@ in `alert.go`. Il record contiene:
 La vista table e' compatta ma distinguibile dagli eventi raw:
 
 ```text
-type=alert alert=Privilege change followed by exec severity=medium detector=setuid-exec-chain events=2 policies=local-collective source_event=security_task_fix_setuid source_pid=1234 source_uid=1000 source_comm=bash source_args=old_uid=1000,new_uid=0
+type=alert alert=Privilege change followed by exec severity=medium detector=setuid-exec-chain events=2 policies=local-collective sequence=security_task_fix_setuid(pid=1234,uid=1000,comm=sudo,args=old_uid=1000,new_uid=0)->sched_process_exec(pid=1235,uid=0,comm=id,args=fileName=/usr/bin/id)
 ```
 
 Il metodo `PrintAlert` e' stato aggiunto all'interfaccia `Printer` ed e'
@@ -291,10 +307,24 @@ implementato sia da `JSONPrinter` sia da `TablePrinter`.
 
 Nel formato JSON, un alert viene emesso come record separato con `type=alert`.
 Nel formato table, l'alert resta una riga singola, leggibile durante demo e
-debug manuale. La riga table include anche il primo evento sorgente con i campi
-`source_event`, `source_pid`, `source_uid`, `source_comm` e `source_args`.
-Questo permette di capire subito quale evento ha fatto scattare il detector
-senza dover stampare anche gli eventi raw.
+debug manuale. Per alert point, cioe' prodotti da un singolo evento, la riga
+table include il primo evento sorgente con i campi `source_event`,
+`source_pid`, `source_uid`, `source_comm` e `source_args`. Questo permette di
+capire subito quale evento ha fatto scattare il detector senza dover stampare
+anche gli eventi raw.
+
+Per alert collective, cioe' costruiti da piu' eventi correlati, la vista table
+non ripete i campi `source_*`: sarebbero ridondanti rispetto alla catena. Usa
+invece `sequence`, che sintetizza l'intera sequenza in ordine:
+
+```text
+sequence=security_task_fix_setuid(...)->sched_process_exec(...)
+```
+
+Il campo serve solo alla leggibilita' in terminale. Il formato JSON continua a
+esporre gli eventi correlati come array strutturato in `events`, quindi resta la
+scelta migliore per integrazioni esterne. Per evitare righe ingestibili, la
+sequenza table viene troncata oltre una lunghezza massima conservativa.
 
 Il runtime passa gia' gli alert prodotti dal detector engine al printer
 configurato. Con `--alerts-only` viene stampato solo l'alert, mentre gli eventi
@@ -321,6 +351,8 @@ I test del package output verificano:
 - che gli alert detector vengano convertiti in record separati dagli eventi raw;
 - che la vista table degli alert mantenga detector, severita', policy e numero
   di eventi correlati;
+- che gli alert collective mostrino una sintesi `sequence` della catena
+  correlata;
 - che il formato table contenga i campi essenziali;
 - che formati non supportati vengano rifiutati dalla factory.
 

@@ -34,6 +34,7 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [2026-07-08 - Runtime detector YAML](daily/2026-07-08.md)
 - [2026-07-10 - Piano logging strutturato con zap](daily/2026-07-10.md)
 - [2026-07-13 - Validazione eventi per policy e detector](daily/2026-07-13.md)
+- [2026-07-14 - Dedup temporale degli alert detector](daily/2026-07-14.md)
 
 ### Implementazione
 
@@ -74,6 +75,69 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [Contesto operativo repository](CLAUDE.md)
 
 ## Timeline
+
+### 2026-07-14 - Dedup temporale degli alert detector
+
+E' stato aggiunto un primo meccanismo anti-rumore nel detector engine. Gli
+alert identici prodotti dallo stesso detector sulla stessa sorgente evento
+vengono emessi una sola volta nella finestra breve di default pari a 5 secondi.
+
+La modifica e' centralizzata in `demo_project/pkg/detectors/engine.go`, quindi
+non sporca i singoli detector YAML e non cambia il comportamento degli hook
+eBPF. Gli eventi continuano a essere processati normalmente; viene soppressa
+solo la stampa ripetuta degli alert gia' prodotti.
+
+Le metriche del detector engine distinguono ora `AlertsEmitted` e
+`AlertsSuppressed`, rendendo osservabile il dedup. Sono stati aggiunti test per
+verificare soppressione dentro la finestra e riemissione dopo la scadenza.
+
+Nella stessa fase e' stato aggiunto il primo detector collective MVP:
+`privilege-exec-chain`. Il detector correla una transizione
+`security_task_fix_setuid(new_euid=0)` con una successiva
+`sched_process_exec(uid=0)` entro 5 secondi, producendo un alert con entrambi
+gli eventi sorgente.
+
+La prima versione usava una chiave `global`, utile per testare rapidamente
+flussi come `sudo`, ma troppo permissiva. In quella fase il detector e' stato
+ristretto a `group_by: host_pid`, correlando solo eventi appartenenti allo
+stesso PID visto nel namespace host.
+
+L'output table degli alert collective e' stato reso piu' leggibile con il campo
+`sequence`, che mostra l'intera catena correlata senza duplicare i campi
+`source_*`. Infine sono state aggiunte policy preset in `rules/policies` per
+testare separatamente full demo, collective privilege-exec, point process
+security, sensitive file access e kernel module activity.
+
+Successivamente la chiave di correlazione e' stata evoluta da `host_pid` a
+`process_tree`. Il nuovo `group_by` usa informazioni gia' presenti nel context
+evento (`host_pid`, `host_ppid`, `start_time`, `parent_start_time`) per
+correlare eventi dello stesso processo o tra parent e child, senza tornare a una
+chiave globale.
+
+Sono stati aggiunti tre detector collective ulteriori:
+
+- `privilege-sensitive-file-chain`;
+- `memfd-exec-chain`;
+- `kernel-module-kprobe-chain`.
+
+E' stata aggiunta anche la policy `collective-local-chains.yaml` per caricare
+insieme tutte le catene collective locali.
+
+I detector demo sono stati poi resi piu' stringenti per ridurre rumore da
+flussi legittimi come `sudo` e `unix_chkpwd`. In particolare, le catene
+privilege-based richiedono una transizione da utente non-root verso euid 0 e
+filtrano i passaggi ausiliari meno utili per la demo.
+
+Infine il mapping MITRE dichiarato nei detector YAML viene propagato negli
+alert: il formato table mostra `mitre=...`, mentre il formato JSON conserva il
+blocco `threat` strutturato. La prossima evoluzione non e' piu' "mostrare
+MITRE", ma usarlo per selezione policy/detector e report di copertura ATT&CK.
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-07-14.md)
+- [Detector YAML e alert correlati](next-steps/detectors-and-correlations.md)
+- [Comandi utili](debugging/commands.md)
 
 ### 2026-07-13 - Validazione eventi per policy e detector
 
@@ -190,9 +254,9 @@ Sono supportati campi su evento, contesto processo e argomenti (`args.<nome>`)
 con operatori semplici come `eq`, `neq`, `contains`, `in`, `prefix`, `suffix`,
 `exists`, `not_exists`, `gt` e `lt`.
 
-La correlazione stateful tra eventi diversi non e' ancora implementata qui:
-sara' gestita dal futuro dispatcher/engine per mantenere centralizzato lo stato
-e controllare meglio l'impatto prestazionale.
+Nota aggiornata: in questa fase la correlazione stateful non era ancora
+presente. Successivamente e' stato aggiunto un MVP collective nel runtime YAML
+e la chiave `process_tree` per ridurre l'uso di correlazioni globali da demo.
 
 E' stato poi aggiunto il registry dei detector. Il registry registra detector
 validati, rifiuta ID duplicati, mantiene una lista stabile ordinata per ID ed

@@ -587,6 +587,79 @@ esplicita di file critici (`/etc/passwd`, `/etc/shadow`, `/etc/sudoers`,
 rumorosi prodotti da aperture lecite e frequenti come `/etc/hosts` e
 `/etc/ld.so.cache`.
 
+Successivamente i detector demo piu' rumorosi sono stati raffinati con filtri
+espliciti sugli helper legittimi `sudo` e `unix_chkpwd`. Questo vale per
+`root-exec`, `sensitive-file-open`, `privileged-uid-change`,
+`privilege-exec-chain` e `privilege-sensitive-file-chain`. L'obiettivo e'
+ottenere alert piu' leggibili per demo e threat hunting locale, lasciando
+eventuali policy piu' conservative a configurazioni YAML dedicate.
+
+Inoltre il detector engine applica un dedup temporale breve sugli alert
+ripetuti. La finestra default e' 5 secondi e la chiave include detector, titolo,
+severita', evento sorgente, pid, uid, comm e argomenti sorgente. Gli eventi
+continuano a essere processati, ma gli alert identici prodotti nella stessa
+finestra vengono soppressi. La metrica `AlertsSuppressed` rende osservabile
+questa riduzione del rumore.
+
+Il primo detector collective e' stato aggiunto con
+`privilege-exec-chain`. La sequenza osservata e':
+
+```text
+security_task_fix_setuid(new_euid=0)
+  -> sched_process_exec(uid=0)
+```
+
+entro 5 secondi. L'alert contiene entrambi gli eventi sorgente, quindi non
+descrive piu' solo un evento puntuale ma una breve catena comportamentale.
+Il detector inizialmente usava `group_by: global`, utile per test rapidi ma
+troppo permissivo. La versione corrente usa `group_by: process_tree`, che
+correla eventi dello stesso processo o di una relazione parent-child usando
+`host_pid`, `host_ppid`, `start_time` e `parent_start_time`. La correlazione
+resta locale e corta: non richiede contesto Kubernetes o conoscenza globale del
+cluster.
+
+Sono stati aggiunti altri tre detector collective:
+
+- `privilege-sensitive-file-chain`: cambio privilegi seguito da apertura root di
+  file sensibili come `/etc/passwd`, `/etc/shadow`,
+  `/etc/ssh/sshd_config` o `/root/.ssh/authorized_keys`. La catena esclude
+  helper legittimi come `sudo` e `unix_chkpwd` per ridurre rumore;
+- `memfd-exec-chain`: `memfd_create` riuscita seguita da exec da path memfd;
+- `kernel-module-kprobe-chain`: inizializzazione modulo kernel seguita da
+  registrazione kprobe dinamica.
+
+Il mapping MITRE ATT&CK dichiarato nei detector YAML viene ora propagato fino
+all'output alert. Nel formato table viene mostrata una sintesi compatta, ad
+esempio:
+
+```text
+mitre=TA0004|TA0007|T1548|T1083
+```
+
+Nel formato JSON viene invece esposto un blocco strutturato `threat` con
+framework, versione, tattiche, tecniche, data source e data component. Questa
+scelta rende l'output leggibile in demo, ma anche integrabile in sistemi SOC,
+SIEM o reportistica tecnica.
+
+Per rendere i test meno ambigui, la directory `rules/policies` e' stata poi
+estesa con policy preset per scenario:
+
+```text
+demo-detectors.yaml
+full-demo.yaml
+collective-privilege-exec.yaml
+collective-local-chains.yaml
+point-process-security.yaml
+sensitive-file-access.yaml
+kernel-module-activity.yaml
+```
+
+Questa organizzazione permette di avviare solo il detector o la famiglia di
+detector necessari alla demo. Per esempio, il collective detector puo' essere
+provato con `collective-privilege-exec.yaml` e
+`rules/detectors/privilege_exec_chain.yaml`, senza caricare anche detector su
+file sensibili o moduli kernel.
+
 ## 10. Limitazioni attuali
 
 ### 10.1 Decoder MVP
@@ -616,9 +689,14 @@ Limitazioni residue:
   numerici;
 - nuovi hook richiedono un ID coerente tra C e Go, una voce nello schema
   statico in `pkg/events/spec.go` e la registrazione della probe;
-- il policy manager e il detector engine sono implementati in userspace, ma non
-  sono ancora collegati al loop eBPF principale;
-- manca ancora l'output dedicato agli alert.
+- il policy manager e il detector engine sono collegati al loop eBPF, ma la
+  correlazione stateful multi-evento e' ancora MVP e supporta solo sequenze
+  ordinate corte;
+- il dedup alert e' presente ma non ancora configurabile da CLI;
+- le correlazioni collective usano `group_by: process_tree`, ma non mantengono
+  ancora un albero processi completo o persistente;
+- il mapping MITRE e' visibile nell'output alert, ma non e' ancora usato per
+  selezionare automaticamente detector o policy.
 
 Il decoder supporta inoltre array di stringhe, payload NUL-delimited,
 sockaddr, credenziali strutturate e puntatori. Gli eventi
@@ -708,13 +786,15 @@ La roadmap dettagliata e' ora raccolta in
 1. mantenere output separato e leggibile per eventi e alert;
 2. usare `--alerts-only` per demo e run detector-focused, in modo da stampare
    solo gli alert senza perdere gli eventi necessari ai detector;
-3. introdurre logging runtime strutturato con `zap`, separato da eventi e
+3. mantenere logging runtime strutturato con `zap`, separato da eventi e
    alert;
-4. fornire detector demo caricabili da YAML senza rebuild;
-5. fornire policy demo per selezionare eventi e detector;
+4. rendere configurabile il dedup alert solo se i test reali mostrano che il
+   default di 5 secondi non e' adeguato;
+5. rafforzare la correlazione `process_tree` con stato parent-child persistente
+   e benchmark dedicati;
 6. mantenere catene di correlazione corte e leggibili;
-7. allineare detector e policy a MITRE ATT&CK tramite metadati di tattica,
-   tecnica e data source;
+7. usare MITRE ATT&CK non solo come metadato di output, ma anche per selezione
+   policy/detector e report di copertura;
 8. introdurre filtri kernel-side minimi solo dopo aver stabilizzato policy e
    detector in userspace;
 9. continuare a misurare CPU, volume eventi e riduzione rumore.
@@ -770,7 +850,9 @@ Il progetto e' passato da uno userspace che restava semplicemente in attesa a un
 - prepara config policy/detector/alert;
 - carica policy YAML e le normalizza in un manager userspace;
 - carica e valida definizioni detector YAML;
-- dispone di registry, dispatcher ed engine detector testati in isolamento;
+- dispone di registry, dispatcher ed engine detector collegati al runtime;
+- sopprime alert ripetuti tramite dedup temporale breve;
+- supporta `--alerts-only` per stampare solo gli alert detector;
 - gestisce cleanup ordinato.
 
 Le modifiche sono coerenti con l'architettura di Tracee a livello di pattern,
@@ -782,8 +864,8 @@ copertura process/security, filesystem, memoria, cgroup, moduli, BPF e segnali
 di kernel hardening. In parallelo e' stato preparato e collegato al runtime il
 layer userspace per policy, detector e alert. Il logging runtime e' stato
 strutturato con zap mantenendo separati eventi e alert. La prossima fase
-riguarda leggibilita' degli alert, riduzione del rumore, primi detector
-correlati e misurazione sistematica delle prestazioni.
+riguarda primi detector correlati, configurabilita' selettiva del dedup se
+necessaria e misurazione sistematica delle prestazioni.
 
 ## 14. Note storiche su verifier e helper comuni
 

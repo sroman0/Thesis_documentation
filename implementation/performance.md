@@ -14,6 +14,34 @@ dai programmi eBPF deve essere letto separatamente dalle statistiche kernel.
 
 ## Monitoraggio userspace
 
+Il progetto include uno script ripetibile per il benchmark userspace:
+
+```bash
+cd demo_project
+make benchmark-userspace
+```
+
+Valori configurabili:
+
+```bash
+DURATION_SECONDS=120 CPU_THRESHOLD=5.0 make benchmark-userspace
+```
+
+Lo script cerca il processo piu' recente chiamato `project`, legge i tick CPU da
+`/proc/<pid>/stat` e calcola la CPU come percentuale di un singolo core. Alla
+fine stampa media, picco, RSS massimo e thread massimi. Se la media supera
+`CPU_THRESHOLD`, il comando termina con exit code `2`.
+
+Esempio di output:
+
+```text
+benchmark pid=1234 process=project duration=60s threshold=5.0%
+time       cpu%     rss_kib    nlwp     elapsed
+10:00:01   2.01     59000      10       00:01
+
+summary pid=1234 samples=60 avg_cpu=2.35% peak_cpu=6.01% peak_rss_kib=59000 peak_nlwp=10 threshold=5.0%
+```
+
 Per osservare CPU, memoria, thread e tempo di esecuzione:
 
 ```bash
@@ -92,6 +120,45 @@ precedente con maggiore attivita' di sistema, il costo eBPF ha superato
 temporaneamente il `15%` di un core. Il dato medio va quindi accompagnato da
 test sotto workload controllato.
 
+## Risultato del 14 luglio 2026
+
+Profilo misurato:
+
+```bash
+sudo ./dist/project \
+  --events security_task_fix_setuid,sched_process_exec \
+  --policy rules/policies/demo-detectors.yaml \
+  --detectors rules/detectors/privilege_exec_chain.yaml \
+  --alerts-only \
+  --alerts-output table \
+  --log-level error
+```
+
+Benchmark userspace:
+
+```bash
+DURATION_SECONDS=120 CPU_THRESHOLD=5.0 make benchmark-userspace
+```
+
+Campioni osservati:
+
+| Campo | Valore osservato |
+|---|---:|
+| CPU steady-state | spesso tra `5.9%` e `7.7%` |
+| Picco osservato | `16.92%` |
+| RSS stabilizzato | circa `45 MiB` |
+| Thread | `8-9` |
+| Target | `<5%` medio di un core |
+
+La riga finale `summary` non e' stata riportata, quindi il dato non viene
+considerato benchmark completo. Tuttavia i campioni mostrano che, in questo
+profilo, la CPU userspace resta sopra il target per lunghi tratti. Il profilo
+va quindi considerato non conforme finche' non viene ottimizzato o rimisurato
+con una policy piu' stretta.
+
+Aspetto importante: questo benchmark misura solo il processo Go userspace. Il
+costo eBPF kernel-side va ancora stimato separatamente con `bpftool`.
+
 ## Interpretazione
 
 Il target medio del `5%` e' raggiungibile, ma non e' garantito quando vengono
@@ -112,6 +179,23 @@ Le ottimizzazioni prioritarie sono:
 3. introdurre filtri kernel-side per UID, PID, namespace e `comm`;
 4. misurare eventi persi e throughput del perf buffer;
 5. confrontare sempre la stessa attività con tool spento e acceso.
+
+Per il risultato del 14 luglio, i punti critici piu' probabili lato userspace
+sono:
+
+1. Decode completo prima dei filtri: ogni record viene trasformato in evento
+   completo, inclusi argomenti, prima che policy e detector decidano se serve.
+2. Buffer non selettivo: se nel perf buffer arrivano eventi prodotti da hook
+   non necessari, il costo di lettura e decode viene comunque pagato.
+3. Detector stateful e dedup: sono feature utili, ma aggiungono lookup, tempo
+   corrente, costruzione chiavi e stato in memoria per ogni evento consegnato al
+   detector engine.
+4. Output alert: `--alerts-only` evita gli eventi raw, ma ogni alert richiede
+   comunque formattazione della sequenza e degli argomenti.
+5. Apertura contemporanea di ring buffer e perf buffer: il ring buffer e'
+   mantenuto per versatilita', ma nel profilo corrente gli hook usano
+   principalmente perf buffer. La doppia infrastruttura va misurata e, se
+   necessario, resa configurabile.
 
 ## Logging e overhead
 
@@ -166,10 +250,83 @@ sudo ./dist/project --events security_file_open,security_file_permission --comms
 
 ## Metodo consigliato per benchmark
 
-1. Avviare il tool con un set preciso di eventi.
-2. Attendere la fine della fase di startup.
-3. Raccogliere uno snapshot userspace ed eBPF.
-4. Eseguire per almeno 60 secondi un workload ripetibile.
-5. Raccogliere il secondo snapshot.
-6. Ripetere lo stesso workload senza tracer.
-7. Confrontare media, picco, RSS e tempo totale del workload.
+1. Compilare il tool:
+
+```bash
+cd demo_project
+GOCACHE=/tmp/go-build make build
+```
+
+2. Avviare il tool con un profilo preciso, preferibilmente policy-driven.
+
+Profilo collective detector:
+
+```bash
+sudo ./dist/project \
+  --policy rules/policies/collective-privilege-exec.yaml \
+  --detectors rules/detectors/privilege_exec_chain.yaml \
+  --alerts-only \
+  --alerts-output table \
+  --log-level error
+```
+
+Profilo full demo:
+
+```bash
+sudo ./dist/project \
+  --policy rules/policies/full-demo.yaml \
+  --detectors rules/detectors \
+  --alerts-only \
+  --alerts-output table \
+  --log-level error
+```
+
+3. Attendere 20-30 secondi per escludere startup, caricamento BTF, verifier e
+attach probe.
+
+4. Lanciare il benchmark userspace:
+
+```bash
+DURATION_SECONDS=120 CPU_THRESHOLD=5.0 make benchmark-userspace
+```
+
+5. Eseguire in parallelo un workload ripetibile.
+
+Esempio leggero:
+
+```bash
+for i in $(seq 1 20); do sudo -n true 2>/dev/null || true; /usr/bin/id >/dev/null; sleep 1; done
+```
+
+Esempio file access:
+
+```bash
+for i in $(seq 1 60); do cat /etc/passwd >/dev/null; sleep 1; done
+```
+
+6. Ripetere lo stesso workload senza tracer per avere una baseline del sistema.
+
+7. Confrontare:
+
+- `avg_cpu`: deve restare sotto `5.0%` per il profilo considerato;
+- `peak_cpu`: puo' superare brevemente il 5%, ma va riportato;
+- `peak_rss_kib`: memoria massima osservata;
+- `peak_nlwp`: numero massimo di thread;
+- eventuali alert prodotti e volume eventi.
+
+Se `avg_cpu` supera stabilmente il `5%`, mitigare in questo ordine:
+
+1. ridurre gli eventi abilitati tramite policy piu' stretta;
+2. usare `--alerts-only` per evitare stampa raw non necessaria;
+3. disabilitare temporaneamente detector stateful o ridurre la finestra;
+4. evitare eventi ad alto volume come `security_file_open` quando non necessari;
+5. valutare kernel-side filtering solo dopo aver isolato il collo di bottiglia.
+
+## Stato del benchmark automatizzato
+
+Il target `<5%` e' ora verificabile in modo ripetibile per la parte userspace
+con `scripts/benchmark_userspace.sh`.
+
+Resta da automatizzare la componente kernel-side eBPF con `bpftool`, usando due
+snapshot di `run_time_ns` e `run_cnt`. Questa parte richiede privilegi e kernel
+stats abilitate, quindi va mantenuta come fase separata del benchmark.

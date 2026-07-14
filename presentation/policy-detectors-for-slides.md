@@ -72,6 +72,7 @@ policy YAML
 | `root-exec` | `sched_process_exec` | Alert quando un processo UID 0 esegue un binario. | medium |
 | `sensitive-file-open` | `security_file_open` | Alert su apertura di file critici di identita' o access control. | medium |
 | `privileged-uid-change` | `security_task_fix_setuid` | Alert quando un processo cambia effective UID a root. | medium |
+| `privilege-exec-chain` | `security_task_fix_setuid` + `sched_process_exec` | Alert collective quando un cambio privilegi e' seguito da exec root. | high |
 | `kernel-module-activity` | `do_init_module` | Alert su inizializzazione riuscita di un modulo kernel. | high |
 
 ## Mapping MITRE ATT&CK
@@ -83,6 +84,7 @@ Esempi:
 - `root-exec` -> Execution;
 - `sensitive-file-open` -> Discovery;
 - `privileged-uid-change` -> Privilege Escalation;
+- `privilege-exec-chain` -> Privilege Escalation / Execution;
 - `kernel-module-activity` -> Persistence / Defense Evasion.
 
 Il mapping MITRE serve a rendere gli alert piu' difendibili e comprensibili in
@@ -123,15 +125,27 @@ La lista demo attuale include file come:
 - `/etc/ssh/sshd_config`;
 - `/root/.ssh/authorized_keys`.
 
+In aggiunta, il detector engine applica un dedup temporale breve:
+
+- finestra default: 5 secondi;
+- chiave basata su detector, evento sorgente, pid, uid, comm e argomenti;
+- alert identici nello stesso intervallo vengono stampati una sola volta.
+
+Questo non elimina eventi dalla pipeline: riduce solo la ripetizione degli
+alert in output.
+
 ## Limiti attuali
 
 Il layer detector e' funzionante, ma ancora iniziale.
 
 Limiti:
 
-- i detector YAML sono principalmente point anomaly;
-- non e' ancora presente dedup/throttling avanzato degli alert;
-- le correlazioni collective sono da implementare;
+- i detector YAML supportano point anomaly e una prima forma di collective
+  anomaly ordinata;
+- il dedup alert e' presente, ma per ora usa una finestra fissa di 5 secondi;
+- la correlazione collective usa `process_tree` locale, ma non mantiene ancora
+  un grafo processi globale persistente;
+- non ci sono ancora baseline comportamentali o contesto Kubernetes globale;
 - le anomalie contextual su intero cluster Kubernetes sono considerate fuori
   dal singolo agent e dovrebbero essere gestite da un componente centralizzato.
 
@@ -139,9 +153,9 @@ Limiti:
 
 I prossimi step piu' importanti sono:
 
-- dedup/throttling alert;
+- rendere configurabile il dedup se i test reali lo richiedono;
 - operatori YAML piu' espressivi;
-- detector collective con finestre temporali brevi;
+- stato process-tree piu' robusto e misurato con benchmark;
+- selezione detector/policy e report di copertura basati su MITRE ATT&CK;
 - benchmark per verificare overhead;
 - migliore separazione tra rumore operativo e alert realmente utili.
-

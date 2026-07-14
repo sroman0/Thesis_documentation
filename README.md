@@ -6,6 +6,13 @@ Il punto di ingresso principale resta la [timeline](timeline.md), che collega i
 diari giornalieri, le note di implementazione, le decisioni architetturali e il
 materiale per la tesi.
 
+Stato corrente: il tool ha una pipeline eBPF/userspace operativa, un layer
+policy/detector YAML collegato al runtime, output separato per eventi e alert,
+logging runtime con zap, dedup temporale degli alert ripetuti, primi detector
+collective con `process_tree` locale e metadati MITRE visibili negli alert. Le
+prossime attivita' principali riguardano selezione policy/detector basata su
+MITRE, operatori YAML piu' espressivi e benchmark del rumore/overhead.
+
 ## Percorsi principali
 
 - [Timeline della tesi](timeline.md)

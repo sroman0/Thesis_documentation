@@ -571,12 +571,18 @@ gli altri.
 
 `Flush` prepara il supporto ai detector con finestre temporali corte e alle
 future collective anomalies locali. Le metriche sono volutamente minime:
-eventi processati, flush eseguiti, detector invocati, alert emessi ed errori.
-Questa scelta mantiene basso l'overhead, coerentemente con i limiti
-prestazionali osservati sulla VM.
+eventi processati, flush eseguiti, detector invocati, alert emessi, alert
+soppressi ed errori. Questa scelta mantiene basso l'overhead, coerentemente con
+i limiti prestazionali osservati sulla VM.
 
-L'engine non deve ancora essere collegato a `pkg/ebpf/project.go`: quello
-arrivera' nello step dedicato alla pipeline runtime.
+L'engine e' collegato al runtime principale in `pkg/ebpf/project.go`. Dopo la
+decodifica e i filtri base, ogni evento valido viene inviato a
+`Engine.ProcessEvent`.
+
+Il detector engine applica anche un dedup temporale breve sugli alert ripetuti.
+La finestra di default e' 5 secondi e la chiave usa detector, titolo,
+severita', evento sorgente, pid, uid, comm e argomenti sorgente. Questo evita
+che lo stesso comportamento venga stampato decine di volte in pochi secondi.
 
 ## Fase 2.8: output alert
 
@@ -688,6 +694,10 @@ Implementazione attuale:
 - eventuali errori dei detector vengono scritti su stderr;
 - se `--alerts` e' attivo, gli alert vengono stampati tramite
   `Printer.PrintAlert`.
+- se `--alerts-only` e' attivo, gli eventi raw non vengono stampati ma restano
+  nella pipeline e continuano ad alimentare policy e detector.
+- gli alert ripetuti nella finestra breve vengono soppressi dal dedup
+  centralizzato dell'engine.
 
 Limite attuale: i detector YAML valutano condizioni locali sul singolo evento.
 La correlazione stateful tra piu' eventi, con `group_by` e finestra temporale,
@@ -806,6 +816,7 @@ type AlertRecord struct {
     EventCount   int
     Events       []eventRecord
     Metadata     map[string]string
+    Threat       *threatRecord
 }
 ```
 
@@ -815,17 +826,27 @@ Il formato `table` stampa una riga compatta:
 type=alert alert=Privilege change followed by exec severity=medium detector=setuid-exec-chain events=2 source_event=security_task_fix_setuid
 ```
 
-Il formato `json` mantiene tutti gli eventi correlati normalizzati.
+La versione corrente aggiunge anche il mapping MITRE quando il detector lo
+dichiara. Nel formato table viene mostrato in forma compatta:
+
+```text
+mitre=TA0004|TA0007|T1548|T1083
+```
+
+Il formato `json` mantiene tutti gli eventi correlati normalizzati e conserva il
+blocco `threat` strutturato.
 
 ## Fase 5: detector iniziali
 
-Stato: iniziata.
+Stato: completata per i detector demo point-anomaly.
 
 Sono stati aggiunti primi esempi YAML testabili:
 
 ```text
 demo_project/rules/detectors/root_exec.yaml
 demo_project/rules/detectors/sensitive_file_open.yaml
+demo_project/rules/detectors/privileged_uid_change.yaml
+demo_project/rules/detectors/kernel_module_activity.yaml
 demo_project/rules/policies/demo-detectors.yaml
 ```
 
@@ -836,29 +857,31 @@ Detector disponibili:
 
 - `root-exec`: genera alert su `sched_process_exec` eseguito da `uid=0`;
 - `sensitive-file-open`: genera alert su evento `security_file_open` con
-  `pathname` incluso in una lista esplicita di file critici.
+  `pathname` incluso in una lista esplicita di file critici;
+- `privileged-uid-change`: genera alert su `security_task_fix_setuid` quando
+  `args.new_euid == 0`;
+- `kernel-module-activity`: genera alert su `do_init_module` riuscito.
 
 Policy disponibile:
 
-- `demo-detectors`: abilita gli eventi necessari ai due detector demo.
+- `demo-detectors`: abilita gli eventi necessari ai detector demo.
 
 Comando di test:
 
 ```bash
 sudo ./dist/project \
-  --events sched_process_exec,security_file_open \
   --policy rules/policies/demo-detectors.yaml \
   --detectors rules/detectors \
-  --alerts \
+  --alerts-only \
   --alerts-output table \
-  --output table
+  --log-level error
 ```
 
 Comandi esca:
 
 ```bash
 sudo whoami
-cat /etc/hostname
+cat /etc/passwd
 ```
 
 Nota: questi detector sono ancora locali sul singolo evento. La correlazione
@@ -867,15 +890,26 @@ Gli esempi usano volutamente hook gia' stabili nel runtime
 (`sched_process_exec` e `security_file_open`), cosi' il test del layer
 policy/detector non dipende dal debug dei tracepoint syscall `execve`/`open`.
 
-Detector demo ancora da aggiungere dopo la correlazione stateful:
+Detector collective aggiunti:
 
-- `privilege-change-then-exec`;
-- `sensitive-file-open-after-setuid`;
-- `kernel-module-load-and-kprobe`.
+- `privilege-exec-chain`: correla `security_task_fix_setuid` con
+  `sched_process_exec` entro 5 secondi e produce un alert high quando un cambio
+  privilegi e' seguito da una exec come UID 0;
+- `privilege-sensitive-file-chain`: correla cambio privilegi e apertura di file
+  sensibili;
+- `memfd-exec-chain`: correla `memfd_create` riuscita e exec da path memfd;
+- `kernel-module-kprobe-chain`: correla inizializzazione modulo kernel e
+  registrazione kprobe dinamica.
+
+La correlazione usa `group_by: process_tree`. La prima versione usava `global`,
+poi `host_pid`; entrambe erano utili per test rapidi ma limitate. La chiave
+attuale usa `host_pid`, `host_ppid`, `start_time` e `parent_start_time` gia'
+presenti nell'evento per correlare stesso processo e parent-child senza
+ricostruire un albero globale.
 
 ## Fase 5.1: logging runtime strutturato
 
-Stato: iniziata.
+Stato: completata per la prima migrazione.
 
 Prima di spostare filtri nel kernel e prima di aggiungere detector piu'
 complessi, conviene stabilizzare il logging applicativo.
@@ -912,10 +946,12 @@ GOCACHE=/tmp/go-build \
 go test ./pkg/logging ./pkg/cmd ./pkg/ebpf
 ```
 
-Passaggi ancora da completare:
+Passaggi ancora utili:
 
 - benchmark comparativo tra `--log-level error|info|debug` e
   `--log-format console|json`.
+- usare `make benchmark-userspace` come controllo ripetibile della CPU
+  userspace, con soglia default `CPU_THRESHOLD=5.0`.
 
 Questa fase non deve cambiare eventi, policy, detector o alert. Serve a
 rendere piu' pulita la diagnostica e a ridurre il rumore durante benchmark e
@@ -950,3 +986,8 @@ alerts_emitted
 cpu_percent
 rss
 ```
+
+Nota: il benchmark userspace e' stato reso eseguibile tramite
+`demo_project/scripts/benchmark_userspace.sh`. La fase kernel-side dovra'
+aggiungere uno snapshot `bpftool` su `run_time_ns` e `run_cnt` per stimare il
+costo dei programmi eBPF separatamente dal processo Go.

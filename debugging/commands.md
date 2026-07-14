@@ -90,11 +90,28 @@ Il test minimo del layer detector usa i file demo:
 
 ```text
 demo_project/rules/policies/demo-detectors.yaml
+demo_project/rules/policies/full-demo.yaml
+demo_project/rules/policies/collective-privilege-exec.yaml
+demo_project/rules/policies/point-process-security.yaml
+demo_project/rules/policies/sensitive-file-access.yaml
+demo_project/rules/policies/kernel-module-activity.yaml
 demo_project/rules/detectors/root_exec.yaml
 demo_project/rules/detectors/sensitive_file_open.yaml
 demo_project/rules/detectors/privileged_uid_change.yaml
+demo_project/rules/detectors/privilege_exec_chain.yaml
 demo_project/rules/detectors/kernel_module_activity.yaml
 ```
+
+Le policy sono organizzate per scenario:
+
+| Policy | Scenario |
+| --- | --- |
+| `demo-detectors.yaml` | Demo compatibile con il primo set di detector. |
+| `full-demo.yaml` | Tutti i detector demo correnti. |
+| `collective-privilege-exec.yaml` | Solo catena privilegi -> exec root. |
+| `point-process-security.yaml` | Detector puntuali su processi e UID. |
+| `sensitive-file-access.yaml` | Solo apertura file sensibili. |
+| `kernel-module-activity.yaml` | Solo inizializzazione moduli kernel. |
 
 Da `demo_project`, avviare il runtime con policy, detector e alert:
 
@@ -130,11 +147,126 @@ Nota: il detector non usa piu' il prefisso generico `/etc/`, perche' produceva
 troppo rumore su file benigni come `/etc/hosts` e `/etc/ld.so.cache`. Ora usa
 `operator: in` su una lista di path critici.
 
+I detector demo piu' rumorosi escludono inoltre gli helper legittimi `sudo` e
+`unix_chkpwd` dove questo migliora la leggibilita' del segnale. In particolare
+`root-exec`, `sensitive-file-open`, `privileged-uid-change`,
+`privilege-exec-chain` e `privilege-sensitive-file-chain` sono pensati per demo
+e threat hunting locale, non per modellare ogni dettaglio interno di PAM/sudo.
+
+Nota sul rumore: il detector engine applica un dedup temporale di default pari
+a 5 secondi. Se lo stesso processo genera piu' volte lo stesso alert, il tool
+stampa il primo e sopprime i duplicati immediatamente successivi. Per verificarlo:
+
+```bash
+cat /etc/passwd
+cat /etc/passwd
+cat /etc/passwd
+```
+
+Nella finestra breve dovresti vedere un solo alert `sensitive-file-open`.
+Aspettando piu' di 5 secondi e rilanciando `cat /etc/passwd`, l'alert puo'
+essere emesso di nuovo.
+
 Altri alert possibili con la stessa policy:
 
-- `root-exec`: esecuzione di un processo come UID 0;
-- `privileged-uid-change`: transizione di effective UID a 0;
+- `root-exec`: esecuzione di un processo come UID 0, esclusi helper legittimi
+  noti come `sudo` e `unix_chkpwd`;
+- `privileged-uid-change`: transizione di effective UID a 0 partendo da un real
+  UID non root;
+- `privilege-exec-chain`: transizione privilegiata seguita da exec root entro
+  5 secondi;
+- `privilege-sensitive-file-chain`: transizione privilegiata seguita da accesso
+  root a file sensibili, escludendo helper legittimi di `sudo`;
+- `memfd-exec-chain`: `memfd_create` riuscita seguita da exec da path memfd;
+- `kernel-module-kprobe-chain`: inizializzazione modulo seguita da
+  registrazione kprobe dinamica;
 - `kernel-module-activity`: inizializzazione riuscita di un modulo kernel.
+
+Per testare il detector collective `privilege-exec-chain`, avvia il tool con
+lo stesso comando e poi lancia:
+
+```bash
+sudo whoami
+```
+
+Output atteso, se gli eventi arrivano nella finestra corretta:
+
+```text
+type=alert alert=Privilege change followed by process execution severity=high detector=privilege-exec-chain events=2 ... sequence=security_task_fix_setuid(...)->sched_process_exec(...)
+```
+
+Nota: questo detector collective usa ora `group_by: process_tree`. La prima
+versione usava una chiave `global`, utile per rendere visibile la demo ma troppo
+permissiva. `process_tree` riduce i falsi positivi usando chiavi locali derivate
+da `host_pid`, `host_ppid`, `start_time` e `parent_start_time`.
+
+Per isolare solo il detector collective durante il test:
+
+```bash
+sudo ./dist/project \
+  --policy rules/policies/collective-privilege-exec.yaml \
+  --detectors rules/detectors/privilege_exec_chain.yaml \
+  --alerts-only \
+  --alerts-output table \
+  --log-level error
+```
+
+In questo caso `events=2` conferma che il detector ha correlato una sequenza,
+non un singolo evento. Per gli alert collective il formato table usa `sequence`
+come rappresentazione principale e non ripete i campi `source_*`, che restano
+usati per gli alert generati da un singolo evento.
+
+Per caricare tutti i detector collective correnti:
+
+```bash
+sudo ./dist/project \
+  --policy rules/policies/collective-local-chains.yaml \
+  --detectors rules/detectors \
+  --alerts-only \
+  --alerts-output table \
+  --log-level error
+```
+
+Per testare la catena privilege -> sensitive file:
+
+```bash
+sudo cat /etc/passwd
+```
+
+Output atteso:
+
+```text
+type=alert alert=Privileged process accessed sensitive file ... events=2 mitre=TA0004|TA0007|T1548|T1083 ... sequence=security_task_fix_setuid(...)->security_file_open(...)
+```
+
+Questo detector e' volutamente piu' stretto del detector point
+`sensitive-file-open`: richiede `args.old_uid != 0`, `args.new_euid == 0`,
+apertura file come `uid=0` ed esclude `comm=sudo` e `comm=unix_chkpwd`. Inoltre
+non include `/etc/sudoers` nella catena collective, per evitare alert sul normale
+controllo policy interno di `sudo`.
+
+Gli alert table includono anche una sintesi MITRE nel campo `mitre=...`. Per
+avere il mapping completo con framework, tattiche, tecniche, data sources e data
+components, usare l'output alert JSON:
+
+```bash
+sudo ./dist/project \
+  --policy rules/policies/collective-local-chains.yaml \
+  --detectors rules/detectors/privilege_sensitive_file_chain.yaml \
+  --alerts-only \
+  --alerts-output json \
+  --log-level error
+```
+
+Nel JSON l'alert contiene un blocco `threat`, utile per SOC/SIEM e report:
+
+```json
+"threat": {
+  "framework": "MITRE ATT&CK Enterprise",
+  "tactics": [{"id": "TA0004", "name": "Privilege Escalation"}],
+  "techniques": [{"id": "T1548", "name": "Abuse Elevation Control Mechanism"}]
+}
+```
 
 `--alerts-only` sopprime la stampa degli eventi raw, ma non li elimina dalla
 pipeline: gli eventi continuano a essere decodificati, filtrati e inviati ai

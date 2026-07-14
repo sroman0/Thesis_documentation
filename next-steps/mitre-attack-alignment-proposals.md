@@ -9,6 +9,26 @@ tecnici. Il tool dovrebbe poter dire non solo "quale evento e' successo", ma
 anche "quale comportamento avversario rappresenta" secondo il framework MITRE
 ATT&CK.
 
+## Stato Attuale
+
+Una parte della proposta e' stata implementata nella versione corrente del
+tool:
+
+- i detector YAML possono dichiarare un blocco `threat`;
+- gli ID di tattiche e tecniche ATT&CK vengono validati sintatticamente;
+- i metadati MITRE vengono propagati nel modello `detectors.Alert`;
+- l'output table degli alert mostra un campo compatto `mitre=...`;
+- l'output JSON degli alert espone il blocco strutturato `threat`;
+- i detector senza mapping MITRE restano accettati, ma sono considerati meno
+  adatti a report professionali e demo threat-informed.
+
+Restano invece da implementare:
+
+- selezione di policy o detector direttamente per tactic/technique;
+- report automatico di copertura ATT&CK;
+- validazione degli ID contro un dataset MITRE locale;
+- eventuale comando CLI dedicato alla vista di coverage.
+
 ## Punto Di Partenza
 
 La struttura attuale e' gia' utile:
@@ -18,8 +38,10 @@ La struttura attuale e' gia' utile:
 - i detector possono diventare stateful e correlare eventi ravvicinati;
 - gli alert saranno separati dagli eventi grezzi.
 
-Pero' manca ancora una parte esplicita: i detector e le policy non dichiarano
-ancora tattiche, tecniche e sub-tecniche MITRE ATT&CK.
+La parte detector e' ora esplicita: i detector possono dichiarare tattiche,
+tecniche e data source MITRE ATT&CK. La parte ancora mancante e' usare questi
+metadati come criterio operativo di selezione e reporting, non solo come
+informazione allegata all'alert.
 
 ## Proposta 1: Aggiungere Metadati MITRE Nei Detector
 
@@ -207,9 +229,9 @@ Gli step piu' impattati sono:
 - `pkg/output/alert.go`
 - documentazione e report finale
 
-La modifica piu' urgente e' lo step `pkg/detectors/definition.go`, perche' e'
-il punto in cui definire bene `ThreatMetadata` prima di costruire parser YAML,
-registry e dispatcher.
+La modifica iniziale su `pkg/detectors/definition.go` e' stata completata.
+Le prossime modifiche piu' importanti riguardano `pkg/policy`, per permettere
+selezione threat-informed, e un eventuale comando/report di coverage.
 
 ## Domande Da Portare In Call
 
@@ -231,13 +253,12 @@ registry e dispatcher.
 
 ## Raccomandazione Tecnica
 
-La raccomandazione e' implementare MITRE in modo progressivo:
+La raccomandazione aggiornata e' continuare MITRE in modo progressivo:
 
-1. aggiungere `ThreatMetadata` in `pkg/detectors/definition.go`;
-2. aggiungere campi `threat` nel futuro schema YAML dei detector;
-3. permettere alle policy di selezionare detector per tactic/technique;
-4. mostrare i riferimenti MITRE negli alert;
-5. solo dopo introdurre validazione contro dataset MITRE locale.
+1. mantenere `ThreatMetadata` nei detector YAML come sorgente principale;
+2. permettere alle policy di selezionare detector per tactic/technique;
+3. generare una vista di coverage ATT&CK dai detector disponibili;
+4. introdurre, solo dopo, validazione contro dataset MITRE locale.
 
 In questo modo il tool resta semplice da sviluppare, ma acquisisce subito un
 valore professionale piu' forte: ogni detection puo' essere spiegata usando un

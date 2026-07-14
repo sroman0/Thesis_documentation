@@ -1,5 +1,21 @@
-- Monitoring: top -p $(pgrep -n -x project)
-- Per misurare la media di prestazioni in ps dall'avvio del tool: watch -n 1 'ps -C project -o pid,%cpu,%mem,rss,nlwp,etime,cmd'
+- Benchmark userspace ripetibile con soglia del 5%:
+
+```bash
+cd demo_project
+DURATION_SECONDS=120 CPU_THRESHOLD=5.0 make benchmark-userspace
+```
+
+- Monitoring manuale rapido:
+
+```bash
+top -p "$(pgrep -n -x project)"
+```
+
+- Per osservare CPU/RSS/thread con `ps`:
+
+```bash
+watch -n 1 'ps -C project -o pid,%cpu,%mem,rss,nlwp,etime,cmd'
+```
 
 - Per misurare il consumo istantaneo: sudo top -d 1 -p "$(pgrep -n project)"
 
@@ -60,3 +76,68 @@ sudo ./dist/project \
   --output table \
   --log-level error
 ```
+
+- Per testare policy, detector YAML, `--alerts-only` e dedup degli alert:
+
+```bash
+sudo ./dist/project \
+  --policy rules/policies/demo-detectors.yaml \
+  --detectors rules/detectors \
+  --alerts-only \
+  --alerts-output table \
+  --log-level error
+```
+
+In un secondo terminale:
+
+```bash
+cat /etc/passwd
+cat /etc/passwd
+cat /etc/passwd
+```
+
+Output atteso: un solo alert `sensitive-file-open` nella finestra breve di
+dedup. Dopo circa 5 secondi, lo stesso comando puo' generare un nuovo alert.
+
+- Per testare il primo detector collective:
+
+```bash
+sudo ./dist/project \
+  --policy rules/policies/collective-privilege-exec.yaml \
+  --detectors rules/detectors/privilege_exec_chain.yaml \
+  --alerts-only \
+  --alerts-output table \
+  --log-level error
+```
+
+In un secondo terminale:
+
+```bash
+sudo whoami
+```
+
+Output atteso:
+
+```text
+type=alert alert=Privilege change followed by process execution severity=high detector=privilege-exec-chain events=2 ... sequence=security_task_fix_setuid(...)->sched_process_exec(...)
+```
+
+- Per testare una catena collective con mapping MITRE visibile:
+
+```bash
+sudo ./dist/project \
+  --policy rules/policies/collective-local-chains.yaml \
+  --detectors rules/detectors/privilege_sensitive_file_chain.yaml \
+  --alerts-only \
+  --alerts-output table \
+  --log-level error
+```
+
+In un secondo terminale:
+
+```bash
+sudo cat /etc/passwd
+```
+
+Output atteso: un alert `privilege-sensitive-file-chain` con `events=2`,
+campo `sequence=...` e campo compatto `mitre=...`.
