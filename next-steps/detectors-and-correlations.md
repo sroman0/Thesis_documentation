@@ -37,6 +37,18 @@ alert identici prodotti entro pochi secondi. Questo e' utile soprattutto per
 point anomalies come `security_file_open`, dove un processo puo' aprire lo
 stesso file molte volte in rapida sequenza.
 
+Il dispatcher del detector engine usa un indice per evento:
+
+```text
+event_name -> detector interessati
+```
+
+Questo evita il modello costoso in cui ogni evento viene passato a tutti i
+detector. Le metriche `DetectorMatched`, `DetectorInvoked` e
+`DetectorSkipped` servono a verificare il comportamento durante benchmark e
+debug. In particolare, `DetectorSkipped` misura quante valutazioni sono state
+evitate grazie all'indice.
+
 Il dedup e' intenzionalmente locale e corto:
 
 ```text

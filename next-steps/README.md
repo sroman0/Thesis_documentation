@@ -20,6 +20,7 @@ livello superiore capace di:
 4. [Ordine di implementazione policy/detector](policy-detector-implementation-order.md)
 5. [Proposte per allineamento MITRE ATT&CK](mitre-attack-alignment-proposals.md)
 6. [Piano logging strutturato con zap](zap-logging-plan.md)
+7. [Dubbi implementativi aperti](open-implementation-questions-2026-07-16.md)
 
 ## Idea centrale
 

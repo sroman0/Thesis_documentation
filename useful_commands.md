@@ -2,8 +2,25 @@
 
 ```bash
 cd demo_project
-DURATION_SECONDS=120 CPU_THRESHOLD=5.0 make benchmark-userspace
+DURATION_SECONDS=120 WARMUP_SECONDS=10 CPU_THRESHOLD=5.0 make benchmark-userspace
 ```
+
+- Profili consigliati per confrontare il costo del tool:
+
+```bash
+# Terminale 1: avviare uno dei profili standard.
+make benchmark-profile PROFILE=raw
+make benchmark-profile PROFILE=point
+make benchmark-profile PROFILE=collective
+KERNEL_FILTER_UID=1000 make benchmark-profile PROFILE=kernel-filter-uid
+
+# Terminale 2: misurare il processo project.
+DURATION_SECONDS=120 WARMUP_SECONDS=10 CPU_THRESHOLD=5.0 make benchmark-userspace
+```
+
+Per confrontare correttamente i profili, usare lo stesso workload e completare
+la durata configurata del benchmark. I primi secondi includono attach e
+inizializzazione, quindi vanno letti come warm-up.
 
 - Monitoring manuale rapido:
 

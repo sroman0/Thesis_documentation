@@ -741,6 +741,20 @@ non sono mostrati da `--list-events` e non sono selezionabili con `--events`.
 La regola operativa e': un probe puo' essere pubblico solo se esiste una
 specifica decoder corrispondente in `pkg/events/spec.go`.
 
+Il contratto ora e' coperto anche da test automatici:
+
+- ogni probe pubblico deve avere uno schema decoder;
+- ogni evento presente nel decoder deve essere esposto da almeno un probe
+  pubblico;
+- ogni schema decoder deve avere ID e nome coerenti con il registry
+  `pkg/events`.
+
+Il target dedicato e':
+
+```bash
+make test-registry
+```
+
 La selezione con `--events` evita di attaccare programmi non richiesti. Il
 limite ancora presente e' che la compatibilita' del simbolo kprobe viene
 verificata principalmente durante l'attach. Un miglioramento futuro potra'
@@ -762,8 +776,11 @@ introdotto un primo policy manager userspace, capace di valutare policy caricate
 da YAML su nome evento, `comm` e `uid`.
 
 La selezione attuale riduce il numero di programmi attaccati e prepara il
-filtering dichiarativo, ma non implementa ancora filtri kernel-side per UID,
-PID, namespace, container o `comm`.
+filtering dichiarativo. E' stato aggiunto anche un primo filtro kernel-side
+minimale su UID, configurato tramite `config_map` e applicato in
+`init_program_data()` prima della costruzione dell'evento. Restano invece da
+implementare filtri kernel-side piu' ricchi per PID, namespace, container,
+liste UID multiple e `comm`.
 
 ### 10.5 Output arricchito ma non completo
 
@@ -795,8 +812,8 @@ La roadmap dettagliata e' ora raccolta in
 6. mantenere catene di correlazione corte e leggibili;
 7. usare MITRE ATT&CK non solo come metadato di output, ma anche per selezione
    policy/detector e report di copertura;
-8. introdurre filtri kernel-side minimi solo dopo aver stabilizzato policy e
-   detector in userspace;
+8. estendere con cautela i filtri kernel-side minimi dopo la prima allowlist
+   UID, mantenendo policy e detector in userspace;
 9. continuare a misurare CPU, volume eventi e riduzione rumore.
 
 Restano inoltre validi alcuni task infrastrutturali:

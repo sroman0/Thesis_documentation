@@ -106,6 +106,16 @@ IDByName(name)
 Questi helper permettono di rifiutare policy e detector YAML che referenziano
 eventi non decodificabili prima dell'avvio eBPF.
 
+Il contratto tra decoder e registry probe viene verificato da:
+
+```bash
+make test-registry
+```
+
+Il test fallisce se un evento decodificabile non e' esposto da `--list-events`,
+oppure se un probe pubblico non ha uno schema decoder corrispondente. Questo
+riduce il rischio di mismatch tra ID evento e userspace Go.
+
 ## `EventContext`
 
 Il context Go e' allineato al `event_context_t` eBPF del progetto, quindi

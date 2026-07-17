@@ -35,6 +35,8 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [2026-07-10 - Piano logging strutturato con zap](daily/2026-07-10.md)
 - [2026-07-13 - Validazione eventi per policy e detector](daily/2026-07-13.md)
 - [2026-07-14 - Dedup temporale degli alert detector](daily/2026-07-14.md)
+- [2026-07-16 - Audit registry eventi e decoder](daily/2026-07-16.md)
+- [2026-07-16 - Primo filtro UID kernel-side](daily/2026-07-16-kernel-filter.md)
 
 ### Implementazione
 
@@ -63,7 +65,13 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 
 ### Materiale tesi
 
-- [Mappa capitoli tesi](thesis/thesis-outline.md)
+- [Workspace documentale della tesi](thesis/README.md)
+- [Indice canonico della tesi](thesis/definitive-outline.md)
+- [Dossier preparatorio del Capitolo 1](thesis/chapters/chapter-01-introduction.md)
+- [Sintesi editoriale del Capitolo 1](thesis/chapters/chapter-01-editorial-synthesis.md)
+- [Workflow agenti del Capitolo 1](thesis/chapter-01-agent-workflow.md)
+- [Terminologia e regole editoriali](thesis/terminology-and-style.md)
+- [Mappa capitoli storica](thesis/thesis-outline.md)
 - [Spunti per testo tesi](thesis/writing-notes.md)
 
 ### Riferimenti e note esistenti
@@ -75,6 +83,96 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [Contesto operativo repository](CLAUDE.md)
 
 ## Timeline
+
+### 2026-07-17 - Preparazione strutturale della tesi
+
+E' stato svolto l'audit preliminare del repository `Thesis` prima della
+scrittura assistita del Capitolo 1. La struttura storica a nove capitoli e'
+stata sostituita da un indice canonico a sei capitoli, coerente con
+l'introduzione LaTeX gia' presente.
+
+Sono stati definiti i confini tra introduzione, background, design,
+implementazione, valutazione e conclusioni. E' stato inoltre creato un dossier
+del Capitolo 1 con fatti verificabili, fonti interne, research questions
+candidate, contributi implementativi, novelty da verificare e decisioni ancora
+aperte.
+
+La prima ondata di analisi agentica ha poi prodotto tre report indipendenti:
+ricerca bibliografica, audit tecnico del repository e revisione argomentativa.
+I risultati sono stati consolidati in una sintesi editoriale vincolante che
+fissa tre research questions, quattro contributi principali, scope, wording
+della candidate novelty e claims policy per il futuro scrittore LaTeX.
+
+L'abstract non e' stato modificato. La regola editoriale stabilita prevede che
+ogni capitolo venga prima preparato nella documentazione e solo successivamente
+integrato nel repository LaTeX da un unico agente editoriale.
+
+**Note collegate:**
+
+- [Workspace documentale della tesi](thesis/README.md)
+- [Indice canonico](thesis/definitive-outline.md)
+- [Dossier del Capitolo 1](thesis/chapters/chapter-01-introduction.md)
+- [Sintesi editoriale del Capitolo 1](thesis/chapters/chapter-01-editorial-synthesis.md)
+- [Workflow agenti del Capitolo 1](thesis/chapter-01-agent-workflow.md)
+- [Terminologia e regole editoriali](thesis/terminology-and-style.md)
+
+### 2026-07-16 - Audit registry eventi e decoder
+
+E' stato rafforzato il contratto tra decoder, registry probe e CLI. I test ora
+verificano entrambe le direzioni:
+
+- ogni probe pubblico deve avere uno schema decoder;
+- ogni evento presente nel decoder deve essere esposto da almeno un probe
+  pubblico.
+
+In `pkg/events/spec_test.go` e' stato aggiunto anche un round-trip su ID e nome
+evento, cosi' un errore nel mapping `EventID -> name -> EventID` fallisce subito
+in test.
+
+Per rendere l'audit ripetibile e usare l'ambiente CGO corretto per `libbpfgo`,
+il Makefile espone ora:
+
+```bash
+make test-registry
+```
+
+Il comando e' passato e conferma che, allo stato attuale, non ci sono eventi
+decodificabili rimasti fuori da `--list-events`.
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-07-16.md)
+- [Decoder Go degli eventi eBPF](implementation/decoder.md)
+- [Comandi utili](debugging/commands.md)
+
+### 2026-07-16 - Primo filtro UID kernel-side
+
+E' stato implementato il primo filtro kernel-side minimale: allowlist su UID
+corrente. Il filtro viene scritto dal runtime Go in `config_map` e letto dagli
+hook in `init_program_data()` prima di costruire context, argomenti e submit.
+
+La CLI espone:
+
+```text
+--kernel-filter-uid-enabled
+--kernel-filter-uid <uid>
+```
+
+Questa feature non sostituisce policy e detector. Serve a ridurre traffico
+kernel-to-userspace nelle run mirate e nei benchmark. La build eBPF e il binario
+Go passano con il nuovo layout di `config_entry_t`.
+
+Sono stati raccolti anche primi campioni di benchmark. Il profilo
+policy/detector collective resta sopra il target del 5% in diversi campioni,
+mentre il profilo con filtro UID kernel-side riduce sensibilmente RSS e resta
+sotto il target nei campioni osservati. La misura non e' ancora conclusiva
+perche' le run sono state interrotte prima dei 120 secondi.
+
+**Note collegate:**
+
+- [Diario dettagliato del filtro UID](daily/2026-07-16-kernel-filter.md)
+- [Misurazione prestazioni](implementation/performance.md)
+- [Comandi utili](debugging/commands.md)
 
 ### 2026-07-14 - Dedup temporale degli alert detector
 

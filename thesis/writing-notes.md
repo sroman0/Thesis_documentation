@@ -51,4 +51,6 @@ simboliche.
 ## Collegamenti
 
 - [Timeline](../timeline.md)
-- [Mappa capitoli](thesis-outline.md)
+- [Indice canonico](definitive-outline.md)
+- [Dossier del Capitolo 1](chapters/chapter-01-introduction.md)
+- [Mappa capitoli storica](thesis-outline.md)

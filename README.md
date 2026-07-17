@@ -52,7 +52,13 @@ MITRE, operatori YAML piu' espressivi e benchmark del rumore/overhead.
 
 ## Materiale tesi e demo
 
-- [Mappa capitoli tesi](thesis/thesis-outline.md)
+- [Workspace documentale della tesi](thesis/README.md)
+- [Indice canonico della tesi](thesis/definitive-outline.md)
+- [Dossier preparatorio del Capitolo 1](thesis/chapters/chapter-01-introduction.md)
+- [Sintesi editoriale del Capitolo 1](thesis/chapters/chapter-01-editorial-synthesis.md)
+- [Workflow agenti del Capitolo 1](thesis/chapter-01-agent-workflow.md)
+- [Terminologia e regole editoriali](thesis/terminology-and-style.md)
+- [Mappa capitoli storica](thesis/thesis-outline.md)
 - [Spunti scrittura](thesis/writing-notes.md)
 - [Prima demo](demo/first_demo.md)
 - [Discorso demo](demo/speech.md)

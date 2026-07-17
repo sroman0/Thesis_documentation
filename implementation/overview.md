@@ -20,6 +20,7 @@ Stato raggiunto per l'MVP:
 
 ```text
 kernel hook eBPF
+  -> kernel UID pre-filter opzionale
   -> costruzione evento
   -> ring buffer / perf buffer
   -> userspace Go
@@ -84,6 +85,7 @@ Responsabilita':
 - aprire ring buffer;
 - aprire perf buffer;
 - selezionare quali eventi/probe abilitare;
+- configurare il filtro UID kernel-side minimale tramite `config_map`;
 - attaccare programmi agli hook selezionati, inclusi kprobe, kretprobe, raw
   tracepoint e tracepoint classici;
 - leggere eventi;

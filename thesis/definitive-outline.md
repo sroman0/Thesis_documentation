@@ -1,0 +1,258 @@
+# Indice canonico della tesi
+
+## Stato del documento
+
+Questo documento sostituisce la precedente struttura a nove capitoli proposta
+in `thesis-outline.md` e allinea la documentazione alla struttura a sei capitoli
+gia' anticipata nell'introduzione LaTeX.
+
+L'indice e' considerato stabile a livello di capitoli. Section e subsection
+possono ricevere piccoli aggiustamenti durante la scrittura, ma ogni modifica
+deve preservare i confini descritti qui per evitare duplicazioni.
+
+L'abstract non rientra nell'attuale fase di lavoro e verra' riscritto soltanto
+dopo il completamento della valutazione e delle conclusioni.
+
+## Chapter 1 - Introduction
+
+### 1.1 Context and Motivation
+
+#### 1.1.1 Runtime Security and Kernel-Level Visibility
+
+Introduce il bisogno di osservare il comportamento reale dei workload durante
+l'esecuzione e i limiti della sola telemetria applicativa o userspace.
+
+#### 1.1.2 eBPF as an Enabling Technology
+
+Presenta eBPF soltanto ad alto livello: programmabilita' controllata del kernel,
+hook e raccolta di telemetria. Verifier, mappe, CO-RE e BTF appartengono al
+Capitolo 2.
+
+#### 1.1.3 Industrial and Deployment Context
+
+Inquadra la collaborazione aziendale, il target Rocky Linux e la prospettiva di
+esecuzione come componente node-level in Kubernetes.
+
+### 1.2 Problem Statement
+
+#### 1.2.1 Security-Relevant Process Monitoring
+
+Definisce il problema: raccogliere eventi di processo e sicurezza dal kernel e
+trasformarli in informazioni utilizzabili per detection e analisi.
+
+#### 1.2.2 Technical Constraints
+
+Riassume i vincoli principali: kernel Rocky Linux 4.18 con backport RHEL,
+compatibilita' eBPF, overhead contenuto e assenza di contesto globale del
+cluster nel singolo agent.
+
+### 1.3 Objectives and Research Questions
+
+#### 1.3.1 Main Objective
+
+Definisce l'obiettivo complessivo di progettare, implementare e valutare un
+runtime security monitor eBPF per processi e segnali security-related.
+
+#### 1.3.2 Specific Objectives
+
+Copre raccolta kernel-side, pipeline userspace, modello eventi, policy,
+detector point e collective, mapping MITRE ATT&CK e valutazione.
+
+#### 1.3.3 Research Questions
+
+Formula domande verificabili su fattibilita' nel kernel target, capacita' di
+produrre detection utili e costo runtime. La formulazione finale deve essere
+approvata prima della stesura LaTeX.
+
+### 1.4 Contributions of the Work
+
+#### 1.4.1 System and Implementation Contributions
+
+Riassume i contributi concretamente implementati senza presentarli
+automaticamente come novelty scientifiche.
+
+#### 1.4.2 Detection and Security Contributions
+
+Introduce policy dichiarative, detector point e collective locali, correlazione
+process-aware e mapping MITRE ATT&CK.
+
+#### 1.4.3 Candidate Research Novelty
+
+Delimita gli elementi candidati alla novelty. Le rivendicazioni definitive
+richiedono confronto bibliografico e risultati sperimentali.
+
+### 1.5 Scope and Limitations
+
+#### 1.5.1 In-Scope Capabilities
+
+Include monitoraggio host/node-level, processi, credenziali, filesystem,
+memoria, namespace, moduli kernel, eBPF activity, policy e detector locali.
+
+#### 1.5.2 Out-of-Scope Capabilities
+
+Esclude enforcement, visione globale del cluster e anomaly contextual che
+richiedono contesto centralizzato. Il perimetro della parte networking e la sua
+attribuzione devono essere chiariti prima della stesura finale.
+
+### 1.6 Methodology
+
+Descrive il metodo: studio di Tracee, adattamento target-aware, sviluppo
+incrementale, validazione su Rocky Linux, test funzionali e benchmark.
+
+### 1.7 Thesis Structure
+
+Presenta sinteticamente i Capitoli 2-6. Deve essere aggiornata per ultima
+all'interno del Capitolo 1.
+
+## Chapter 2 - Background and Related Work
+
+### 2.1 Linux Kernel Observability
+
+### 2.2 eBPF Fundamentals
+
+#### 2.2.1 Execution Model, Verifier and JIT Compilation
+
+#### 2.2.2 Program Types, Hooks and Attachment Mechanisms
+
+#### 2.2.3 Maps, Helpers and Kernel-to-Userspace Transport
+
+#### 2.2.4 BTF and CO-RE Portability
+
+### 2.3 Runtime Security and Anomaly Detection
+
+#### 2.3.1 Point, Contextual and Collective Anomalies
+
+#### 2.3.2 Policies, Detectors and Alert Generation
+
+#### 2.3.3 MITRE ATT&CK as a Classification Framework
+
+### 2.4 Related Runtime Security Tools
+
+#### 2.4.1 Tracee
+
+#### 2.4.2 Other Relevant eBPF Security Tools
+
+### 2.5 Positioning of the Proposed Work
+
+Il Capitolo 2 spiega tecnologie e stato dell'arte. Non descrive nel dettaglio
+come Vesuvius le implementa.
+
+## Chapter 3 - Requirements and System Design
+
+### 3.1 Target Environment and Assumptions
+
+### 3.2 Functional Requirements
+
+### 3.3 Non-Functional Requirements
+
+### 3.4 Overall Architecture
+
+### 3.5 Kernel-Space Design
+
+### 3.6 Event Model and Transport Design
+
+### 3.7 Userspace Pipeline Design
+
+### 3.8 Policy and Detector Architecture
+
+### 3.9 Deployment Model
+
+### 3.10 Main Design Decisions
+
+Il Capitolo 3 spiega cosa deve fare il sistema e perche' e' stato progettato in
+quel modo. Nomi di funzioni e dettagli riga per riga appartengono al Capitolo 4.
+
+## Chapter 4 - System Implementation
+
+### 4.1 Build Toolchain and Project Organization
+
+### 4.2 eBPF Program Implementation
+
+#### 4.2.1 Process Lifecycle and Execution Hooks
+
+#### 4.2.2 Credentials and Privilege Hooks
+
+#### 4.2.3 Filesystem, Memory and Namespace Hooks
+
+#### 4.2.4 Kernel Integrity and eBPF Activity Hooks
+
+### 4.3 Loader, Probe Registry and Attachment Lifecycle
+
+### 4.4 Binary Event Contract and Kernel Transport
+
+### 4.5 Userspace Decoder and Event Registry
+
+### 4.6 Event Selection and Kernel-Side Filtering
+
+### 4.7 Policy and Detector Engine
+
+#### 4.7.1 YAML Policy and Detector Definitions
+
+#### 4.7.2 Point and Collective Detection
+
+#### 4.7.3 Process-Aware Correlation and Deduplication
+
+#### 4.7.4 MITRE ATT&CK Metadata Propagation
+
+### 4.8 Output and Structured Logging
+
+### 4.9 Containerization and Kubernetes Integration
+
+### 4.10 Compatibility and Verifier Challenges
+
+Il Capitolo 4 documenta il comportamento realmente implementato. Gli elenchi
+esaustivi di eventi e comandi possono essere spostati in appendice.
+
+## Chapter 5 - Experimental Evaluation
+
+### 5.1 Evaluation Goals and Methodology
+
+### 5.2 Experimental Environment
+
+### 5.3 Functional Validation and Event Coverage
+
+### 5.4 Detector Case Studies
+
+#### 5.4.1 Point Anomaly Detection
+
+#### 5.4.2 Collective Anomaly Detection
+
+### 5.5 MITRE ATT&CK Coverage Analysis
+
+### 5.6 Performance Evaluation
+
+#### 5.6.1 Benchmark Profiles and Workloads
+
+#### 5.6.2 CPU, Memory and Thread Measurements
+
+#### 5.6.3 Impact of Kernel-Side Filtering
+
+### 5.7 Discussion of Results
+
+### 5.8 Threats to Validity and Current Limitations
+
+Il Capitolo 5 contiene risultati riproducibili e distingue misure concluse da
+benchmark esplorativi o interrotti.
+
+## Chapter 6 - Conclusions and Future Work
+
+### 6.1 Summary of the Work
+
+### 6.2 Answers to the Research Questions
+
+### 6.3 Main Results
+
+### 6.4 Limitations
+
+### 6.5 Future Work
+
+## Appendices
+
+### Appendix A - Event and Hook Catalogue
+
+### Appendix B - Policy and Detector Examples
+
+### Appendix C - Reproducibility Commands
+
+Le appendici evitano che il corpo della tesi diventi un manuale operativo.
+

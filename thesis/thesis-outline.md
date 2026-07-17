@@ -1,6 +1,9 @@
-# Mappa capitoli tesi
+# Mappa capitoli tesi - documento storico
 
-Questa e' una bozza viva della struttura della tesi. Va aggiornata man mano che il progetto matura.
+Questa era la prima bozza della struttura. L'indice canonico aggiornato e'
+disponibile in [definitive-outline.md](definitive-outline.md). La bozza resta
+consultabile per tracciare l'evoluzione del lavoro, ma non deve essere usata
+come input per la scrittura dei capitoli.
 ## 1. Introduzione
 
 - Motivazione: runtime security e bisogno di visibilita' kernel-level.

@@ -74,6 +74,36 @@ Combinare include ed exclude:
 make run ARGS="--events cap_capable,sched_process_exec --drop-events cap_capable"
 ```
 
+## Filtrare UID direttamente nel kernel
+
+Il filtro UID kernel-side riduce gli eventi prima del submit verso userspace.
+E' utile per benchmark e debug mirati, per esempio quando si vuole osservare
+solo l'utente interattivo:
+
+```bash
+sudo ./dist/project \
+  --events security_file_open,sched_process_exec \
+  --kernel-filter-uid-enabled \
+  --kernel-filter-uid 1000 \
+  --output table \
+  --log-level error
+```
+
+Per osservare solo eventi generati da root:
+
+```bash
+sudo ./dist/project \
+  --events sched_process_exec,security_task_fix_setuid \
+  --kernel-filter-uid-enabled \
+  --kernel-filter-uid 0 \
+  --output table \
+  --log-level error
+```
+
+Nota: questo filtro e' diverso da `--comms` e dalle policy YAML. `--comms`
+lavora dopo il decode in userspace; il filtro UID lavora in eBPF prima della
+costruzione completa dell'evento.
+
 Filtrare per nome comando (`comm`) dopo la decodifica:
 
 ```bash
@@ -459,8 +489,16 @@ L'output deve contenere argomenti reali, per esempio `filename=...` o
 ## Test selezione probe
 
 ```bash
-GOCACHE=/tmp/go-build go test ./pkg/ebpf/probes
+make test-registry
 ```
+
+Questo target esegue i test di `pkg/events` e `pkg/ebpf/probes` con
+l'ambiente CGO corretto per `libbpfgo`. Serve a verificare il contratto tra
+decoder, registry probe e CLI:
+
+- un evento pubblico in `--list-events` deve avere schema decoder;
+- un evento nel decoder deve essere esposto da almeno un probe pubblico;
+- ID e nomi evento devono fare round-trip correttamente.
 
 ## Test output layer
 
