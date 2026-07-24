@@ -17,30 +17,20 @@ dopo il completamento della valutazione e delle conclusioni.
 
 ### 1.1 Context and Motivation
 
-#### 1.1.1 Runtime Security and Kernel-Level Visibility
-
 Introduce il bisogno di osservare il comportamento reale dei workload durante
 l'esecuzione e i limiti della sola telemetria applicativa o userspace.
-
-#### 1.1.2 eBPF as an Enabling Technology
 
 Presenta eBPF soltanto ad alto livello: programmabilita' controllata del kernel,
 hook e raccolta di telemetria. Verifier, mappe, CO-RE e BTF appartengono al
 Capitolo 2.
-
-#### 1.1.3 Industrial and Deployment Context
 
 Inquadra la collaborazione aziendale, il target Rocky Linux e la prospettiva di
 esecuzione come componente node-level in Kubernetes.
 
 ### 1.2 Problem Statement
 
-#### 1.2.1 Security-Relevant Process Monitoring
-
 Definisce il problema: raccogliere eventi di processo e sicurezza dal kernel e
 trasformarli in informazioni utilizzabili per detection e analisi.
-
-#### 1.2.2 Technical Constraints
 
 Riassume i vincoli principali: kernel Rocky Linux 4.18 con backport RHEL,
 compatibilita' eBPF, overhead contenuto e assenza di contesto globale del
@@ -48,17 +38,11 @@ cluster nel singolo agent.
 
 ### 1.3 Objectives and Research Questions
 
-#### 1.3.1 Main Objective
-
 Definisce l'obiettivo complessivo di progettare, implementare e valutare un
 runtime security monitor eBPF per processi e segnali security-related.
 
-#### 1.3.2 Specific Objectives
-
 Copre raccolta kernel-side, pipeline userspace, modello eventi, policy,
 detector point e collective, mapping MITRE ATT&CK e valutazione.
-
-#### 1.3.3 Research Questions
 
 Formula domande verificabili su fattibilita' nel kernel target, capacita' di
 produrre detection utili e costo runtime. La formulazione finale deve essere
@@ -66,29 +50,19 @@ approvata prima della stesura LaTeX.
 
 ### 1.4 Contributions of the Work
 
-#### 1.4.1 System and Implementation Contributions
-
 Riassume i contributi concretamente implementati senza presentarli
 automaticamente come novelty scientifiche.
 
-#### 1.4.2 Detection and Security Contributions
-
 Introduce policy dichiarative, detector point e collective locali, correlazione
 process-aware e mapping MITRE ATT&CK.
-
-#### 1.4.3 Candidate Research Novelty
 
 Delimita gli elementi candidati alla novelty. Le rivendicazioni definitive
 richiedono confronto bibliografico e risultati sperimentali.
 
 ### 1.5 Scope and Limitations
 
-#### 1.5.1 In-Scope Capabilities
-
 Include monitoraggio host/node-level, processi, credenziali, filesystem,
 memoria, namespace, moduli kernel, eBPF activity, policy e detector locali.
-
-#### 1.5.2 Out-of-Scope Capabilities
 
 Esclude enforcement, visione globale del cluster e anomaly contextual che
 richiedono contesto centralizzato. Il perimetro della parte networking e la sua
@@ -135,7 +109,7 @@ all'interno del Capitolo 1.
 ### 2.5 Positioning of the Proposed Work
 
 Il Capitolo 2 spiega tecnologie e stato dell'arte. Non descrive nel dettaglio
-come Vesuvius le implementa.
+come il sistema proposto le implementa.
 
 ## Chapter 3 - Requirements and System Design
 
@@ -255,4 +229,3 @@ benchmark esplorativi o interrotti.
 ### Appendix C - Reproducibility Commands
 
 Le appendici evitano che il corpo della tesi diventi un manuale operativo.
-

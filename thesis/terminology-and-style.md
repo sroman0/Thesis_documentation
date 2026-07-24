@@ -13,7 +13,7 @@
 
 | Concetto | Forma da usare |
 |---|---|
-| Progetto | `Vesuvius` dopo la prima introduzione completa |
+| Tool della tesi | `the proposed tool`, `the prototype`, `the monitoring agent` o `the proposed system` |
 | Tecnologia | `eBPF`, non `EBPF` o `Ebpf` |
 | Sistema operativo target | `Rocky Linux 8.10` |
 | Kernel target | `4.18.0-553.109.1.el8_10.x86_64` |
@@ -61,7 +61,7 @@ compatibilita' Rocky Linux o controllo dell'overhead.
 ## Citazioni e prove
 
 - Le nozioni generali su eBPF, kernel e MITRE richiedono fonti esterne.
-- Le descrizioni di Vesuvius devono rimandare al codice o alla documentazione
+- Le descrizioni del tool proposto devono rimandare al codice o alla documentazione
   tecnica, senza usare il repository come unica prova di affermazioni generali.
 - Preferire documentazione kernel, paper scientifici, MITRE ATT&CK e
   documentazione ufficiale dei tool.
@@ -77,4 +77,7 @@ compatibilita' Rocky Linux o controllo dell'overhead.
   profilo operativo da concordare; non presentarlo come risultato raggiunto
   finche' il benchmark definitivo non lo conferma.
 - L'abstract non viene aggiornato prima del completamento della tesi.
-
+- Il nome interno `Vesuvius` non deve comparire nel testo della tesi. Non esiste
+  un nome accademico ufficiale del tool.
+- Il Capitolo 1 usa solo `section`, senza `subsection`, per mantenere una
+  introduzione narrativa e proporzionata.

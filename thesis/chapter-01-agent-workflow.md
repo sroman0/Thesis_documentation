@@ -44,8 +44,8 @@ Nessun agente deve modificare `Thesis/content/abstract.tex`.
 ### Prompt
 
 ```text
-You are the literature researcher for Chapter 1 of an MSc thesis about
-Vesuvius, an eBPF-based runtime security monitoring tool.
+You are the literature researcher for Chapter 1 of an MSc thesis about an
+eBPF-based runtime security monitoring tool.
 
 Read completely:
 - /home/simone/project/documentation/thesis/definitive-outline.md
@@ -89,7 +89,8 @@ abstract.
 ### Prompt
 
 ```text
-You are the technical evidence auditor for Chapter 1 of the Vesuvius thesis.
+You are the technical evidence auditor for Chapter 1 of an MSc thesis about an
+eBPF-based runtime security monitoring tool.
 
 Read completely:
 - /home/simone/project/documentation/thesis/definitive-outline.md
@@ -174,8 +175,9 @@ Invoke this agent only after the first three outputs have been reviewed.
 ### Prompt
 
 ```text
-You are the sole writer and LaTeX integrator for Chapter 1 of the Vesuvius MSc
-thesis. Write in clear academic English with a consistent voice.
+You are the sole writer and LaTeX integrator for Chapter 1 of an MSc thesis
+about an eBPF-based runtime security monitoring tool. Write in clear academic
+English with a consistent voice.
 
 Read completely:
 - /home/simone/project/documentation/thesis/definitive-outline.md
@@ -197,6 +199,13 @@ defer implementation details to later chapters.
 
 Treat chapter-01-editorial-synthesis.md as the binding editorial decision. If
 another input conflicts with it, follow the synthesis and report the conflict.
+
+The tool has no official academic name. Never use the internal project name
+`Vesuvius` in thesis prose. Refer to it as `the proposed tool`, `the prototype`,
+`the monitoring agent`, `the developed system` or `the proposed system`.
+
+Chapter 1 must use only the seven main sections from the canonical outline.
+Do not add subsections: keep the introduction narrative and proportionate.
 
 Use cautious wording for candidate novelty. Do not claim benchmark targets as
 achieved unless the reviewed evidence says so. Do not describe policies,
@@ -223,7 +232,8 @@ Do not hide LaTeX warnings or invent citations.
 ### Prompt
 
 ```text
-Act as an independent examiner of Chapter 1 of the Vesuvius MSc thesis.
+Act as an independent examiner of Chapter 1 of an MSc thesis about an
+eBPF-based runtime security monitoring tool.
 
 Read:
 - /home/simone/project/documentation/thesis/definitive-outline.md

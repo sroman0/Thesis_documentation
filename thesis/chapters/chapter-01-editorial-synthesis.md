@@ -29,11 +29,11 @@ il comportamento runtime richiede osservabilita'
   -> eBPF offre il meccanismo di instrumentazione scelto
   -> il target Rocky Linux introduce vincoli concreti
   -> gli eventi isolati devono essere normalizzati e valutati
-  -> Vesuvius combina monitoraggio, policy e detection locale
+  -> il sistema proposto combina monitoraggio, policy e detection locale
   -> il sistema deve essere valutato per correttezza e overhead
 ```
 
-Il capitolo presenta Vesuvius come research prototype. Non deve descriverlo
+Il capitolo presenta il sistema proposto come research prototype. Non deve descriverlo
 come prodotto completo, production-ready o nuova categoria di runtime security
 tool.
 
@@ -46,11 +46,11 @@ La formulazione canonica e':
 
 I termini `point anomaly` e `collective anomaly` possono essere usati dopo una
 definizione esplicita basata sulla tassonomia di Chandola et al. Deve essere
-sempre chiarito che Vesuvius usa regole dichiarative e correlazione temporale,
+sempre chiarito che il tool usa regole dichiarative e correlazione temporale,
 non machine learning, statistical baselines o unsupervised anomaly detection.
 
 Le contextual anomalies non sono impossibili in assoluto per un node agent.
-Sono escluse dal perimetro locale di Vesuvius quando richiedono stato globale
+Sono escluse dal perimetro locale del tool quando richiedono stato globale
 del cluster e vengono demandate a un eventuale livello centralizzato.
 
 ## Research questions approvate
@@ -207,7 +207,7 @@ deployment`.
 
 ## MITRE ATT&CK
 
-Vesuvius valida la forma dei metadata tactic/technique dichiarati nei detector
+Il tool valida la forma dei metadata tactic/technique dichiarati nei detector
 e li propaga negli alert. Questo offre classificazione e tracciabilita'.
 
 Non affermare che:
@@ -309,5 +309,8 @@ scrittore usi le formulazioni conservative indicate qui.
 - Mantenere la spiegazione tecnica di eBPF ad alto livello.
 - Non anticipare dettagli dei Capitoli 3-5.
 - Non modificare l'abstract.
+- Non usare il nome interno `Vesuvius`: il tool non ha un nome ufficiale nella
+  tesi.
+- Usare soltanto le sette `section` principali del Capitolo 1, senza
+  `subsection`.
 - Segnalare ogni citazione o decisione non risolta.
-
