@@ -2,8 +2,8 @@
 
 ## Scopo
 
-Il decoder trasforma i record raw letti da ring buffer o perf buffer in
-strutture Go leggibili e poi in output `json` o `table`.
+Il decoder trasforma i record raw letti dal perf buffer in strutture Go
+leggibili e poi in output `json` o `table`.
 
 Il flusso attuale e':
 
@@ -234,7 +234,7 @@ scritti dal kernel vengano rifiutati artificialmente dal decoder Go.
 
 In `demo_project/pkg/ebpf/project.go`, il loop runtime:
 
-1. legge un record da ring buffer o perf buffer;
+1. legge un record dal perf buffer;
 2. chiama `bufferdecoder.DecodeEvent(record.RawSample)`;
 3. applica il filtro eventi runtime;
 4. passa l'evento al printer configurato in `pkg/output`;

@@ -22,6 +22,28 @@ Per confrontare correttamente i profili, usare lo stesso workload e completare
 la durata configurata del benchmark. I primi secondi includono attach e
 inizializzazione, quindi vanno letti come warm-up.
 
+- Suite automatica con PID e workload controllati:
+
+```bash
+DURATION_SECONDS=120 \
+WARMUP_SECONDS=10 \
+CPU_THRESHOLD=5.0 \
+make benchmark-suite
+```
+
+- Stress test con tutti gli eventi pubblici:
+
+```bash
+DURATION_SECONDS=120 \
+WARMUP_SECONDS=10 \
+CPU_THRESHOLD=5.0 \
+make benchmark-all-events
+```
+
+Il profilo `all-events` non rappresenta la configurazione operativa consigliata
+e puo' usare gran parte di un core. Serve a misurare capacita' e rumore; il
+target `<5%` viene valutato sui profili policy-driven.
+
 - Monitoring manuale rapido:
 
 ```bash

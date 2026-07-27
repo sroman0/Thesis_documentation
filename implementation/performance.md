@@ -293,6 +293,57 @@ decode completo, costruzione alert e output.
 La prossima mitigazione non deve quindi concentrarsi sul dispatcher, ma sulla
 selettivita' delle policy/detector usate nei profili realistici.
 
+## Compilazione delle condizioni e pruning periodico
+
+Il 24 luglio il percorso runtime dei detector YAML e' stato alleggerito in due
+passaggi.
+
+Le condizioni YAML vengono ora compilate durante `NewDetector()`. I nomi degli
+operatori sono trasformati in costanti interne, le liste dell'operatore `in`
+sono separate una sola volta e i valori attesi di `gt` e `lt` sono convertiti
+in numero al caricamento. Il formato YAML e il comportamento degli alert non
+cambiano, ma il runtime non deve ripetere questo lavoro per ogni evento.
+
+Per i detector collective, la pulizia dello stato non attraversa piu' tutta la
+mappa a ogni evento. Ogni detector memorizza:
+
+```text
+stateWindow
+statePruneInterval
+nextStatePrune
+```
+
+L'intervallo e' pari a meta' della finestra del detector, con un massimo di un
+secondo:
+
+```text
+prune_interval = min(window / 2, 1s)
+```
+
+Il controllo della sequenza direttamente interessata dall'evento rimane
+puntuale. Le altre sequenze scadute vengono eliminate alla scadenza periodica,
+mentre `Flush()` forza sempre una pulizia completa. Questa separazione conserva
+la correttezza temporale ed evita scansioni lineari ripetute su stato non
+correlato all'evento corrente.
+
+Microbenchmark locale su AMD EPYC 7B12, cinque esecuzioni da due secondi:
+
+| Stato aperto | Mediana indicativa | Memoria | Allocazioni |
+| --- | ---: | ---: | ---: |
+| 1 sequenza | circa `249 ns/op` | circa `64 B/op` | `5 allocs/op` |
+| 1024 sequenze | circa `241 ns/op` | `64 B/op` | `5 allocs/op` |
+
+Il risultato mostra che, tra due pruning, il numero di sequenze aperte non
+introduce piu' una scansione completa per evento. Le oscillazioni osservate nei
+tempi sono normali per un percorso cosi' breve; il segnale stabile e' che
+memoria e allocazioni non crescono con la dimensione della mappa. I numeri sono
+microbenchmark di sviluppo e non dimostrano da soli il rispetto del target
+`<5%`: il profilo `collective` deve essere nuovamente misurato per 120 secondi,
+senza interruzioni, usando lo stesso workload dei test precedenti.
+
+Il prossimo costo da isolare e' `groupKeys()`: oggi normalizza ancora i campi
+`group_by` e costruisce slice e stringhe temporanee per ogni evento.
+
 Per il risultato del 14 luglio, i punti critici piu' probabili lato userspace
 sono:
 
@@ -305,10 +356,9 @@ sono:
    detector engine.
 4. Output alert: `--alerts-only` evita gli eventi raw, ma ogni alert richiede
    comunque formattazione della sequenza e degli argomenti.
-5. Apertura contemporanea di ring buffer e perf buffer: il ring buffer e'
-   mantenuto per versatilita', ma nel profilo corrente gli hook usano
-   principalmente perf buffer. La doppia infrastruttura va misurata e, se
-   necessario, resa configurabile.
+5. Selezione programmi eBPF: le allowlist evento esplicite delle policy vengono
+   ora compilate nella selezione di autoload e attach. I programmi pubblici non
+   richiesti non vengono caricati, evitando record inutili prima del decoder.
 
 ## Logging e overhead
 
@@ -385,6 +435,104 @@ Profili disponibili:
 | `point` | Misura detector puntuali e alert semplici. |
 | `collective` | Misura detector stateful/collective e correlazione locale. |
 | `kernel-filter-uid` | Misura gli stessi eventi raw con filtro UID kernel-side. |
+
+## Suite automatica multi-scenario
+
+La suite completa elimina la necessita' di coordinare manualmente due
+terminali:
+
+```bash
+DURATION_SECONDS=120 \
+WARMUP_SECONDS=10 \
+CPU_THRESHOLD=5.0 \
+make benchmark-suite
+```
+
+`scripts/benchmark_suite.sh` esegue in sequenza i profili `raw`, `point`,
+`collective` e `kernel-filter-uid`. Per ogni profilo:
+
+1. avvia una nuova istanza del tool;
+2. individua il PID `project` discendente dal processo appena creato;
+3. avvia `scripts/benchmark_workload.sh`, che genera esecuzioni, accessi a
+   `/etc/passwd` e transizioni privilegiate a frequenza controllata;
+4. passa quel PID esplicitamente a `benchmark_userspace.sh`;
+5. termina l'istanza con un'attesa limitata e conserva workload log e misure;
+6. marca il profilo `FAIL` quando `avg_cpu` supera `CPU_THRESHOLD`.
+
+I risultati vengono salvati per default in:
+
+```text
+tmp/benchmarks/<timestamp>/
+  raw.runtime.log
+  raw.benchmark.log
+  raw.workload.log
+  ...
+  summary.tsv
+```
+
+Per default lo stream degli eventi viene inviato a `/dev/null`: il tool
+continua a decodificare, formattare e scrivere gli eventi, ma la suite evita di
+salvare file molto grandi e di includere il costo del filesystem nel confronto.
+`runtime.log` conserva soltanto lo standard error. Per analizzare anche l'output
+completo si puo' impostare `CAPTURE_RUNTIME_OUTPUT=1`.
+
+La chiusura prova prima `SIGINT`, poi `SIGTERM` e infine, soltanto per il
+processo figlio creato dal benchmark, `SIGKILL`. Ogni fase ha un timeout
+configurabile con `SHUTDOWN_TIMEOUT_SECONDS` (default: 5 secondi), quindi un
+profilo non puo' bloccare indefinitamente quelli successivi.
+
+La media CPU e' il criterio di accettazione richiesto. `p95_cpu`, `peak_cpu`,
+RSS e numero di thread restano metriche diagnostiche e non fanno fallire da
+sole la suite. Per limitare l'esecuzione ad alcuni scenari:
+
+```bash
+PROFILES="point collective" make benchmark-suite
+```
+
+`benchmark_userspace.sh` accetta ora `TARGET_PID`. Questo evita che `pgrep`
+selezioni per errore un'altra istanza del tool gia' in esecuzione sulla VM.
+
+## Risultati controllati del 24 luglio 2026
+
+La suite completa in `tmp/benchmarks/20260724T070129Z` ha usato:
+
+- durata `120s`;
+- warm-up `10s`;
+- soglia sulla CPU media userspace `5%`;
+- stesso workload process/file/privilege per ogni profilo;
+- output eventi su `/dev/null`;
+- PID esplicito del processo creato dalla suite.
+
+| Profilo | CPU media | P95 | Picco | RSS massimo | Thread massimi | Esito |
+|---|---:|---:|---:|---:|---:|---|
+| `raw` | `4.36%` | `7.14%` | `9.25%` | `46100 KiB` | 8 | PASS |
+| `point` | `0.33%` | `1.79%` | `1.80%` | `40724 KiB` | 7 | PASS |
+| `collective` | `3.52%` | `5.19%` | `8.49%` | `44920 KiB` | 8 | PASS |
+| `kernel-filter-uid` | `2.92%` | `4.32%` | `5.15%` | `46560 KiB` | 7 | PASS |
+
+Il confronto diretto `raw`/`kernel-filter-uid` mostra una riduzione indicativa
+della CPU userspace di circa il 33%. La run dimostra che questi quattro profili
+specifici rispettano la soglia media; non dimostra che il tool resti sempre
+sotto il 5% con qualsiasi combinazione di eventi.
+
+Il profilo `all-events` abilita tutti gli eventi pubblici e le dipendenze
+interne. Una run successiva ha mantenuto circa `77-90%` di un core dopo il
+warm-up ed e' stata interrotta prima dei 120 secondi. RSS e thread erano
+stabili, quindi il primo sospetto e' il volume di record generato dagli hook ad
+alta frequenza, non una crescita incontrollata di goroutine o memoria.
+
+`all-events` va trattato come stress test. Per eseguirlo in modo automatico:
+
+```bash
+DURATION_SECONDS=120 \
+WARMUP_SECONDS=10 \
+CPU_THRESHOLD=5.0 \
+make benchmark-all-events
+```
+
+I prossimi benchmark devono separare famiglie process, file, credential,
+kernel e networking e aggiungere un conteggio del rate per evento. Il criterio
+operativo `<5%` resta associato a profili policy-driven realistici.
 
 Esempio:
 

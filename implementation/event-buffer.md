@@ -12,13 +12,12 @@ argnum
 args buffer
 ```
 
-Nel runtime userspace il record puo' arrivare da due canali:
+Nel runtime corrente il record arriva dal perf buffer `events`. La precedente
+mappa `events_ringbuf`, la helper `events_ringbuf_submit` e il relativo reader
+Go sono stati rimossi: nessun hook attivo li usava e il kernel Rocky Linux 4.18
+target rende il perf buffer la scelta piu' compatibile.
 
-- ring buffer `events_ringbuf`;
-- perf buffer `events`.
-
-Entrambi trasportano lo stesso payload logico. Il decoder Go interpreta i byte
-raw con questo layout:
+Il decoder Go interpreta i byte raw con questo layout:
 
 ```text
 [event_context_t:136][argnum:u8][args...]
@@ -123,43 +122,34 @@ E' stato osservato output JSON da eventi reali, ad esempio `cap_capable`:
 Questo conferma che la pipeline kernel -> buffer eventi -> decoder Go -> JSON
 e' operativa.
 
-## Canali kernel/userspace
+## Canale kernel/userspace
 
-La versione attuale mantiene due mappe eventi:
+La versione attuale mantiene una sola mappa eventi:
 
 ```c
-struct events_ringbuf {
-    __uint(type, BPF_MAP_TYPE_RINGBUF);
-} events_ringbuf SEC(".maps");
-
 struct events {
     __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
 } events SEC(".maps");
 ```
 
-Lato C sono disponibili due funzioni di submit:
+Lato C `events_perf_submit` usa `bpf_perf_event_output`.
 
-- `events_ringbuf_submit`: usa `bpf_ringbuf_output`;
-- `events_perf_submit`: usa `bpf_perf_event_output`.
-
-Lato Go, `Project.Init()` apre entrambe:
+Lato Go, `Project.Init()` apre un solo transport:
 
 ```go
-module.InitRingBuf("events_ringbuf", ...)
 module.InitPerfBuf("events", ..., 1024)
 ```
 
-Entrambi i canali finiscono in `handleRawEvent(raw []byte)`, che esegue:
+Il canale perf termina in `handleRawEvent(raw []byte)`, che esegue:
 
 1. decode del payload;
 2. filtro evento;
 3. filtro `comm`;
 4. output.
 
-Questa architettura resta utile anche dopo la migrazione degli hook correnti al
-perf buffer: il percorso principale usa `events_perf_submit`, mentre
-`events_ringbuf_submit` e la mappa `events_ringbuf` restano disponibili per
-esperimenti, fallback o confronti futuri senza dover ricostruire il runtime.
+Tutti gli hook pubblici usano `events_perf_submit`. Anche il canale degli eventi
+persi resta associato al perf buffer, quindi il runtime mantiene un solo
+percorso operativo e una sola semantica di backpressure.
 
 ## Correlazione syscall entry/exit
 

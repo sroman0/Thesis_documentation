@@ -37,6 +37,7 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [2026-07-14 - Dedup temporale degli alert detector](daily/2026-07-14.md)
 - [2026-07-16 - Audit registry eventi e decoder](daily/2026-07-16.md)
 - [2026-07-16 - Primo filtro UID kernel-side](daily/2026-07-16-kernel-filter.md)
+- [2026-07-24 - Ottimizzazione runtime e benchmark controllati](daily/2026-07-24.md)
 
 ### Implementazione
 
@@ -1138,3 +1139,41 @@ Sono stati separati concettualmente:
 - [Prossimi step del tool](next-steps/README.md)
 - [Detector YAML e alert correlati](next-steps/detectors-and-correlations.md)
 - [Ordine implementazione policy/detector](next-steps/policy-detector-implementation-order.md)
+
+## 2026-07-24 - Ottimizzazione runtime e benchmark controllati
+
+Le condizioni dei detector YAML vengono ora compilate durante la costruzione
+del detector. Operatori, liste `in` e valori numerici attesi non vengono piu'
+reinterpretati per ogni evento.
+
+La pulizia dello stato dei detector collective e' diventata periodica: il
+runtime mantiene il controllo puntuale della sequenza corrente, ma evita di
+attraversare tutta la mappa a ogni record. Test e microbenchmark verificano
+scadenza, `Flush()` forzato e costo stabile tra una e 1024 sequenze aperte.
+
+Il prossimo intervento previsto e' la compilazione dei campi `group_by` e la
+riduzione delle allocazioni in `groupKeys()`.
+
+E' stato inoltre introdotto il primo pre-filtro kernel-side sull'effective UID
+e la selezione policy-driven dei programmi eBPF. Le allowlist delle policy
+raggiungono il registry prima del load: vengono caricati e attaccati soltanto
+gli eventi richiesti e i probe interni risolti come dipendenze tramite
+`impliedBy`.
+
+La ring buffer e il relativo reader sono stati rimossi. Il perf buffer `events`
+e' ora l'unico transport operativo.
+
+La nuova suite benchmark automatizza avvio, PID target, workload, warm-up,
+misure e shutdown per i profili `raw`, `point`, `collective` e
+`kernel-filter-uid`. Nella run completa del 24 luglio tutte le medie userspace
+sono rimaste sotto il 5% (`4.36%`, `0.33%`, `3.52%`, `2.92%`). Un test
+`all-events`, invece, ha mantenuto circa `77-90%` ed e' stato interrotto: il
+target prestazionale viene quindi valutato sui profili operativi policy-driven,
+non sul caso limite con ogni hook pubblico contemporaneamente attivo.
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-07-24.md)
+- [Misurazione prestazioni](implementation/performance.md)
+- [Lifecycle userspace e autoload](implementation/userspace-lifecycle.md)
+- [Detector YAML e alert correlati](next-steps/detectors-and-correlations.md)

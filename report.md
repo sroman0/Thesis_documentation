@@ -8,8 +8,7 @@ L'obiettivo operativo e' stato portare il progetto al punto in cui:
 2. lo userspace Go legge l'oggetto compilato;
 3. la collection eBPF viene caricata nel kernel;
 4. i programmi eBPF vengono attaccati ai rispettivi hook;
-5. ring buffer `events_ringbuf` e perf buffer `events` vengono drenati dallo
- userspace.
+5. il perf buffer `events` viene drenato dallo userspace.
 
 Il lavoro e' ispirato a Tracee, ma adattato a un MVP piu' piccolo. La prima
 versione del runtime usava `github.com/cilium/ebpf`; dopo il merge con il
@@ -23,7 +22,7 @@ Target principale:
 - OS: Rocky Linux 8.10 / RHEL-compatible
 - Kernel: `4.18.0-553.109.1.el8_10.x86_64`
 - Feature eBPF disponibili/usate sul target: BTF/CO-RE, raw tracepoint,
-  tracepoint, kprobe, kretprobe, ring buffer, perf event array
+  tracepoint, kprobe, kretprobe e perf event array
 - BTF nativo atteso in: `/sys/kernel/btf/vmlinux`
 
 Il progetto genera l'oggetto eBPF in `dist/project.bpf.o` e lo include nel
@@ -74,9 +73,9 @@ Il path esplicito resta supportato per debug.
 E' stato introdotto `pkg/ebpf/project.go`, che contiene il ciclo di vita eBPF:
 
 1. `New(cfg)` valida che la config sia pronta;
-2. `Init(ctx)` carica la collection e apre ring buffer e perf buffer;
-3. `Run(ctx)` legge da entrambi i canali finche' il contesto viene cancellato;
-4. `Close()` chiude link, ring buffer, perf buffer e modulo eBPF.
+2. `Init(ctx)` configura autoload, carica la collection e apre il perf buffer;
+3. `Run(ctx)` legge il canale finche' il contesto viene cancellato;
+4. `Close()` chiude link, perf buffer e modulo eBPF.
 
 ### 4.1 Rimozione del limite memlock
 
@@ -192,8 +191,7 @@ runtime verso `libbpfgo`. Restano comunque differenze importanti:
 - Tracee ha una pipeline eventi e policy piu' completa;
 - Tracee gestisce i kprobe tramite symbol table e puo' attaccarsi per address se un simbolo ha piu' indirizzi;
 - il progetto usa ancora un registry statico piu' semplice;
-- il progetto usa ora il perf buffer come transport operativo principale,
-  mantenendo ring buffer e reader come percorso opzionale/fallback.
+- il progetto usa il perf buffer come unico transport degli eventi.
 
 Tracee usa inoltre un'infrastruttura molto piu' ampia:
 
@@ -517,7 +515,7 @@ inizialmente erano bloccanti:
 
 - lettura dell'oggetto eBPF embedded o esterno;
 - load della collection;
-- apertura di ring buffer e perf buffer;
+- apertura del perf buffer;
 - attach selettivo dei programmi eBPF;
 - ingresso nel loop runtime;
 - decode userspace;
@@ -525,37 +523,35 @@ inizialmente erano bloccanti:
 - mapping human-readable di molti valori kernel.
 
 Il runtime eBPF puo' ora stampare anche alert quando il layer detector e'
-configurato. Il runtime riceve i record dal perf buffer operativo principale e
-mantiene anche il reader ring buffer come alternativa tecnica. Dopo il decode
-applica selezione eventi, filtro `comm`, policy userspace, output evento,
-detector engine e output alert.
+configurato. Il runtime riceve i record dal perf buffer. Dopo il decode applica
+selezione eventi, filtro `comm`, policy userspace, output evento, detector
+engine e output alert.
 
 Loop aggiornato in `pkg/ebpf/project.go`:
 
 ```go
 select {
-case raw := <-p.ringBufChannel:
-    p.handleRawEvent(ctx, raw)
 case raw := <-p.perfBufChannel:
     p.handleRawEvent(ctx, raw)
 }
 ```
 
-Quindi, se un evento arriva da uno dei due canali, viene decodificato e viene
-emessa una riga nel formato configurato (`json` o `table`). Gli hook correnti
-usano principalmente `events_perf_submit`; ring buffer e helper relative
-restano nel codice per versatilita' e confronti futuri.
+Ogni evento ricevuto viene decodificato e viene emessa una riga nel formato
+configurato (`json` o `table`). Tutti gli hook usano `events_perf_submit`.
 
 Conclusione dello stato corrente:
 
 - il loader eBPF e' arrivato a uno stato operativo;
 - la pipeline userspace degli eventi e' presente;
 - gli hook producono eventi decodificati e stampabili;
-- il runtime riceve sia eventi ring buffer sia eventi perf buffer;
+- il runtime riceve eventi dal perf buffer;
 - l'output e' separato dal runtime eBPF;
 - la copertura process/security e' ampia per una demo tecnica;
 - policy manager, detector engine e output alert sono collegati alla pipeline
   eventi e possono produrre alert da detector YAML.
+- le allowlist evento esplicite delle policy vengono compilate nella selezione
+  di autoload e attach, evitando di caricare i programmi registrati esclusi e
+  mantenendo soltanto le dipendenze interne richieste;
 - policy e detector YAML vengono validati contro il registry eventi del
   decoder prima dell'avvio eBPF, evitando configurazioni che referenziano eventi
   inesistenti o non decodificabili.
@@ -741,6 +737,11 @@ non sono mostrati da `--list-events` e non sono selezionabili con `--events`.
 La regola operativa e': un probe puo' essere pubblico solo se esiste una
 specifica decoder corrispondente in `pkg/events/spec.go`.
 
+Il campo `internal` definisce la visibilita' pubblica, mentre `impliedBy`
+definisce la dipendenza di attach. La selezione restituisce quindi separatamente
+il set degli eventi esposti e l'elenco dei programmi da caricare: un probe
+interno puo' essere necessario nel secondo senza comparire nel primo.
+
 Il contratto ora e' coperto anche da test automatici:
 
 - ogni probe pubblico deve avere uno schema decoder;
@@ -858,7 +859,9 @@ Il progetto e' passato da uno userspace che restava semplicemente in attesa a un
 - prepara la config;
 - legge l'oggetto eBPF embedded o da path esplicito;
 - carica la collection;
-- apre ring buffer e perf buffer tramite `libbpfgo`;
+- apre il perf buffer tramite `libbpfgo`;
+- compila le allowlist evento esatte delle policy nella selezione dei programmi
+  eBPF da caricare e agganciare;
 - seleziona e attacca solo i programmi eBPF richiesti;
 - supporta raw tracepoint, tracepoint, kprobe e kretprobe;
 - decodifica payload scalari, stringhe, array di stringhe, sockaddr,

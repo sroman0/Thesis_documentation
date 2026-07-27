@@ -1,4 +1,8 @@
-- Per la comunicazione tra userspace e kernel space, conviene utilizzare un ring buffer oppure un perf buffer? Risolto: il runtime supporta entrambi, ma gli hook correnti usano il perf buffer come percorso operativo principale. Ring buffer resta come alternativa/fallback.
+- Per la comunicazione tra userspace e kernel space, conviene utilizzare un
+  ring buffer oppure un perf buffer? Risolto definitivamente il 24/07/2026: il
+  perf buffer e' l'unico transport operativo; ring buffer, reader e helper non
+  usati sono stati rimossi per ridurre complessita' e mantenere compatibilita'
+  con Rocky Linux 4.18.
 - Chiedere se è necessario implementare un file .yaml su .github per le github actions, cosi che ad ogni push viene effettuato un test sul codice.
 - Idea: preparare dei template ai customers per filtrare gli eventi in base ad una macroarea. Template per il processing, template per il networking, template per security, template per attacchi specifici...
 - Idea: provare ad implementare un sistema di monitoring non solo per eventi singoli, ma anche per pattern di eventi.

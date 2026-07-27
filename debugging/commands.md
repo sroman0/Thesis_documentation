@@ -1711,9 +1711,9 @@ python3 -m http.server 18080 --bind 127.0.0.1
 curl http://127.0.0.1:18080
 ```
 
-Nota: gli hook attuali inviano gli eventi tramite perf buffer. Il runtime apre
-ancora anche `events_ringbuf`, ma il percorso operativo corrente usa la mappa
-perf `events`.
+Nota: dal 24 luglio 2026 gli hook inviano gli eventi esclusivamente tramite la
+mappa perf `events`. Il reader, la mappa e le helper ring buffer sono stati
+rimossi.
 
 ## Installare il binario come comando locale
 
@@ -1729,17 +1729,13 @@ sudo oppure usare il path assoluto:
 sudo /usr/local/bin/project --help
 ```
 
-## Verificare il reader duale
+## Verificare il perf buffer
 
-La versione attuale apre ancora sia ring buffer sia perf buffer:
+La versione attuale inizializza un solo transport:
 
 ```text
-events_ringbuf -> InitRingBuf
-events         -> InitPerfBuf
+events -> InitPerfBuf
 ```
-
-La ring buffer resta disponibile per versatilita' e fallback futuri, mentre gli
-hook correnti usano `events_perf_submit`.
 
 Per verificare un evento sul percorso perf buffer:
 

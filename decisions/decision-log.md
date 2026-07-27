@@ -2,6 +2,84 @@
 
 Questo file raccoglie le decisioni architetturali importanti. Ogni decisione dovrebbe spiegare contesto, scelta e conseguenze.
 
+## 2026-07-24 - Selezione policy-driven dei programmi e dipendenze interne
+
+**Contesto:** caricare e attaccare tutti i programmi eBPF anche quando la CLI o
+le policy richiedono pochi eventi aumenta il costo del runtime e rende ambiguo
+il rapporto tra eventi pubblici e programmi di supporto.
+
+**Decisione:** prima del load, il runtime calcola l'insieme degli eventi
+richiesti da `--events` e dalle policy, risolve le dipendenze `impliedBy` e
+disabilita l'autoload dei programmi registrati che non appartengono
+all'insieme risultante. I probe `internal` non sono selezionabili dalla CLI e
+vengono inclusi solo quando servono a produrre un evento pubblico.
+
+**Conseguenze:**
+
+- una policy che seleziona pochi eventi riduce anche il numero di programmi
+  caricati e attaccati;
+- `internal` descrive la visibilita' di un probe, mentre `impliedBy` descrive la
+  relazione di dipendenza con un evento pubblico;
+- il registry diventa parte del contratto prestazionale e deve restare
+  coerente con programmi e schemi evento;
+- il profilo `all-events` resta uno stress test separato e non rappresenta il
+  normale profilo operativo policy-driven.
+
+## 2026-07-24 - Perf buffer come unico transport eventi
+
+**Contesto:** mantenere reader, mappe e helper per due transport aumentava la
+complessita' senza fornire un vantaggio operativo: tutti gli hook attivi erano
+gia' stati migrati al perf buffer.
+
+**Decisione:** rimuovere dal runtime e dal codice eBPF il percorso ring buffer
+e usare esclusivamente la mappa perf `events`, mantenendo il lost-event channel
+per osservare eventuali record persi.
+
+**Conseguenze:**
+
+- esiste una sola pipeline di trasporto e decodifica;
+- non vengono piu' inizializzati reader o mappe ring buffer;
+- un eventuale ritorno al ring buffer richiedera' una nuova decisione
+  architetturale, non e' piu' un fallback gia' disponibile;
+- questa decisione sostituisce lo stato descritto il 27 maggio.
+
+## 2026-07-24 - Filtro UID minimo prima dell'arricchimento evento
+
+**Contesto:** gli eventi scartati in userspace consumano comunque CPU per
+arricchimento, trasporto e decoding.
+
+**Decisione:** introdurre un filtro kernel-side opzionale sull'effective UID,
+configurato da userspace e applicato all'inizio del percorso comune degli
+eventi compatibili.
+
+**Conseguenze:**
+
+- gli eventi con UID diverso possono essere eliminati prima del perf submit;
+- il filtro e' intenzionalmente minimo e non sostituisce il modello di policy;
+- copertura, semantica dell'effective UID e layout della config map devono
+  restare verificati sul kernel target;
+- i benchmark devono confrontare profili equivalenti con e senza filtro.
+
+## 2026-07-24 - Benchmark per profili operativi e stress separato
+
+**Contesto:** una singola misura senza configurazione, warm-up e carico
+controllati non permette di attribuire il costo a hook, detector o workload.
+
+**Decisione:** usare una suite multi-profilo con PID esatto, warm-up, durata,
+carico controllato e cleanup limitato. I profili realistici policy-driven
+vengono valutati rispetto al target del 5%; `all-events` viene trattato come
+stress test diagnostico.
+
+**Conseguenze:**
+
+- i risultati sono confrontabili solo a parita' di profilo e workload;
+- picchi isolati non sostituiscono media, percentile e riepilogo completo;
+- la CPU userspace sotto il 5% non dimostra da sola che il costo kernel-side
+  sia sotto la stessa soglia;
+- la run controllata del 24 luglio ha superato il criterio configurato nei
+  quattro profili misurati, mentre lo stress `all-events` interrotto ha mostrato
+  un carico userspace molto superiore.
+
 ## 2026-05-26 - Regola per scegliere tra syscall engine e hook semantici
 
 **Contesto:** durante la scelta del prossimo hook process/security e' emerso il
@@ -55,20 +133,25 @@ ring buffer per i primi hook process/security e perf buffer per syscall
 enter/exit, networking e hook piu' vicini al modello Tracee. Questa divisione
 funzionava, ma rendeva la pipeline piu' difficile da spiegare e da mantenere.
 
-**Decisione:** migrare anche gli hook process/security storici a
+**Decisione originaria:** migrare anche gli hook process/security storici a
 `events_perf_submit`, usando quindi il perf buffer `events` come canale
-operativo principale. La ring buffer `events_ringbuf`, la helper
-`events_ringbuf_submit` e il reader Go restano nel progetto.
+operativo principale. In questa fase la ring buffer `events_ringbuf`, la helper
+`events_ringbuf_submit` e il reader Go restavano nel progetto.
 
 **Conseguenze:**
 
 - tutti gli hook attualmente attivi usano lo stesso transport principale;
-- il runtime continua ad aprire sia ring buffer sia perf buffer, quindi non
-  perdiamo versatilita' o possibili fallback futuri;
+- in questa fase il runtime continuava ad aprire sia ring buffer sia perf
+  buffer;
 - la documentazione della pipeline puo' descrivere il perf buffer come percorso
   corrente, evitando la distinzione evento-per-evento;
 - resta utile aggiungere metriche/lost channel al perf buffer per osservare
   eventuali drop.
+
+**Stato aggiornato al 2026-07-24:** la compatibilita' ring buffer e' stata
+rimossa. Il perf buffer e' ora l'unico transport degli eventi e dispone del
+lost-event channel. La decisione del 24 luglio sostituisce il fallback descritto
+qui.
 
 ## 2026-06-10 - process_vm_writev raccoglie metadati, non payload
 
@@ -288,6 +371,10 @@ e' stato rimosso. Rimane aperta la decisione architetturale sul canale unico.
 `events_perf_submit`. Il perf buffer e' il canale operativo principale; ring
 buffer e helper restano disponibili come fallback/esperimento.
 
+**Stato aggiornato al 2026-07-24:** la decisione sul canale unico e' chiusa.
+Mappa, helper e reader ring buffer sono stati rimossi; il perf buffer `events`
+e' l'unico transport.
+
 ## 2026-05-13 - Reader duale per ring buffer e perf buffer
 
 **Contesto:** Tracee usa perf buffer come canale principale. Il progetto aveva
@@ -312,6 +399,10 @@ decoding, filtro evento, filtro `comm` e output.
   buffer, mantenendo pero' il reader ring buffer disponibile;
 - il perf buffer non ha ancora un lost channel configurato, quindi i drop non
   sono osservabili lato userspace.
+
+**Stato aggiornato al 2026-07-24:** questa architettura duale e' stata
+superata. Il runtime inizializza solo `InitPerfBuf("events", ...)`, usa il
+lost-event channel e non contiene piu' un reader ring buffer.
 
 ## 2026-05-13 - Filtro userspace per `comm`
 

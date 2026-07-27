@@ -1,5 +1,14 @@
 # Chapter 1 Technical Evidence Audit
 
+> **Status note (2026-07-27):** this document preserves the evidence snapshot
+> described below and is not the current implementation inventory. The changes
+> that were uncommitted at audit time were subsequently integrated, and the
+> ring-buffer fallback was removed. Current architecture and performance
+> evidence are tracked in
+> [`daily/2026-07-24.md`](../../../daily/2026-07-24.md),
+> [`implementation/performance.md`](../../../implementation/performance.md),
+> and [`decisions/decision-log.md`](../../../decisions/decision-log.md).
+
 ## Audit scope
 
 This audit checks the project-specific claims proposed for Chapter 1 against the

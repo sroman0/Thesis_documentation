@@ -209,6 +209,27 @@ stato sulla chiave `self`. Quando riceve gli eventi successivi, prova sia
 `self` sia `parent`. In questo modo la sequenza puo' completarsi nello stesso
 processo oppure tra parent e child, senza usare una chiave `global`.
 
+### Pulizia periodica dello stato
+
+La prima implementazione attraversava l'intera mappa delle sequenze a ogni
+evento stateful. Il comportamento era corretto, ma il costo cresceva con il
+numero di correlazioni parziali aperte.
+
+Il runtime ora calcola al caricamento una frequenza di pruning:
+
+```text
+min(window / 2, 1s)
+```
+
+Tra due scadenze controlla direttamente solo la sequenza individuata dalla
+chiave dell'evento. Alla scadenza esegue la pulizia globale; `Flush()` continua
+a forzarla anche in assenza di nuovi eventi. In questo modo le finestre brevi
+restano rispettate senza pagare una scansione completa su ogni record.
+
+Il prossimo intervento prestazionale riguarda la compilazione di `group_by`:
+i nomi dei campi e i percorsi comuni `pid` e `process_tree` dovranno essere
+preparati durante `NewDetector()` per ridurre le allocazioni nella hot path.
+
 Detector collective correnti:
 
 | Detector | Sequenza | Scopo |

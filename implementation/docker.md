@@ -296,7 +296,7 @@ Restano quindi validi:
 - limiti del verifier;
 - helper eBPF disponibili;
 - qualità del BTF;
-- supporto reale a ring buffer e perf buffer;
+- supporto reale a perf event array, helper e tipi di attach usati;
 - differenze dovute ai backport Rocky/RHEL.
 
 ## Riassunto

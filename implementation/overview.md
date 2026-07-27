@@ -9,7 +9,7 @@ La pipeline desiderata e':
 ```text
 kernel hook eBPF
   -> costruzione evento
-  -> ring buffer / perf buffer
+  -> perf buffer
   -> userspace Go
   -> decoder
   -> output
@@ -22,7 +22,7 @@ Stato raggiunto per l'MVP:
 kernel hook eBPF
   -> kernel UID pre-filter opzionale
   -> costruzione evento
-  -> ring buffer / perf buffer
+  -> perf buffer
   -> userspace Go
   -> decoder
   -> event selection
@@ -82,14 +82,16 @@ Responsabilita':
 - caricare l'oggetto eBPF;
 - caricare BTF;
 - creare collection eBPF;
-- aprire ring buffer;
 - aprire perf buffer;
 - selezionare quali eventi/probe abilitare;
+- risolvere eventi pubblici e probe interni richiesti come dipendenze;
+- disabilitare l'autoload dei programmi registrati esclusi dalla selezione
+  effettiva;
 - configurare il filtro UID kernel-side minimale tramite `config_map`;
 - attaccare programmi agli hook selezionati, inclusi kprobe, kretprobe, raw
   tracepoint e tracepoint classici;
 - leggere eventi;
-- decodificare record raw da ring buffer o perf buffer;
+- decodificare record raw dal perf buffer;
 - applicare filtro eventi e filtro `comm`;
 - inviare eventi decodificati al printer configurato.
 - inviare eventi decodificati al detector engine quando configurato;
@@ -166,16 +168,17 @@ Responsabilita':
 
 ## Stato attuale
 
-Il loader eBPF arriva al runtime loop, legge sia ring buffer sia perf buffer,
-decodifica gli eventi raw e li passa a un printer configurabile.
+Il loader eBPF arriva al runtime loop, legge il perf buffer, decodifica gli
+eventi raw e li passa a un printer configurabile.
 
 Completato per MVP:
 
 - load dell'oggetto eBPF;
 - attach raw tracepoint, tracepoint classici, kprobe e kretprobe;
 - registry selezionabile degli eventi/probe;
-- ring buffer reader;
 - perf buffer reader;
+- compilazione delle allowlist evento delle policy nella selezione di autoload
+  e attach, incluse soltanto le dipendenze interne richieste;
 - decoder Go per context e argomenti attuali;
 - decoder Go per array di stringhe (`StrArrT`) e array Tracee-like
   null-delimited (`ArgsArrT`);
@@ -190,6 +193,8 @@ Completato per MVP:
 - detector YAML eseguibile su evento singolo;
 - registry, dispatcher ed engine detector userspace;
 - dedup temporale degli alert ripetuti nel detector engine;
+- condizioni YAML compilate al caricamento e pruning periodico dello stato dei
+  detector collective;
 - primo detector collective MVP con sequenza
   `security_task_fix_setuid -> sched_process_exec`;
 - modalita' `--alerts-only` per stampare solo alert senza rimuovere gli eventi

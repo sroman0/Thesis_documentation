@@ -11,6 +11,7 @@ cmd/project/main.go
   -> initialize.BPFObject(&cfg)
   -> appcmd.NewProjectRunner(cfg)
   -> load policy manager
+  -> compile exact policy event allowlist
   -> load detector YAML files
   -> build detector engine
   -> runner.Run(ctx)
@@ -19,11 +20,13 @@ cmd/project/main.go
   -> project.Init(ctx)
   -> detector engine Init(ctx)
   -> configure libbpf logging from --log-level
-  -> open events_ringbuf with InitRingBuf
+  -> resolve public events and internal probe dependencies
+  -> disable autoload for every unselected registered program
+  -> load selected eBPF programs
   -> open events perf buffer with InitPerfBuf
   -> attach selected probes
   -> project.Run(ctx)
-  -> receive raw bytes from ring buffer or perf buffer
+  -> receive raw bytes from perf buffer
   -> handleRawEvent(raw)
   -> bufferdecoder.DecodeEvent(raw)
   -> event selection guard
@@ -181,14 +184,29 @@ In `Project.Init()`:
 
 1. rimozione limite memlock;
 2. apertura del modulo eBPF con `libbpfgo`;
-3. caricamento dell'oggetto eBPF;
-4. apertura ring buffer `events_ringbuf`;
-5. apertura perf buffer `events`;
-6. attach dei soli programmi selezionati.
+3. risoluzione dei probe pubblici e delle dipendenze interne;
+4. disabilitazione autoload dei programmi registrati non selezionati;
+5. caricamento dei programmi rimasti abilitati nell'oggetto eBPF;
+6. apertura perf buffer `events`;
+7. attach dei programmi selezionati, incluse le dipendenze interne.
 
 La selezione dei programmi vive in `pkg/ebpf/probes/probes.go`. Ogni probe
 collega il nome evento decodificato al programma eBPF e all'hook kernel da
 usare.
+
+Quando tutte le regole operative di policy dichiarano una lista `include`
+esplicita, `policy.Manager.EffectiveEventSelection()` ne calcola l'unione. Se
+anche la CLI specifica `--events`, viene usata l'intersezione. Il risultato
+raggiunge `probes.Select()` e poi `ConfigureAutoload()` prima di
+`BPFLoadObject()`: gli altri programmi registrati non vengono verificati,
+caricati nel kernel o agganciati.
+
+`internal` e `impliedBy` hanno ruoli diversi. `internal` nasconde un probe dal
+contratto CLI/output; `impliedBy` dichiara quali eventi pubblici ne richiedono
+l'attach. Solo le dipendenze interne risolte da `Select()` restano in autoload.
+Non vengono aggiunte al set degli eventi pubblici e quindi non diventano
+selezionabili con `--events`. Una policy con `include` vuota significa "tutti
+gli eventi pubblici" e riduce molto meno il set di programmi.
 
 Il registry distingue ora due categorie:
 
@@ -207,6 +225,7 @@ Il registry supporta:
 - tracepoint classici;
 - kprobe;
 - kretprobe.
+- cgroup skb ingress/egress.
 
 Questo permette di usare hook dedicati come `syscalls/sys_enter_execve` quando
 il kernel target li espone, evitando di filtrare manualmente ogni syscall da un
@@ -218,16 +237,13 @@ piu' utile e' disponibile solo al ritorno della funzione kernel.
 
 In `Project.Run()`:
 
-1. il runtime ascolta `ringBufChannel`;
-2. ascolta anche `perfBufChannel`;
-3. per ogni record ricevuto chiama `handleRawEvent(raw)`;
-4. `handleRawEvent` chiama `bufferdecoder.DecodeEvent(...)`;
-5. scarta eventi non abilitati dalla selezione runtime;
-6. scarta eventi non ammessi dal filtro `--comms`, se configurato;
-7. passa l'evento al printer configurato;
-8. stampa una riga su stdout.
-
-Questo sostituisce il loop precedente basato solo sulla ring buffer.
+1. il runtime ascolta `perfBufChannel`;
+2. per ogni record ricevuto chiama `handleRawEvent(raw)`;
+3. `handleRawEvent` chiama `bufferdecoder.DecodeEvent(...)`;
+4. scarta eventi non abilitati dalla selezione runtime;
+5. scarta eventi non ammessi dal filtro `--comms`, se configurato;
+6. applica policy e detector;
+7. passa eventi e alert ai rispettivi printer.
 
 Esempio di output osservato:
 
@@ -263,20 +279,12 @@ sudo go run ./cmd/project --help
 possono fallire se non ricevono gli stessi flag CGO. I target Makefile
 incapsulano questa configurazione.
 
-## Nota su eventi networking
+## Nota sul transport eventi
 
-La versione precedente leggeva solo `events_ringbuf`, mentre gli hook networking
-integrati dal branch collaboratore usavano in gran parte `events_perf_submit`.
-La versione attuale apre anche il perf buffer `events`, quindi gli eventi
-networking inviati con `events_perf_submit` possono arrivare allo stesso decoder
-e allo stesso output.
-
-Stato attuale:
-
-- gli hook correnti usano `events_perf_submit`;
-- il reader perf buffer e' quindi il percorso operativo principale;
-- ring buffer e `events_ringbuf_submit` restano nel codice per versatilita',
-  fallback o confronti futuri.
+Tutti gli hook, inclusi quelli networking, inviano i record con
+`events_perf_submit`. Il runtime apre soltanto il perf buffer `events`. La
+rimozione del secondo transport evita una mappa ring buffer inutilizzata da
+16 MiB e semplifica init, loop di lettura e cleanup.
 
 ## Output layer
 
@@ -308,9 +316,8 @@ l'evento.
 `Project.Close()` chiude:
 
 1. link eBPF;
-2. ring buffer reader;
-3. perf buffer reader;
-4. modulo eBPF.
+2. perf buffer reader;
+3. modulo eBPF.
 
 Ordine importante: prima detach/close dei link, poi risorse condivise.
 

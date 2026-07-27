@@ -53,8 +53,8 @@ pkg/ebpf/c/                   → eBPF C program and headers (types.h, maps.h, c
 
 Data flow:
 `perf buffer → project.Run() → bufferdecoder.DecodeEvent() → output printer`.
-Ring buffer support remains available, but active hooks currently submit
-through the perf buffer.
+The perf buffer is the only event transport; ring-buffer runtime support and
+the unused eBPF map were removed.
 
 ### Critical Constraint: Struct Layout Parity
 
@@ -84,8 +84,7 @@ Defined in `pkg/ebpf/c/maps.h`:
 
 | Map | Type | Purpose |
 |---|---|---|
-| `events` | `PERF_EVENT_ARRAY` | Primary kernel→userspace event channel |
-| `events_ringbuf` | `RINGBUF` | Retained alternative event channel |
+| `events` | `PERF_EVENT_ARRAY` | Kernel→userspace event channel |
 | `args_bufs` | `PERCPU_ARRAY` | Per-CPU scratch buffer for event arguments |
 | `args_map` | `HASH` | Correlates syscall entry arguments with syscall exit |
 

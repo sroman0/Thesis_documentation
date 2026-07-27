@@ -9,9 +9,11 @@ materiale per la tesi.
 Stato corrente: il tool ha una pipeline eBPF/userspace operativa, un layer
 policy/detector YAML collegato al runtime, output separato per eventi e alert,
 logging runtime con zap, dedup temporale degli alert ripetuti, primi detector
-collective con `process_tree` locale e metadati MITRE visibili negli alert. Le
-prossime attivita' principali riguardano selezione policy/detector basata su
-MITRE, operatori YAML piu' espressivi e benchmark del rumore/overhead.
+collective con `process_tree` locale, metadati MITRE visibili negli alert,
+selezione policy-driven di autoload/attach, filtro UID kernel-side minimale e
+suite benchmark multi-profilo. Le prossime attivita' principali riguardano
+misura del rate per evento, costo kernel-side e ulteriori filtri derivati dalle
+policy.
 
 ## Percorsi principali
 

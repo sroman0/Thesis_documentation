@@ -1536,19 +1536,14 @@ Scopo:
 - associare socket e contesto task tramite inode map;
 - preparare informazioni utili per eventi networking piu' completi.
 
-## Nota su ring buffer e perf buffer
+## Nota sul perf buffer
 
 Gli hook attuali inviano gli eventi tramite `events_perf_submit`, quindi passano
 dal perf buffer `events`.
 
-La ring buffer `events_ringbuf` e la helper `events_ringbuf_submit` restano nel
-progetto per versatilita' e per possibili esperimenti/fallback futuri. Anche il
-runtime Go continua ad aprire `InitRingBuf("events_ringbuf", ...)`, ma la
-direzione operativa corrente e' usare il perf buffer come canale principale.
-
-Questa scelta riduce la frammentazione tra hook storici, syscall enter/exit e
-networking: tutti usano lo stesso transport, mentre il supporto ring buffer non
-viene rimosso.
+La ring buffer, la relativa mappa e la helper di submit sono state rimosse.
+Questa scelta mantiene compatibilita' con Rocky Linux 4.18 e riduce la
+frammentazione tra hook storici, syscall enter/exit e networking.
 
 ## Nota sui tipi di attach
 
