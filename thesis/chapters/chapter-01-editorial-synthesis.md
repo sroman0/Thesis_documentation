@@ -53,35 +53,6 @@ Le contextual anomalies non sono impossibili in assoluto per un node agent.
 Sono escluse dal perimetro locale del tool quando richiedono stato globale
 del cluster e vengono demandate a un eventuale livello centralizzato.
 
-## Research questions approvate
-
-### RQ1 - Target compatibility
-
-> Which architectural and implementation adaptations are required to build an
-> eBPF-based process and security monitoring pipeline on the target Rocky Linux
-> 8.10 kernel?
-
-Evidenza prevista: design, compatibilita', verifier-driven adaptations e test
-funzionali.
-
-### RQ2 - Event processing and detection
-
-> How can heterogeneous kernel events be normalized and evaluated through
-> declarative policies and detectors to identify security-relevant point events
-> and short collective event patterns?
-
-Evidenza prevista: event contract, decoder, policy manager, detector engine e
-case study point/collective.
-
-### RQ3 - Runtime overhead
-
-> What CPU and memory overhead does the proposed pipeline introduce under the
-> selected benchmark profiles, and how does early kernel-side UID filtering
-> affect that overhead?
-
-Evidenza prevista: benchmark definitivi del Capitolo 5. Il target sotto il 5%
-di un core resta un requisito di valutazione, non un risultato gia' raggiunto.
-
 ## Obiettivo principale
 
 Design, implement and evaluate an eBPF-based runtime security monitoring
@@ -197,13 +168,13 @@ Capitolo 1 puo' indicarlo come capacita' adiacente integrata nel progetto e
 sviluppata in collaborazione. La sua inclusione nella valutazione richiede una
 decisione esplicita di attribuzione con azienda e relatore.
 
-### Kubernetes
+### Deployment
 
-Kubernetes e' un intended deployment target. Docker e i requisiti per una
-esecuzione node-level sono implementati/documentati, ma non esiste ancora una
-validazione completa su cluster. Usare `deployment direction`, `intended
-deployment model` o `future integration`, non `validated Kubernetes
-deployment`.
+La containerizzazione e' implementata e puo' essere descritta nel capitolo
+tecnico come scelta di packaging. Kubernetes e' soltanto una possibile
+destinazione futura gestita dall'azienda: non va presentato nel Capitolo 1 come
+parte dell'architettura, risultato sperimentale o contributo dell'autore.
+L'eventuale riferimento deve essere confinato agli sviluppi futuri.
 
 ## MITRE ATT&CK
 
@@ -240,7 +211,7 @@ numerici restano nel Capitolo 5.
 - `rule-based point and short collective event patterns`;
 - `MITRE ATT&CK metadata propagation`;
 - `experimental kernel-side UID pre-filter`;
-- `intended node-level Kubernetes deployment model`;
+- `container packaging for the implemented runtime`;
 - `Tracee-inspired architectural patterns adapted to the target environment`.
 
 ### Formulazioni vietate o da qualificare
@@ -263,7 +234,6 @@ numerici restano nel Capitolo 5.
 
 - Gbadamosi et al. e Linux eBPF Userspace API per eBPF ad alto livello;
 - Her et al. per il contesto degli eBPF security tools cloud-native;
-- Kubernetes DaemonSet documentation per il modello node agent;
 - He et al. per i rischi del kernel condiviso nei container.
 
 ### Problem Statement
@@ -271,12 +241,6 @@ numerici restano nel Capitolo 5.
 - Chandola et al. per point, contextual e collective anomalies;
 - MITRE ATT&CK Design and Philosophy per tactic e technique;
 - evidenze del repository per target, scope locale e target prestazionale.
-
-### Contributions and Scope
-
-- documentazione ufficiale Tracee, Falco e Tetragon per delimitare il prior
-  art senza svolgere in anticipo tutto il related work del Capitolo 2;
-- evidenze tecniche del repository per i contributi implementati.
 
 ## Fonti validate ma da trattare con cautela
 
@@ -304,13 +268,13 @@ scrittore usi le formulazioni conservative indicate qui.
 
 - Riscrivere il capitolo attorno al problema, non correggere soltanto frasi
   isolate del draft corrente.
-- Presentare quattro contributi, non una lista di feature.
-- Usare le tre research questions approvate senza ampliarle.
+- Presentare l'obiettivo generale in forma narrativa e chiudere con una lista
+  dei Capitoli 2-6 e del loro focus.
 - Mantenere la spiegazione tecnica di eBPF ad alto livello.
 - Non anticipare dettagli dei Capitoli 3-5.
 - Non modificare l'abstract.
 - Non usare il nome interno `Vesuvius`: il tool non ha un nome ufficiale nella
   tesi.
-- Usare soltanto le sette `section` principali del Capitolo 1, senza
+- Usare soltanto le tre `section` principali del Capitolo 1, senza
   `subsection`.
 - Segnalare ogni citazione o decisione non risolta.

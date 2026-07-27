@@ -13,7 +13,7 @@ su questo dossier quando una proposta iniziale e' stata raffinata.
 
 ## Obiettivo del capitolo
 
-Spiegare perche' il problema e' rilevante, quale problema affronta Vesuvius,
+Spiegare perche' il problema e' rilevante, quale problema affronta il sistema,
 quali obiettivi e domande guidano il lavoro, quali contributi sono stati
 implementati e quali limiti definiscono il perimetro della tesi.
 
@@ -27,11 +27,7 @@ La struttura canonica e' definita in
 
 1. Context and Motivation;
 2. Problem Statement;
-3. Objectives and Research Questions;
-4. Contributions of the Work;
-5. Scope and Limitations;
-6. Methodology;
-7. Thesis Structure.
+3. Objectives and Thesis Structure.
 
 ## Audit del testo LaTeX corrente
 
@@ -63,8 +59,10 @@ richiede queste correzioni:
 - Il kernel include backport RHEL, quindi il numero di versione da solo non
   descrive tutte le feature eBPF disponibili.
 - Il runtime usa Go, CGO e `libbpfgo`; i programmi eBPF sono scritti in C.
-- Il deployment futuro previsto e' node-level in Kubernetes, naturalmente
-  compatibile con un modello DaemonSet privilegiato.
+- Il prototipo opera come monitor host-level e limita la correlazione al
+  contesto locale disponibile sul sistema osservato.
+- La containerizzazione e' implementata, ma un eventuale deployment Kubernetes
+  appartiene agli sviluppi futuri e non costituisce un contributo della tesi.
 
 Fonti interne principali:
 
@@ -147,29 +145,6 @@ alert configurabili.
 La formulazione inglese finale spetta all'agente editoriale dopo il controllo
 del fact-checker.
 
-## Research questions candidate - stato storico
-
-### RQ1 - Feasibility and compatibility
-
-How can an eBPF-based runtime security monitor be designed for a
-RHEL-compatible 4.18 kernel while retaining meaningful process and security
-visibility?
-
-### RQ2 - Event-to-alert pipeline
-
-How can heterogeneous kernel events be normalized and evaluated through
-declarative policies and detectors to identify point and short-window
-collective anomalies?
-
-### RQ3 - Runtime overhead
-
-What runtime overhead does the proposed pipeline introduce under representative
-workloads, and to what extent can early kernel-side filtering reduce it?
-
-Le formulazioni iniziali sono conservate qui per tracciabilita'. Le versioni
-approvate per la scrittura sono nella sintesi editoriale. Il protocollo di
-benchmark di RQ3 resta da consolidare prima del Capitolo 5.
-
 ## Contributi implementativi candidati
 
 1. Una pipeline kernel-to-userspace modulare per eventi process e security su
@@ -181,7 +156,7 @@ benchmark di RQ3 resta da consolidare prima del Capitolo 5.
 5. Propagazione di tactic e technique MITRE ATT&CK negli alert.
 6. Separazione tra eventi, alert e logging diagnostico strutturato.
 7. Un primo filtro UID kernel-side per ridurre il traffico verso userspace.
-8. Packaging containerizzato orientato a un futuro deployment Kubernetes.
+8. Packaging containerizzato del runtime e dell'oggetto eBPF.
 
 ## Candidate novelty da verificare
 
@@ -193,8 +168,8 @@ Le seguenti non devono ancora essere presentate come novelty dimostrate:
   base di selezione/copertura;
 - adattamento target-aware di pattern Tracee a un kernel Rocky Linux 4.18 con
   una architettura piu' piccola e controllabile;
-- separazione tra detection locale e contextual analysis demandata a un
-  eventuale livello Kubernetes centralizzato;
+- separazione tra detection locale e analisi distribuita demandata a un
+  eventuale sistema esterno;
 - compromesso tra genericita' del detector engine e pre-filtering minimale nel
   kernel.
 
@@ -235,7 +210,7 @@ Gli agenti dovranno trovare fonti primarie per:
 - Tracee e altri strumenti eBPF di runtime security;
 - point, contextual e collective anomalies;
 - MITRE ATT&CK;
-- vincoli di sicurezza dei workload eBPF in container/Kubernetes.
+- vincoli di sicurezza dei workload eBPF in ambienti containerizzati.
 
 Le fonti generali non devono essere ricavate esclusivamente da blog o dalla
 documentazione interna del progetto.
@@ -262,10 +237,28 @@ documentazione interna del progetto.
 
 - struttura conforme all'indice canonico;
 - nessun TODO o placeholder;
-- obiettivi, research questions, contributi e scope coerenti;
+- obiettivo generale e descrizione dei Capitoli 2-6 coerenti;
 - ogni affermazione generale supportata da una citazione;
 - nessuna novelty presentata come dimostrata senza confronto;
 - nessun dettaglio implementativo che appartenga ai Capitoli 3 o 4;
 - terminologia conforme a `terminology-and-style.md`;
 - compilazione LaTeX senza errori e riferimenti mancanti;
 - revisione finale approvata dall'autore.
+
+## Audit bibliografico e acronimi del 2026-07-27
+
+- Tutte le chiavi citate nel capitolo sono definite in `bibliography.bib`.
+- Non sono presenti chiavi BibTeX duplicate.
+- Sono state aggiunte fonti ufficiali per il backporting RHEL e per
+  `libbpfgo`.
+- La fonte Kubernetes DaemonSet e' stata rimossa perche' il deployment
+  Kubernetes non fa piu' parte dell'argomentazione del Capitolo 1.
+- Le fonti Tracee non ancora citate sono mantenute per il related work del
+  Capitolo 2.
+- Il glossario definisce e usa `eBPF`, `CPU` e `MITRE ATT&CK`.
+- `references.bib` e' un residuo del template, contiene soltanto una voce su
+  Turing e non viene caricato da `main.tex`; il file bibliografico effettivo e'
+  `bibliography.bib`.
+- La compilazione completa e' attualmente bloccata dall'installazione TeX
+  locale, nella quale manca `biblatex.sty`. I controlli statici su citazioni,
+  acronimi e sintassi delle modifiche sono invece completati.

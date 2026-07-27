@@ -144,11 +144,11 @@ Read completely:
 - /home/simone/project/Thesis/content/chapters/chapter1.tex
 
 Evaluate the logical structure of Chapter 1 before drafting. Check whether the
-problem statement, objectives, research questions, contributions, scope,
-methodology and thesis structure form one coherent argument. Review the three
-candidate research questions and propose precise alternatives only when
-necessary. Distinguish engineering contributions from defensible research
-novelty.
+context, problem statement, general objective and overview of Chapters 2-6 form
+one coherent introductory argument. The chapter must not introduce formal
+research questions or separate sections for contributions, scope and
+methodology. Distinguish engineering contributions from defensible research
+novelty when checking the claims that remain in the problem statement.
 
 Identify:
 - missing premises;
@@ -204,7 +204,7 @@ The tool has no official academic name. Never use the internal project name
 `Vesuvius` in thesis prose. Refer to it as `the proposed tool`, `the prototype`,
 `the monitoring agent`, `the developed system` or `the proposed system`.
 
-Chapter 1 must use only the seven main sections from the canonical outline.
+Chapter 1 must use only the three main sections from the canonical outline.
 Do not add subsections: keep the introduction narrative and proportionate.
 
 Use cautious wording for candidate novelty. Do not claim benchmark targets as

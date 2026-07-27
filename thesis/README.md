@@ -24,6 +24,8 @@ qui fino alla loro risoluzione.
 - [Dossier preparatorio del Capitolo 1](chapters/chapter-01-introduction.md)
 - [Sintesi editoriale vincolante del Capitolo 1](chapters/chapter-01-editorial-synthesis.md)
 - [Workflow e prompt degli agenti per il Capitolo 1](chapter-01-agent-workflow.md)
+- [Dossier preparatorio del Capitolo 2](chapters/chapter-02-background-related-work.md)
+- [Workflow e prompt degli agenti per il Capitolo 2](chapter-02-agent-workflow.md)
 - [Spunti di scrittura storici](writing-notes.md)
 
 ## Regole operative

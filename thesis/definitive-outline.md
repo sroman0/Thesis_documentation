@@ -24,8 +24,8 @@ Presenta eBPF soltanto ad alto livello: programmabilita' controllata del kernel,
 hook e raccolta di telemetria. Verifier, mappe, CO-RE e BTF appartengono al
 Capitolo 2.
 
-Inquadra la collaborazione aziendale, il target Rocky Linux e la prospettiva di
-esecuzione come componente node-level in Kubernetes.
+Inquadra la collaborazione aziendale, il target Rocky Linux e il funzionamento
+del prototipo come monitor host-level.
 
 ### 1.2 Problem Statement
 
@@ -33,50 +33,18 @@ Definisce il problema: raccogliere eventi di processo e sicurezza dal kernel e
 trasformarli in informazioni utilizzabili per detection e analisi.
 
 Riassume i vincoli principali: kernel Rocky Linux 4.18 con backport RHEL,
-compatibilita' eBPF, overhead contenuto e assenza di contesto globale del
-cluster nel singolo agent.
+compatibilita' eBPF, overhead contenuto e assenza di contesto distribuito nel
+monitor locale.
 
-### 1.3 Objectives and Research Questions
+### 1.3 Objectives and Thesis Structure
 
 Definisce l'obiettivo complessivo di progettare, implementare e valutare un
 runtime security monitor eBPF per processi e segnali security-related.
 
-Copre raccolta kernel-side, pipeline userspace, modello eventi, policy,
-detector point e collective, mapping MITRE ATT&CK e valutazione.
-
-Formula domande verificabili su fattibilita' nel kernel target, capacita' di
-produrre detection utili e costo runtime. La formulazione finale deve essere
-approvata prima della stesura LaTeX.
-
-### 1.4 Contributions of the Work
-
-Riassume i contributi concretamente implementati senza presentarli
-automaticamente come novelty scientifiche.
-
-Introduce policy dichiarative, detector point e collective locali, correlazione
-process-aware e mapping MITRE ATT&CK.
-
-Delimita gli elementi candidati alla novelty. Le rivendicazioni definitive
-richiedono confronto bibliografico e risultati sperimentali.
-
-### 1.5 Scope and Limitations
-
-Include monitoraggio host/node-level, processi, credenziali, filesystem,
-memoria, namespace, moduli kernel, eBPF activity, policy e detector locali.
-
-Esclude enforcement, visione globale del cluster e anomaly contextual che
-richiedono contesto centralizzato. Il perimetro della parte networking e la sua
-attribuzione devono essere chiariti prima della stesura finale.
-
-### 1.6 Methodology
-
-Descrive il metodo: studio di Tracee, adattamento target-aware, sviluppo
-incrementale, validazione su Rocky Linux, test funzionali e benchmark.
-
-### 1.7 Thesis Structure
-
-Presenta sinteticamente i Capitoli 2-6. Deve essere aggiornata per ultima
-all'interno del Capitolo 1.
+Presenta quindi i Capitoli 2-6 con una lista sintetica, indicando per ciascuno
+contenuto e focus. Il Capitolo 1 non contiene research questions, una sezione
+autonoma sui contributi, una sezione di scope o una metodologia separata:
+questi elementi vengono sviluppati nei capitoli tecnici e sperimentali.
 
 ## Chapter 2 - Background and Related Work
 
@@ -170,7 +138,7 @@ quel modo. Nomi di funzioni e dettagli riga per riga appartengono al Capitolo 4.
 
 ### 4.8 Output and Structured Logging
 
-### 4.9 Containerization and Kubernetes Integration
+### 4.9 Containerization and Deployment Considerations
 
 ### 4.10 Compatibility and Verifier Challenges
 
@@ -212,13 +180,11 @@ benchmark esplorativi o interrotti.
 
 ### 6.1 Summary of the Work
 
-### 6.2 Answers to the Research Questions
+### 6.2 Main Results
 
-### 6.3 Main Results
+### 6.3 Limitations
 
-### 6.4 Limitations
-
-### 6.5 Future Work
+### 6.4 Future Work
 
 ## Appendices
 
