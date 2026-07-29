@@ -624,6 +624,20 @@ Sono stati aggiunti altri tre detector collective:
 - `kernel-module-kprobe-chain`: inizializzazione modulo kernel seguita da
   registrazione kprobe dinamica.
 
+Il motore collective e' stato successivamente generalizzato. `group_by` non
+indica piu' un campo arbitrario, ma una lista di strategie compilate:
+`process`, `process_tree`, `resource` e `cgroup`. Le strategie possono essere
+composte e tutti i componenti devono coincidere. `resource` usa esclusivamente
+`dev + inode`, quindi puo' correlare processi differenti senza usare pathname
+come identita'.
+
+Il detector `temp-script-write-exec` dimostra questo percorso correlando
+`security_file_permission` e `security_bprm_check` sullo stesso file
+temporaneo. Lo stato resta locale al nodo, con finestra massima di cinque
+secondi, pruning periodico e limite di 4096 sequenze incomplete per detector.
+`user_session` non e' implementata perche' il context non contiene un session
+ID affidabile e UID non viene trattato come sessione.
+
 Il mapping MITRE ATT&CK dichiarato nei detector YAML viene ora propagato fino
 all'output alert. Nel formato table viene mostrata una sintesi compatta, ad
 esempio:
@@ -689,8 +703,9 @@ Limitazioni residue:
   correlazione stateful multi-evento e' ancora MVP e supporta solo sequenze
   ordinate corte;
 - il dedup alert e' presente ma non ancora configurabile da CLI;
-- le correlazioni collective usano `group_by: process_tree`, ma non mantengono
-  ancora un albero processi completo o persistente;
+- le correlazioni collective supportano chiavi locali di processo, parent
+  immediato, risorsa e cgroup, ma non mantengono un albero processi completo o
+  persistente e non correlano contesto di cluster;
 - il mapping MITRE e' visibile nell'output alert, ma non e' ancora usato per
   selezionare automaticamente detector o policy.
 

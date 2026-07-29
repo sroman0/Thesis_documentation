@@ -38,6 +38,7 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [2026-07-16 - Audit registry eventi e decoder](daily/2026-07-16.md)
 - [2026-07-16 - Primo filtro UID kernel-side](daily/2026-07-16-kernel-filter.md)
 - [2026-07-24 - Ottimizzazione runtime e benchmark controllati](daily/2026-07-24.md)
+- [2026-07-29 - Correlazione locale generalizzata](daily/2026-07-29.md)
 
 ### Implementazione
 
@@ -1176,4 +1177,27 @@ non sul caso limite con ogni hook pubblico contemporaneamente attivo.
 - [Diario dettagliato del giorno](daily/2026-07-24.md)
 - [Misurazione prestazioni](implementation/performance.md)
 - [Lifecycle userspace e autoload](implementation/userspace-lifecycle.md)
+- [Detector YAML e alert correlati](next-steps/detectors-and-correlations.md)
+
+## 2026-07-29 - Correlazione locale generalizzata
+
+`group_by` viene ora compilato in un piano detector-specifico. Sono
+implementate correlazioni `process`, `process_tree`, `resource` basata su
+`dev:inode`, `cgroup` e chiavi composite in cui tutti i componenti devono
+corrispondere.
+
+La validazione rifiuta strategie sconosciute, duplicate o incompatibili con gli
+eventi dichiarati. La sintassi legacy `pid`/`host_pid` viene normalizzata a
+`process`; `user_session` resta differita perche' il modello evento non contiene
+un session ID affidabile.
+
+Lo stato conserva pruning e finestra massima di cinque secondi ed e' limitato a
+4096 sequenze incomplete per detector. Il nuovo detector
+`temp-script-write-exec` dimostra correlazione della stessa risorsa tra
+processi diversi usando `security_file_permission` e `security_bprm_check`.
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-07-29.md)
+- [Correlazione locale dei detector](implementation/correlation.md)
 - [Detector YAML e alert correlati](next-steps/detectors-and-correlations.md)

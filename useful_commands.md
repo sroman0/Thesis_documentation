@@ -180,3 +180,28 @@ sudo cat /etc/passwd
 
 Output atteso: un alert `privilege-sensitive-file-chain` con `events=2`,
 campo `sequence=...` e campo compatto `mitre=...`.
+
+- Per testare la correlazione file `dev:inode` tra eventi:
+
+```bash
+sudo ./dist/project \
+  --policy rules/policies/temp-script-write-exec.yaml \
+  --detectors rules/detectors/temp_script_write_exec.yaml \
+  --alerts-only \
+  --alerts-output table \
+  --log-level error
+```
+
+In un secondo terminale:
+
+```bash
+script="$(mktemp /tmp/vesuvius-resource-XXXXXX.sh)"
+printf '#!/bin/sh\nid >/dev/null\n' > "$script"
+chmod +x "$script"
+"$script"
+rm -f "$script"
+```
+
+Il detector usa i path soltanto come condizioni restrittive. La correlazione
+richiede che `security_file_permission` e `security_bprm_check` espongano lo
+stesso device e inode.

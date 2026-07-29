@@ -341,8 +341,14 @@ microbenchmark di sviluppo e non dimostrano da soli il rispetto del target
 `<5%`: il profilo `collective` deve essere nuovamente misurato per 120 secondi,
 senza interruzioni, usando lo stesso workload dei test precedenti.
 
-Il prossimo costo da isolare e' `groupKeys()`: oggi normalizza ancora i campi
-`group_by` e costruisce slice e stringhe temporanee per ogni evento.
+Dal 29 luglio i nomi `group_by` vengono compilati una volta in un piano di
+correlazione. La hot path costruisce soltanto i componenti necessari della
+chiave corrente. La mappa delle sequenze incomplete e' inoltre limitata a 4096
+entry per detector; oltre il limite viene espulsa la sequenza piu' vecchia.
+
+L'introduzione di `resource`, `cgroup` e chiavi composite non dimostra da sola
+il rispetto del target `<5%`. Il profilo `collective` deve essere rieseguito con
+il nuovo detector `temp-script-write-exec` e con un workload ripetibile.
 
 Per il risultato del 14 luglio, i punti critici piu' probabili lato userspace
 sono:
@@ -614,6 +620,32 @@ Se `avg_cpu` supera stabilmente il `5%`, mitigare in questo ordine:
 3. disabilitare temporaneamente detector stateful o ridurre la finestra;
 4. evitare eventi ad alto volume come `security_file_open` quando non necessari;
 5. valutare kernel-side filtering solo dopo aver isolato il collo di bottiglia.
+
+## Benchmark della correlazione generalizzata
+
+Il 29 luglio 2026 e' stato eseguito il profilo `collective` dopo
+l'introduzione delle strategie di correlazione `process`, `process_tree`,
+`resource`, `cgroup` e delle chiavi composite:
+
+```bash
+DURATION_SECONDS=120 \
+WARMUP_SECONDS=10 \
+CPU_THRESHOLD=5.0 \
+PROFILES=collective \
+make benchmark-suite
+```
+
+Risultato:
+
+| Profilo | CPU media | P95 | Picco | RSS massimo | Thread massimi | Esito |
+|---|---:|---:|---:|---:|---:|---|
+| `collective` | `3.40%` | `4.53%` | `5.64%` | `58772 KiB` | 7 | PASS |
+
+La media e il P95 sono inferiori al target del 5% di un core. Un campione ha
+raggiunto il `5.64%`, quindi il risultato conferma il target medio per questa
+run e questo profilo, non un limite rigido applicabile a ogni istante o carico.
+I risultati completi sono stati prodotti in
+`demo_project/tmp/benchmarks/20260729T020649Z`.
 
 ## Stato del benchmark automatizzato
 

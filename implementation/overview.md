@@ -49,8 +49,9 @@ policy paths / detector paths
 I componenti sono testati in isolamento e il wiring MVP e' inserito nel loop
 eBPF principale: detector YAML, engine e alert printer sono collegati al runtime
 eventi. Il detector engine applica anche un dedup temporale breve sugli alert
-ripetuti. Resta fuori solo la correlazione stateful avanzata tra piu' eventi,
-che andra' centralizzata nello stesso engine.
+ripetuti e correla sequenze locali tramite identita' di processo, parent
+immediato, risorsa file o cgroup. Restano fuori correlazione contestuale di
+cluster, sessioni utente e process tree persistente.
 
 ## Componenti principali
 
@@ -195,6 +196,9 @@ Completato per MVP:
 - dedup temporale degli alert ripetuti nel detector engine;
 - condizioni YAML compilate al caricamento e pruning periodico dello stato dei
   detector collective;
+- piani `group_by` compilati con strategie `process`, `process_tree`,
+  `resource`, `cgroup` e chiavi composite;
+- limite di 4096 sequenze incomplete per detector;
 - primo detector collective MVP con sequenza
   `security_task_fix_setuid -> sched_process_exec`;
 - modalita' `--alerts-only` per stampare solo alert senza rimuovere gli eventi
@@ -252,6 +256,8 @@ Manca ancora:
 - una correlazione process-tree persistente completa: oggi `group_by:
   process_tree` correla stesso processo e parent-child usando il context locale
   dell'evento, ma non mantiene un grafo processi globale;
+- `user_session`: il context non contiene un audit/session ID affidabile e UID
+  non viene usato come sostituto;
 - supporto YAML per operatori piu' espressivi, ad esempio bitmask e range;
 - eventuale configurazione esplicita della finestra di dedup alert, se i test
   reali mostrano che il default di 5 secondi e' troppo aggressivo o troppo
@@ -279,4 +285,5 @@ eventi.
 - [Hook implementati](hooks.md)
 - [Docker nel progetto](docker.md)
 - [Misurazione prestazioni](performance.md)
+- [Correlazione locale dei detector](correlation.md)
 - [Prossimi step del tool](../next-steps/README.md)

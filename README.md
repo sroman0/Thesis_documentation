@@ -9,7 +9,8 @@ materiale per la tesi.
 Stato corrente: il tool ha una pipeline eBPF/userspace operativa, un layer
 policy/detector YAML collegato al runtime, output separato per eventi e alert,
 logging runtime con zap, dedup temporale degli alert ripetuti, primi detector
-collective con `process_tree` locale, metadati MITRE visibili negli alert,
+collective con correlazione locale `process`, `process_tree`, `resource` e
+`cgroup`, chiavi composite, metadati MITRE visibili negli alert,
 selezione policy-driven di autoload/attach, filtro UID kernel-side minimale e
 suite benchmark multi-profilo. Le prossime attivita' principali riguardano
 misura del rate per evento, costo kernel-side e ulteriori filtri derivati dalle
@@ -36,6 +37,7 @@ policy.
 - [Output](implementation/output.md)
 - [Docker](implementation/docker.md)
 - [Performance](implementation/performance.md)
+- [Correlazione locale dei detector](implementation/correlation.md)
 - [Sintesi ultimi hook implementati](implementation/recent-hooks-summary.md)
 
 ## Prossimi step

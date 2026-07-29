@@ -103,9 +103,8 @@ steps:
 
 Questo detector produce un alert quando una transizione a effective UID root e'
 seguita da una esecuzione come UID 0 entro una finestra breve. La chiave
-`process_tree` e' piu' stretta della vecchia chiave demo `global`: correla
-eventi dello stesso processo o di una relazione parent-child usando solo il
-contesto locale dell'evento.
+`process_tree` correla eventi dello stesso processo o di una relazione
+parent-child immediata usando solo il contesto locale dell'evento.
 
 Il parser dei detector valida ora i campi `group_by` durante il caricamento.
 Questo evita configurazioni ambigue: se un detector usa una chiave non ancora
@@ -178,19 +177,17 @@ state[detector][group_key]
   matched_events[]
 ```
 
-`group_key` puo' essere:
+`group_key` viene costruita da una o piu' strategie:
 
-- `pid`;
-- `tid`;
-- `uid`;
-- `comm`;
-- `host_pid`;
-- `host_tid`;
-- `global`, utile solo per detector demo o segnali ravvicinati dove la stessa
-  catena puo' attraversare PID diversi;
-- `process_tree`, implementato come correlazione locale tra processo corrente e
-  parent tramite `host_pid`, `host_ppid`, `start_time` e `parent_start_time`;
-- `container_id`, se disponibile in futuro.
+- `process`: identita' stabile `host_pid:start_time`;
+- `process_tree`: processo corrente o parent immediato;
+- `resource`: oggetto file `dev:inode`;
+- `cgroup`: identificatore cgroup locale.
+
+La lista e' componibile. Con `group_by: [cgroup, resource]` devono coincidere
+sia cgroup sia file. `comm`, pathname e UID non sono usati come identita'
+stabili. La vecchia sintassi `pid`/`host_pid` viene convertita esplicitamente a
+`process`.
 
 La prima versione usa solo group key locali. Non dipende da informazioni
 globali di cluster.
@@ -226,9 +223,9 @@ chiave dell'evento. Alla scadenza esegue la pulizia globale; `Flush()` continua
 a forzarla anche in assenza di nuovi eventi. In questo modo le finestre brevi
 restano rispettate senza pagare una scansione completa su ogni record.
 
-Il prossimo intervento prestazionale riguarda la compilazione di `group_by`:
-i nomi dei campi e i percorsi comuni `pid` e `process_tree` dovranno essere
-preparati durante `NewDetector()` per ridurre le allocazioni nella hot path.
+I componenti `group_by` vengono compilati durante `NewDetector()`, quindi la
+hot path non reinterpreta i nomi YAML. Lo stato e' limitato temporalmente e a
+4096 sequenze incomplete per detector.
 
 Detector collective correnti:
 
@@ -238,6 +235,7 @@ Detector collective correnti:
 | `privilege-sensitive-file-chain` | `security_task_fix_setuid` -> `security_file_open` | Cambio privilegi seguito da accesso root a file sensibili, con esclusione degli helper legittimi di `sudo`. |
 | `memfd-exec-chain` | `memfd_create` -> `sched_process_exec` | Creazione file anonimo in memoria seguita da exec da path memfd. |
 | `kernel-module-kprobe-chain` | `do_init_module` -> `register_kprobe` | Modulo kernel inizializzato seguito da registrazione kprobe dinamica. |
+| `temp-script-write-exec` | `security_file_permission` -> `security_bprm_check` | Script `/tmp/*.sh` scritto e poi preparato per esecuzione sullo stesso `dev:inode`. |
 
 Nota sui detector demo: alcune regole escludono helper legittimi e molto
 rumorosi, in particolare `sudo` e `unix_chkpwd`. Questa scelta riduce falsi
@@ -295,3 +293,8 @@ table leggibile durante demo e rende il JSON adatto a integrazioni SOC/SIEM.
   globali o contesto Kubernetes completo.
 - I detector dovrebbero dichiarare metadati MITRE ATT&CK quando la detection ha
   una tecnica o tattica chiaramente associabile.
+
+La strategia `user_session` resta differita: UID non e' una sessione e il
+context normalizzato non contiene ancora un audit/session ID. Dettagli, sintassi
+ed esempi sono nella
+[documentazione della correlazione locale](../implementation/correlation.md).

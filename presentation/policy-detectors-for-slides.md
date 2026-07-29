@@ -73,6 +73,7 @@ policy YAML
 | `sensitive-file-open` | `security_file_open` | Alert su apertura di file critici di identita' o access control. | medium |
 | `privileged-uid-change` | `security_task_fix_setuid` | Alert quando un processo cambia effective UID a root. | medium |
 | `privilege-exec-chain` | `security_task_fix_setuid` + `sched_process_exec` | Alert collective quando un cambio privilegi e' seguito da exec root. | high |
+| `temp-script-write-exec` | `security_file_permission` + `security_bprm_check` | Alert collective quando lo stesso `dev:inode` temporaneo viene scritto e poi preparato per l'esecuzione. | high |
 | `kernel-module-activity` | `do_init_module` | Alert su inizializzazione riuscita di un modulo kernel. | high |
 
 ## Mapping MITRE ATT&CK
@@ -143,8 +144,10 @@ Limiti:
 - i detector YAML supportano point anomaly e una prima forma di collective
   anomaly ordinata;
 - il dedup alert e' presente, ma per ora usa una finestra fissa di 5 secondi;
-- la correlazione collective usa `process_tree` locale, ma non mantiene ancora
-  un grafo processi globale persistente;
+- la correlazione collective supporta `process`, `process_tree`, `resource`,
+  `cgroup` e composizioni locali;
+- `process_tree` non mantiene un grafo globale persistente;
+- `user_session` e' differita perche' UID non identifica una sessione;
 - non ci sono ancora baseline comportamentali o contesto Kubernetes globale;
 - le anomalie contextual su intero cluster Kubernetes sono considerate fuori
   dal singolo agent e dovrebbero essere gestite da un componente centralizzato.
