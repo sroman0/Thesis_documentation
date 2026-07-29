@@ -176,11 +176,12 @@ the kernel and Go components.
 ### Contribution 3 - Declarative local detection pipeline
 
 A userspace policy and detector architecture supporting rule-defined point
-events and short collective patterns, process-aware local grouping, alert
+events and short collective patterns, configurable local grouping, alert
 deduplication and MITRE ATT&CK metadata propagation.
 
-The exact limits of `process-aware` must be stated: the system does not maintain
-a complete persistent process graph.
+The exact limits of local correlation must be stated: the system does not
+maintain a complete persistent process graph, user-session identity, or
+cluster-wide state.
 
 ### Contribution 4 - Operational and performance-oriented controls
 
@@ -207,7 +208,7 @@ met.
 ### Candidate research novelty requiring comparison
 
 - the exact combination of target-aware eBPF monitoring, declarative point and
-  collective detectors and local process-aware grouping;
+  collective detectors and configurable local grouping;
 - the architectural boundary between local point/collective detection and
   centralized contextual analysis;
 - the trade-off between a generic userspace detector engine and intentionally
@@ -397,4 +398,3 @@ the literature evidence is available.
 
 No final prose should be drafted before resolving the terminology for
 rule-based anomalies, networking attribution and benchmark scope.
-

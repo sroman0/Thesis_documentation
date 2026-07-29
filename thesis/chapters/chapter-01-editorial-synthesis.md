@@ -70,7 +70,7 @@ Lo scrittore puo' migliorare la forma, ma non ampliarne il significato.
    degli eventi.
 3. Permettere selezione tramite policy e detection locale tramite regole YAML.
 4. Supportare point events e short collective event patterns con stato bounded
-   e correlazione process-aware limitata.
+   e strategie di correlazione locale configurabili.
 5. Propagare metadata MITRE ATT&CK negli alert come classificazione e
    tracciabilita'.
 6. Valutare correttezza funzionale, overhead e impatto del primo filtro UID
@@ -92,12 +92,13 @@ output, rafforzato da controlli di coerenza tra componenti kernel e Go.
 ### C3 - Declarative local detection pipeline
 
 Una architettura userspace per policy e detector YAML che supporta point events,
-short collective patterns, grouping locale process-aware, dedup temporale e
-propagazione dei metadata MITRE ATT&CK.
+short collective patterns, grouping locale per processo, risorsa, cgroup o
+chiavi composite, dedup temporale e propagazione dei metadata MITRE ATT&CK.
 
-Il termine `process-aware` non implica un grafo processi persistente completo:
-la correlazione corrente copre stesso processo e relazioni parent-child locali
-basate sul context disponibile.
+La strategia `process_tree` non implica un grafo processi persistente completo:
+copre lo stesso processo e relazioni parent-child immediate. Le strategie
+`resource` e `cgroup` permettono invece correlazioni cross-process locali,
+senza introdurre stato distribuito o contesto Kubernetes.
 
 ### C4 - Operational and performance-oriented controls
 
@@ -114,12 +115,13 @@ non sono consolidate e le misure definitive non sono completate.
 
 Il contributo distintivo piu' difendibile e' lo studio progettuale ed empirico
 di una pipeline eBPF target-aware per un kernel enterprise meno recente,
-combinata con una detection locale dichiarativa, bounded e process-aware.
+combinata con una detection locale dichiarativa, bounded e correlabile tramite
+identita' semantiche configurabili.
 
 Una formulazione utilizzabile e':
 
 > The distinctive aspect of the work is the design and evaluation of a
-> lightweight, bounded and process-aware local detection pipeline integrated
+> lightweight, bounded and locally correlated detection pipeline integrated
 > with an eBPF monitoring agent adapted to the constraints of Rocky Linux 8's
 > 4.18-based enterprise kernel.
 

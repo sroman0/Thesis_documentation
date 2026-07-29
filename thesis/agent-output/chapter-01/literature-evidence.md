@@ -390,15 +390,15 @@ The following distinctions should be preserved when writing the chapter:
 
 ## 4. Candidate novelty assessment
 
-### N1. YAML point and collective local detectors with process-aware correlation
+### N1. YAML point and collective local detectors with configurable correlation
 
 **Classification: requiring further comparison.**
 
-The exact Vesuvius implementation may be a defensible engineering contribution, especially if it provides a generic bounded-window engine with explicit process keys and predictable memory behavior on an older enterprise kernel. However, the broad claim is not novel: Tracee has stateful multi-event signatures and process-aware scopes; Falco has declarative runtime rules; Tetragon has process and parent-process selectors. The thesis must compare semantics, extensibility, state ownership, memory bounds, false-positive controls, and resource costs.
+The exact implementation may be a defensible engineering contribution because it provides a generic bounded-window engine with compiled process, resource, cgroup and composite identities, predictable state limits, and compatibility with an older enterprise kernel. However, the broad claim of stateful or multi-event detection is not novel: Tracee has stateful multi-event signatures and process-aware scopes; Falco has declarative runtime rules; Tetragon has process and parent-process selectors. The thesis must compare semantics, extensibility, state ownership, memory bounds, false-positive controls, and resource costs.
 
 Potentially defensible formulation:
 
-> A lightweight, bounded, process-aware collective detector pipeline designed and evaluated for a node-local eBPF agent on Rocky Linux 8's 4.18-based kernel.
+> A lightweight, bounded and locally correlated collective detector pipeline designed and evaluated for a node-local eBPF agent on Rocky Linux 8's 4.18-based kernel.
 
 Evidence still required: feature matrix, detector-state algorithm, benchmark under controlled load, false-positive examples, and a precise difference from Tracee signatures.
 
@@ -487,7 +487,7 @@ No external source can establish this property for Vesuvius. Current project mea
   **Use:** supported kernels may JIT-compile accepted eBPF bytecode into native instructions; actual performance is configuration- and workload-dependent.
 
 - **Avoid:** "Vesuvius introduces collective anomaly detection for eBPF runtime security."  
-  **Use:** Vesuvius implements a bounded, process-aware collective detector model whose specific trade-offs are compared with existing stateful signatures and policy engines.
+  **Use:** The prototype implements a bounded, locally correlated collective detector model whose specific trade-offs are compared with existing stateful signatures and policy engines.
 
 - **Avoid:** "MITRE ATT&CK integration is novel."  
   **Use:** Vesuvius uses ATT&CK identifiers as interoperable alert metadata and validates their presence according to its detector contract.

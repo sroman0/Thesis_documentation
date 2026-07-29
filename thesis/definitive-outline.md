@@ -132,7 +132,7 @@ quel modo. Nomi di funzioni e dettagli riga per riga appartengono al Capitolo 4.
 
 #### 4.7.2 Point and Collective Detection
 
-#### 4.7.3 Process-Aware Correlation and Deduplication
+#### 4.7.3 Local Correlation Strategies and Deduplication
 
 #### 4.7.4 MITRE ATT&CK Metadata Propagation
 

@@ -176,7 +176,7 @@ selection and detector logic, but it does not attempt to reproduce Tracee's
 event catalogue, Falco's rule ecosystem, or Tetragon's enforcement surface. Its
 distinctive engineering focus is a compact process- and security-oriented
 prototype for a constrained Rocky Linux 8 kernel, with Go-based user-space
-normalisation, automatically activated YAML detectors, short process-aware
+normalisation, automatically activated YAML detectors, short locally correlated
 collective detection, MITRE ATT&CK-labelled alerts, and explicit performance
 measurement. These differences establish the system's position without
 requiring a claim that each mechanism is unprecedented.
@@ -215,8 +215,8 @@ than as original contributions:
 9. Associating detections with MITRE ATT&CK tactics and techniques.
 10. Maintaining detector state, consuming multiple event types, or chaining
     derived detections in a user-space engine.
-11. Using process-aware correlation keys and bounded time windows for local
-    sequence detection.
+11. Using process, resource, cgroup, or composite correlation keys and bounded
+    time windows for local sequence detection.
 12. Supporting observation-only and enforcement-oriented operating modes in
     eBPF security tooling.
 
@@ -242,7 +242,7 @@ bounded for the positioning section:
    declared event requirements, reducing manual coordination between event
    selection and detection configuration.
 6. The detector engine supports both single-event anomalies and bounded,
-   process-aware collective sequences while deliberately excluding
+   locally correlated collective sequences while deliberately excluding
    cluster-wide contextual anomaly detection from the local agent.
 7. Collective alerts preserve the ordered source-event sequence, making the
    evidence behind a match visible in table and structured output.
@@ -504,4 +504,3 @@ revision rather than to a moving development branch:
 - [Policy representation](https://github.com/aquasecurity/tracee/blob/df687a838e542d3c1e99c6f93d71e28e9e0d7d27/pkg/policy/policy.go)
 - [Kernel-side filtering](https://github.com/aquasecurity/tracee/blob/df687a838e542d3c1e99c6f93d71e28e9e0d7d27/pkg/ebpf/c/common/filtering.h)
 - [`matched_policies` event field](https://github.com/aquasecurity/tracee/blob/df687a838e542d3c1e99c6f93d71e28e9e0d7d27/pkg/ebpf/c/types.h)
-

@@ -87,7 +87,8 @@ posizionamento approvato e':
 - target Rocky Linux 8.10 con kernel enterprise 4.18 e backport;
 - contratto eventi coerente tra kernel e Go userspace;
 - policy e detector dichiarativi;
-- point detection e brevi sequenze collective process-aware;
+- point detection e brevi sequenze collective correlate localmente tramite
+  identita' di processo, risorsa, cgroup o chiavi composite;
 - stato locale e finestre temporali limitati per controllare l'overhead;
 - classificazione degli alert tramite MITRE ATT&CK.
 

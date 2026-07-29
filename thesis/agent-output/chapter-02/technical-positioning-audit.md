@@ -92,8 +92,12 @@ RHEL-compatible, 4.18, or upstream kernel.
 
 The contract has also exposed real schema-drift failures during development,
 including the earlier mismatch caused by extending `event_context_t` without
-updating the Go context size. The corrected explicit layout is evidence of a
-maintained contract, not proof that future drift is impossible.
+updating the Go context size. A later long-record regression showed that
+masking an argument offset with `ARGS_BUF_SIZE - 1` was invalid because the
+32000-byte buffer is not a power of two. Commit `163ad72` replaced that mask
+with an explicit bounds check and added a decoder regression test. These fixes
+are evidence of a maintained contract, not proof that future drift is
+impossible.
 
 **Safe academic wording**
 
@@ -108,7 +112,7 @@ maintained contract, not proof that future drift is impossible.
 - event-ID generation and registry invariants;
 - indexed argument record formats;
 - handling of strings, arrays, credentials, socket addresses, and pointers;
-- the historical schema mismatch and its fix.
+- the historical schema and long-record offset mismatches and their fixes.
 
 **Evidence still required for Chapter 5**
 
@@ -248,40 +252,48 @@ than an unqualified claim of general anomaly detection.
 - precision or false-positive observations on representative benign activity;
 - evidence that selected MITRE mappings match the tested behaviours.
 
-### 6. Process-aware short-window correlation
+### 6. Configurable local short-window correlation
 
-**Assessment: Partially verified.**
+**Assessment: Verified within explicit local bounds.**
 
 **Evidence**
 
-- `task_context_t` in `pkg/ebpf/c/types.h` carries host PID, host parent PID,
-  start time, and parent start time.
-- `pkg/detectors/yaml/detector.go`: `groupKeys`,
-  `resolveGroupValues`, `processTreeGroupValues`, and `processTreeKey`.
-- Current `process_tree` grouping compares the current process identity and,
-  when advancing a sequence, the immediate parent identity from the local event
-  context.
-- `sequenceState`, `onStatefulEvent`, `pruneExpiredStateIfDue`, and
-  `pruneExpiredState` bound local state by time.
+- `pkg/detectors/yaml/correlation.go` compiles the configured `group_by`
+  strategies before events reach the hot path.
+- `process` uses host PID and start time, while `process_tree` additionally
+  checks the immediate parent identity carried by the event context.
+- `resource` uses typed `dev` and `inode` arguments and can correlate different
+  processes accessing the same local file object.
+- `cgroup` uses the local cgroup identifier from the normalised event context.
+- Ordered `group_by` lists form composite keys whose components must all match.
+- `pkg/detectors/yaml/correlation_test.go` covers PID reuse, immediate
+  parent-child matching, cross-process resources, false resource matches,
+  cgroups, missing fields and composite keys.
+- Time-based pruning and the limit of 4096 incomplete states per detector bound
+  local retention.
 
 The implementation does not maintain a complete or persistent process tree.
 It does not correlate arbitrary descendants, reconstruct historical ancestry,
-or use cluster-wide identity. One partial sequence is stored per computed key,
-which also limits handling of overlapping sequences.
+or use cluster-wide identity. `user_session` is not silently approximated with
+UID and remains unavailable until a stable session identifier is collected.
+Resource and cgroup identities are local observations and do not represent
+Kubernetes workload identity.
 
 **Safe academic wording**
 
-> Short sequences can be correlated using stable host-process identifiers and
-> immediate parent information carried by each event. This provides bounded
-> same-process and direct parent-child correlation without maintaining a
-> persistent process graph.
+> Short sequences can be correlated through stable process identity, immediate
+> parent relationships, file-resource identity, local cgroup identity, or
+> composite combinations of these dimensions. This provides bounded local and
+> selected cross-process correlation without maintaining persistent or
+> cluster-wide state.
 
 **Defer to Chapters 3 or 4**
 
-- process key composition from host PID and start time;
-- parent-key lookup;
-- one-state-per-key behaviour;
-- sequence replacement and pruning semantics.
+- compilation of detector-specific correlation plans;
+- process and parent key composition;
+- `dev:inode` resource identity and schema validation;
+- cgroup and composite-key semantics;
+- sequence replacement, pruning and state-cap behaviour.
 
 **Evidence still required for Chapter 5**
 

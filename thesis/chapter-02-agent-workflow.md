@@ -200,7 +200,8 @@ Audit the candidate positioning claims for Section 2.5:
 - Go and libbpfgo runtime;
 - policies and YAML detectors;
 - point and bounded collective detections;
-- process-aware short-window correlation;
+- short-window local correlation by process, resource, cgroup or composite
+  identity;
 - MITRE ATT&CK metadata;
 - kernel-side UID filtering;
 - performance target and current benchmark limitations.

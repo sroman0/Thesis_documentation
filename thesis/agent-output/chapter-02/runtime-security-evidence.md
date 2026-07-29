@@ -12,7 +12,10 @@ The chapter should introduce the academic taxonomy of anomalies, but it must
 also distinguish that taxonomy from the detection method implemented by the
 prototype. The current system evaluates deterministic conditions over
 normalised runtime events. Some detectors operate on one event, while others
-match a short, ordered and process-aware sequence. The system does not learn a
+match a short, ordered and locally correlated sequence. Correlation can use a
+stable process identity, an immediate parent relationship, a file-resource
+identity, a local cgroup identity, or a composite of these dimensions. The
+system does not learn a
 model of normal behaviour, calculate an anomaly score, or claim to discover
 previously unknown anomalies.
 

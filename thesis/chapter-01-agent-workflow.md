@@ -102,7 +102,7 @@ Inspect the current implementation under /home/simone/project/demo_project and
 the stable technical documentation under /home/simone/project/documentation.
 Verify every project-specific statement proposed for Chapter 1: target kernel,
 architecture, event pipeline, hook families, policy behavior, detector
-behavior, point and collective anomalies, process-aware correlation, MITRE
+behavior, point and collective anomalies, local correlation strategies, MITRE
 metadata, kernel-side UID filtering, logging, containerization and current
 performance status.
 

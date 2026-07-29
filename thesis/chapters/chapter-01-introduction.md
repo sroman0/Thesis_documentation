@@ -101,7 +101,8 @@ Fonti interne principali:
 
 - Policy YAML per selezionare eventi e scenari.
 - Detector YAML point e collective.
-- Correlazione locale process-aware con finestre temporali brevi.
+- Correlazione locale con finestre temporali brevi e identita' configurabili
+  di processo, risorsa, cgroup o composite.
 - Dedup temporale degli alert.
 - Output eventi e alert separato, inclusa modalita' `--alerts-only`.
 - Propagazione negli alert di tactic e technique MITRE ATT&CK dichiarate dal
@@ -152,7 +153,7 @@ del fact-checker.
 2. Un contratto eventi custom con registry coerente tra eBPF, decoder e probe.
 3. Un sistema dichiarativo userspace di policy e detector YAML.
 4. Supporto a point anomalies e collective anomalies locali con correlazione
-   process-aware e finestre brevi.
+   configurabile e finestre brevi.
 5. Propagazione di tactic e technique MITRE ATT&CK negli alert.
 6. Separazione tra eventi, alert e logging diagnostico strutturato.
 7. Un primo filtro UID kernel-side per ridurre il traffico verso userspace.
@@ -163,7 +164,7 @@ del fact-checker.
 Le seguenti non devono ancora essere presentate come novelty dimostrate:
 
 - combinazione di detector YAML point e collective locali con correlazione
-  process-aware in un agent node-level;
+  bounded basata su identita' di processo, risorsa o cgroup;
 - uso esplicito di MITRE ATT&CK come contratto descrittivo degli alert e futura
   base di selezione/copertura;
 - adattamento target-aware di pattern Tracee a un kernel Rocky Linux 4.18 con
