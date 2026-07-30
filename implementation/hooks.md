@@ -1536,6 +1536,11 @@ Scopo:
 - associare socket e contesto task tramite inode map;
 - preparare informazioni utili per eventi networking piu' completi.
 
+Questi due programmi sono probe interni: non inviano un record autonomo al
+perf buffer e non compaiono in `--list-events`. Il registry li attacca tramite
+`impliedBy` quando sono richiesti da `cgroup_skb_ingress` o
+`cgroup_skb_egress`.
+
 ## Nota sul perf buffer
 
 Gli hook attuali inviano gli eventi tramite `events_perf_submit`, quindi passano

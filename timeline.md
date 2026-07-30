@@ -39,6 +39,7 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [2026-07-16 - Primo filtro UID kernel-side](daily/2026-07-16-kernel-filter.md)
 - [2026-07-24 - Ottimizzazione runtime e benchmark controllati](daily/2026-07-24.md)
 - [2026-07-29 - Correlazione locale generalizzata](daily/2026-07-29.md)
+- [2026-07-30 - Selezione policy-driven dei detector](daily/2026-07-30.md)
 
 ### Implementazione
 
@@ -85,6 +86,34 @@ L'obiettivo non e' scrivere un diario perfetto, ma accumulare materiale grezzo e
 - [Contesto operativo repository](CLAUDE.md)
 
 ## Timeline
+
+### 2026-07-30 - Selezione policy-driven dei detector
+
+Le policy possono ora selezionare i detector YAML per ID, severity, tactic,
+technique, tag e stato stateful prima della costruzione del detector engine.
+Questo rende operativo il mapping MITRE ATT&CK anche come criterio di
+attivazione, oltre che come metadato dell'alert.
+
+L'implementazione è centralizzata in `pkg/policy/detector_selector.go`. Il
+runner analizza tutte le definizioni disponibili, applica i selettori e
+costruisce soltanto i detector scelti. Le policy senza la nuova sezione
+mantengono il comportamento precedente.
+
+La validazione impedisce selettori ambigui, detector inesistenti e conflitti
+tra detector selezionati ed eventi abilitati dalla policy. È stato aggiunto il
+preset `mitre-privilege-collective.yaml` per dimostrare la selezione basata su
+`TA0004`, `T1548`, severity e tag collective.
+
+Il caso senza `--detectors` è permissivo: la policy evento resta attiva e la
+selezione detector viene saltata con warning. Nella stessa verifica sono stati
+riclassificati come interni i probe networking che alimentano mappe e contesto
+degli eventi cgroup senza emettere record autonomi.
+
+**Note collegate:**
+
+- [Diario dettagliato del giorno](daily/2026-07-30.md)
+- [Detector YAML e alert correlati](next-steps/detectors-and-correlations.md)
+- [Comandi utili](useful_commands.md)
 
 ### 2026-07-17 - Preparazione strutturale della tesi
 

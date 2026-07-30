@@ -159,6 +159,8 @@ I prossimi step piu' importanti sono:
 - rendere configurabile il dedup se i test reali lo richiedono;
 - operatori YAML piu' espressivi;
 - stato process-tree piu' robusto e misurato con benchmark;
-- selezione detector/policy e report di copertura basati su MITRE ATT&CK;
+- report di copertura e validazione semantica basati su MITRE ATT&CK; la
+  selezione detector per severity, tactic, technique, tag e stato è già
+  disponibile nelle policy;
 - benchmark per verificare overhead;
 - migliore separazione tra rumore operativo e alert realmente utili.

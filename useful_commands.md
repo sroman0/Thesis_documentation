@@ -181,6 +181,63 @@ sudo cat /etc/passwd
 Output atteso: un alert `privilege-sensitive-file-chain` con `events=2`,
 campo `sequence=...` e campo compatto `mitre=...`.
 
+- Per caricare l'intera directory dei detector ma attivare soltanto quelli
+  collective di privilege escalation selezionati dalla policy:
+
+```bash
+sudo ./dist/project \
+  --policy rules/policies/mitre-privilege-collective.yaml \
+  --detectors rules/detectors \
+  --alerts-only \
+  --alerts-output table \
+  --log-level info
+```
+
+Il log atteso include:
+
+```text
+available_detectors=... loaded_detectors=2 policy_selection=true
+```
+
+I detector selezionati sono `privilege-exec-chain` e
+`privilege-sensitive-file-chain`. Per generare le due catene:
+
+```bash
+sudo id
+sudo cat /etc/passwd
+```
+
+Con `--log-level error` il riepilogo di bootstrap non viene mostrato, ma gli
+alert continuano a essere emessi.
+
+La stessa policy può essere avviata senza un catalogo detector:
+
+```bash
+sudo ./dist/project \
+  --policy rules/policies/mitre-privilege-collective.yaml \
+  --output table \
+  --log-level info
+```
+
+In questo caso il tool applica ancora le regole evento della policy e produce
+gli eventi raw selezionati. Non costruisce il detector engine e non può
+produrre gli alert dei due detector. Il log mostra
+`detector policy selection skipped`.
+
+Un ID usato nella sezione `detectors` deve essere presente in almeno uno dei
+file YAML caricati con `--detectors`. Per esempio, passando un singolo file
+diverso:
+
+```bash
+sudo ./dist/project \
+  --policy rules/policies/mitre-privilege-collective.yaml \
+  --detectors rules/detectors/root_exec.yaml \
+  --log-level info
+```
+
+la selezione non trova i detector richiesti dai metadata e il bootstrap
+termina con `selector matched no available detector`.
+
 - Per testare la correlazione file `dev:inode` tra eventi:
 
 ```bash

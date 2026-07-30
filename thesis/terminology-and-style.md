@@ -25,7 +25,7 @@
 | Sequenza correlata | `collective anomaly` |
 | Contesto non disponibile localmente | `contextual anomaly` |
 | Canale operativo corrente | `perf buffer` |
-| Canale mantenuto per versatilita' | `ring buffer` |
+| Canale alternativo discusso nel background | `BPF ring buffer` |
 
 ## Distinzioni da preservare
 
@@ -81,3 +81,5 @@ compatibilita' Rocky Linux o controllo dell'overhead.
   un nome accademico ufficiale del tool.
 - Il Capitolo 1 usa solo `section`, senza `subsection`, per mantenere una
   introduzione narrativa e proporzionata.
+- Il runtime corrente usa il perf buffer. Il ring buffer e' materiale di
+  background o lavoro futuro e non deve essere descritto come implementato.

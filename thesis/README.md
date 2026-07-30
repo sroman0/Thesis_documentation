@@ -26,6 +26,8 @@ qui fino alla loro risoluzione.
 - [Workflow e prompt degli agenti per il Capitolo 1](chapter-01-agent-workflow.md)
 - [Dossier preparatorio del Capitolo 2](chapters/chapter-02-background-related-work.md)
 - [Workflow e prompt degli agenti per il Capitolo 2](chapter-02-agent-workflow.md)
+- [Dossier preparatorio del Capitolo 3](chapters/chapter-03-requirements-system-design.md)
+- [Workflow e prompt degli agenti per il Capitolo 3](chapter-03-agent-workflow.md)
 - [Spunti di scrittura storici](writing-notes.md)
 
 ## Regole operative

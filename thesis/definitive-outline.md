@@ -46,7 +46,7 @@ contenuto e focus. Il Capitolo 1 non contiene research questions, una sezione
 autonoma sui contributi, una sezione di scope o una metodologia separata:
 questi elementi vengono sviluppati nei capitoli tecnici e sperimentali.
 
-## Chapter 2 - Background and Related Work
+## Chapter 2 - Background and eBPF architecture
 
 ### 2.1 Linux Kernel Observability
 
@@ -81,25 +81,51 @@ come il sistema proposto le implementa.
 
 ## Chapter 3 - Requirements and System Design
 
-### 3.1 Target Environment and Assumptions
+### 3.1 Design Goals and Constraints
 
-### 3.2 Functional Requirements
+#### 3.1.1 Target Environment and Compatibility Assumptions
 
-### 3.3 Non-Functional Requirements
+#### 3.1.2 Functional Requirements
 
-### 3.4 Overall Architecture
+#### 3.1.3 Non-Functional and Operational Requirements
 
-### 3.5 Kernel-Space Design
+### 3.2 Overall System Architecture
 
-### 3.6 Event Model and Transport Design
+#### 3.2.1 Kernel-Space and User-Space Responsibilities
 
-### 3.7 Userspace Pipeline Design
+#### 3.2.2 End-to-End Event Lifecycle
 
-### 3.8 Policy and Detector Architecture
+### 3.3 Kernel-Space Collection Design
 
-### 3.9 Deployment Model
+#### 3.3.1 Hook Selection and Logical Events
 
-### 3.10 Main Design Decisions
+#### 3.3.2 Early Event Selection and Filtering
+
+### 3.4 Event Contract and Transport Design
+
+#### 3.4.1 Stable Binary Event Contract
+
+#### 3.4.2 Perf-Buffer Transport and Failure Boundaries
+
+### 3.5 User-Space Runtime Design
+
+#### 3.5.1 Loading, Attachment and Runtime Lifecycle
+
+#### 3.5.2 Decoding, Normalisation and Event Registration
+
+#### 3.5.3 Event Output, Alert Output and Operational Logging
+
+### 3.6 Policy and Detection Architecture
+
+#### 3.6.1 Policy-Based Event Scope
+
+#### 3.6.2 Point and Collective Detectors
+
+#### 3.6.3 Bounded Local Correlation
+
+#### 3.6.4 Alert Evidence and MITRE ATT&CK Metadata
+
+### 3.7 Design Decisions and Scope Boundaries
 
 Il Capitolo 3 spiega cosa deve fare il sistema e perche' e' stato progettato in
 quel modo. Nomi di funzioni e dettagli riga per riga appartengono al Capitolo 4.

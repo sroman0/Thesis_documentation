@@ -229,9 +229,11 @@ Gli step piu' impattati sono:
 - `pkg/output/alert.go`
 - documentazione e report finale
 
-La modifica iniziale su `pkg/detectors/definition.go` e' stata completata.
-Le prossime modifiche piu' importanti riguardano `pkg/policy`, per permettere
-selezione threat-informed, e un eventuale comando/report di coverage.
+La modifica su `pkg/detectors/definition.go` e la selezione threat-informed in
+`pkg/policy` sono state completate. Le policy possono selezionare detector per
+ID, severity, tactic, technique, tag e stato. Il prossimo passo MITRE è un
+comando di spiegazione/coverage e, successivamente, la validazione contro un
+dataset locale versionato.
 
 ## Domande Da Portare In Call
 
@@ -240,8 +242,8 @@ selezione threat-informed, e un eventuale comando/report di coverage.
    ad altri domini ATT&CK in futuro?
 3. I detector devono avere obbligatoriamente una tecnica MITRE oppure possiamo
    accettare detector `unmapped`?
-4. La policy deve selezionare per event name, per detector ID, per tactic,
-   per technique, oppure per tutte queste dimensioni?
+4. La selezione per tutte queste dimensioni è implementata; va deciso se
+   aggiungere preset aziendali o mantenerla solo dichiarativa.
 5. Quale versione ATT&CK vogliamo dichiarare come riferimento iniziale?
 6. Vogliamo una validazione solo sintattica degli ID o una validazione contro
    un dataset MITRE locale?
@@ -256,7 +258,7 @@ selezione threat-informed, e un eventuale comando/report di coverage.
 La raccomandazione aggiornata e' continuare MITRE in modo progressivo:
 
 1. mantenere `ThreatMetadata` nei detector YAML come sorgente principale;
-2. permettere alle policy di selezionare detector per tactic/technique;
+2. mantenere la selezione policy per tactic/technique già implementata;
 3. generare una vista di coverage ATT&CK dai detector disponibili;
 4. introdurre, solo dopo, validazione contro dataset MITRE locale.
 

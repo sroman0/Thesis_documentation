@@ -49,6 +49,66 @@ detector. Le metriche `DetectorMatched`, `DetectorInvoked` e
 debug. In particolare, `DetectorSkipped` misura quante valutazioni sono state
 evitate grazie all'indice.
 
+## Selezione dei detector tramite policy
+
+Quando `--detectors` indica una directory, una policy può restringere il
+catalogo prima della costruzione del detector engine:
+
+```yaml
+detectors:
+  include:
+    severities: [high, critical]
+    tactics: [TA0004]
+    techniques: [T1548]
+    tags: [collective]
+    stateful: true
+  exclude:
+    ids: [known-noisy-detector]
+```
+
+Le liste della stessa proprietà usano OR. Proprietà differenti usano AND:
+nell'esempio un detector deve avere severity high o critical, essere mappato a
+`TA0004` e `T1548`, avere il tag `collective` ed essere stateful. `exclude`
+prevale all'interno della policy.
+
+Il filtro viene applicato una volta all'avvio:
+
+```text
+catalogo YAML
+  -> definizioni validate
+  -> selezione metadata della policy
+  -> costruzione dei soli detector scelti
+  -> registry e dispatcher
+```
+
+Non è quindi un controllo ripetuto per ogni evento. Se nessuna policy attiva
+contiene `detectors`, resta il comportamento storico e viene caricato l'intero
+catalogo indicato dalla CLI. Quando almeno una policy usa il selettore, le
+policy senza tale sezione continuano a filtrare eventi ma non aggiungono
+detector alla selezione. Ogni detector scelto deve avere tutti i propri eventi
+inclusi nelle regole della stessa policy; un conflitto interrompe il bootstrap
+con un errore.
+
+Se la policy contiene `detectors` ma la CLI non fornisce `--detectors`, il tool
+parte comunque. Le regole evento della policy restano attive, mentre la
+selezione detector viene saltata e il runtime emette un warning:
+
+```text
+detector policy selection skipped
+reason="no detector catalog was configured with --detectors"
+```
+
+Un ID detector viene considerato esistente solo se compare nelle definizioni
+YAML caricate dai path passati a `--detectors`. Il bootstrap costruisce il
+catalogo dagli `id` dei file analizzati e valida contro quel catalogo gli ID
+usati in `include` ed `exclude`. Non viene consultato un registry globale:
+un ID può quindi essere valido in una directory e mancare in un catalogo più
+ristretto.
+
+Questa feature usa metadata MITRE dichiarati localmente nei detector. Non è
+ancora un report di coverage e non verifica la semantica degli ID contro un
+dataset ATT&CK scaricato.
+
 Il dedup e' intenzionalmente locale e corto:
 
 ```text

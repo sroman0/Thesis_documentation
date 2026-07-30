@@ -145,8 +145,9 @@ La copertura attuale include gruppi diversi:
 - networking security hooks: `security_socket_create`,
   `security_socket_listen`, `security_socket_connect`,
   `security_socket_accept`, `security_socket_bind`,
-  `security_socket_setsockopt`, `security_socket_recvmsg`,
-  `security_socket_sendmsg`.
+  `security_socket_setsockopt`; `security_socket_recvmsg` e
+  `security_socket_sendmsg` restano probe interni di attribuzione per gli
+  eventi cgroup e non sono eventi pubblici autonomi.
 
 Gli handle sono gestiti tramite `libbpfgo`. La selezione `--events` evita di
 attaccare programmi non richiesti, quindi il costo runtime dipende anche dal
@@ -651,6 +652,24 @@ framework, versione, tattiche, tecniche, data source e data component. Questa
 scelta rende l'output leggibile in demo, ma anche integrabile in sistemi SOC,
 SIEM o reportistica tecnica.
 
+Le policy possono inoltre usare questi metadata per restringere il catalogo
+passato con `--detectors`. La sezione `detectors` supporta ID, severity,
+tactic, technique, tag e stato stateful. Il filtro viene compilato durante il
+bootstrap, prima della costruzione di registry, dispatcher e stato collective.
+I detector esclusi non vengono istanziati.
+
+Le liste della stessa proprietà hanno semantica OR; proprietà differenti hanno
+semantica AND. `exclude` prevale su `include` all'interno della singola policy,
+mentre più policy attive compongono i detector scelti tramite unione. Le policy
+prive della sezione mantengono il comportamento precedente.
+
+Gli ID espliciti vengono verificati contro il catalogo ricavato dai detector
+YAML forniti alla CLI. Se una policy contiene un selettore ma non viene passato
+`--detectors`, le regole evento restano operative e soltanto la selezione
+detector viene saltata con un warning. Se invece esiste un catalogo ma un ID
+richiesto non è presente, il bootstrap fallisce per intercettare typo o
+deployment incompleti.
+
 Per rendere i test meno ambigui, la directory `rules/policies` e' stata poi
 estesa con policy preset per scenario:
 
@@ -659,6 +678,7 @@ demo-detectors.yaml
 full-demo.yaml
 collective-privilege-exec.yaml
 collective-local-chains.yaml
+mitre-privilege-collective.yaml
 point-process-security.yaml
 sensitive-file-access.yaml
 kernel-module-activity.yaml
@@ -706,8 +726,9 @@ Limitazioni residue:
 - le correlazioni collective supportano chiavi locali di processo, parent
   immediato, risorsa e cgroup, ma non mantengono un albero processi completo o
   persistente e non correlano contesto di cluster;
-- il mapping MITRE e' visibile nell'output alert, ma non e' ancora usato per
-  selezionare automaticamente detector o policy.
+- il mapping MITRE è visibile nell'output alert e può selezionare detector
+  all'avvio; manca ancora una vista automatica di coverage ATT&CK e la
+  validazione semantica rispetto a una release ufficiale.
 
 Il decoder supporta inoltre array di stringhe, payload NUL-delimited,
 sockaddr, credenziali strutturate e puntatori. Gli eventi
@@ -756,6 +777,13 @@ Il campo `internal` definisce la visibilita' pubblica, mentre `impliedBy`
 definisce la dipendenza di attach. La selezione restituisce quindi separatamente
 il set degli eventi esposti e l'elenco dei programmi da caricare: un probe
 interno puo' essere necessario nel secondo senza comparire nel primo.
+
+I probe networking di attribuzione, tra cui `sock_alloc_file`,
+`security_sk_clone`, gli helper `security_socket_recvmsg/sendmsg` e
+`cgroup_bpf_run_filter_skb`, sono classificati contemporaneamente come
+`internal` e `impliedBy` dagli eventi cgroup. Non producono record normali
+autonomi, ma vengono caricati quando servono a costruire il contesto degli
+eventi pubblici.
 
 Il contratto ora e' coperto anche da test automatici:
 
@@ -826,8 +854,8 @@ La roadmap dettagliata e' ora raccolta in
 5. rafforzare la correlazione `process_tree` con stato parent-child persistente
    e benchmark dedicati;
 6. mantenere catene di correlazione corte e leggibili;
-7. usare MITRE ATT&CK non solo come metadato di output, ma anche per selezione
-   policy/detector e report di copertura;
+7. estendere la selezione detector MITRE già implementata con un report di
+   coverage ATT&CK e una modalità di spiegazione della policy;
 8. estendere con cautela i filtri kernel-side minimi dopo la prima allowlist
    UID, mantenendo policy e detector in userspace;
 9. continuare a misurare CPU, volume eventi e riduzione rumore.

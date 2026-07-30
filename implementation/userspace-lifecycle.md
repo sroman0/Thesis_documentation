@@ -159,8 +159,21 @@ Se `--events` non viene passato, il runtime abilita tutti gli eventi supportati.
 `comm` decodificato corrisponde ai nomi indicati.
 
 Le policy e i detector vengono preparati prima dell'avvio eBPF. Il runner
-carica le policy nel `policy.Manager`, carica i detector YAML, costruisce il
-`detectors.Engine` e passa entrambi a `pkg/ebpf/project.go`.
+carica le policy nel `policy.Manager`, analizza le definizioni detector YAML,
+applica gli eventuali selettori metadata dichiarati dalle policy e costruisce
+il `detectors.Engine` soltanto con i detector scelti. Senza un selettore
+detector, il comportamento resta compatibile e vengono caricati tutti i YAML
+indicati dalla CLI.
+
+La selezione supporta ID, severity, tactic/technique MITRE, tag e stato
+stateful. Avviene nel bootstrap, quindi non aggiunge matching metadata alla hot
+path di ogni evento e non alloca stato per detector esclusi.
+
+Il catalogo degli ID non è globale: viene costruito dalle definizioni presenti
+nei file o nelle directory ricevute tramite `--detectors`. Gli ID espliciti
+della policy vengono validati contro questo insieme. Se `--detectors` non viene
+fornito, il runner mantiene attivo il `policy.Manager`, salta la selezione
+detector e registra un warning; non crea un engine detector vuoto.
 
 Durante questa fase il runner valida anche i nomi evento dichiarati da policy e
 detector contro `pkg/events/spec.go`. Se un file YAML usa un evento non presente
@@ -207,6 +220,12 @@ l'attach. Solo le dipendenze interne risolte da `Select()` restano in autoload.
 Non vengono aggiunte al set degli eventi pubblici e quindi non diventano
 selezionabili con `--events`. Una policy con `include` vuota significa "tutti
 gli eventi pubblici" e riduce molto meno il set di programmi.
+
+I programmi networking `sock_alloc_file`, `sock_alloc_file_ret`,
+`security_sk_clone`, `security_socket_recvmsg`, `security_socket_sendmsg` e
+`cgroup_bpf_run_filter_skb` seguono questa regola: sono `internal` perché
+mantengono contesto e mappe, e hanno `impliedBy` perché devono essere attaccati
+quando viene selezionato ingress o egress cgroup.
 
 Il registry distingue ora due categorie:
 

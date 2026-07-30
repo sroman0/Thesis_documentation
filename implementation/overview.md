@@ -262,8 +262,7 @@ Manca ancora:
 - eventuale configurazione esplicita della finestra di dedup alert, se i test
   reali mostrano che il default di 5 secondi e' troppo aggressivo o troppo
   permissivo;
-- uso del mapping MITRE anche per selezione policy/detector e report di
-  copertura ATT&CK;
+- report di copertura ATT&CK e validazione semantica contro un dataset MITRE;
 - arricchimento dell'output con mapping di syscall, alcune opzioni `prctl`,
   socket option e costanti driver-specific;
 - filtri kernel-side minimi dopo la stabilizzazione del layer policy/detector
