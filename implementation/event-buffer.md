@@ -255,6 +255,7 @@ del processo userspace.
 
 ## Collegamenti
 
+- [Approfondimento: scelta tra perf buffer e ring buffer](perf-buffer-vs-ring-buffer.html)
 - [Timeline](../timeline.md)
 - [Debugging verifier](../debugging/ebpf-verifier.md)
 - [Overview implementazione](overview.md)

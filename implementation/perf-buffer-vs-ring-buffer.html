@@ -1,0 +1,716 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scelta del transport eBPF: perf buffer e ring buffer</title>
+  <style>
+    :root {
+      --ink: #18202a;
+      --muted: #596474;
+      --line: #d9dee6;
+      --paper: #ffffff;
+      --canvas: #eef1f4;
+      --accent: #005f73;
+      --accent-soft: #e8f3f4;
+      --warning: #805400;
+      --warning-soft: #fff6dd;
+      --code: #f4f6f8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--canvas);
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 17px;
+      line-height: 1.68;
+    }
+
+    main {
+      width: min(980px, calc(100% - 32px));
+      margin: 32px auto;
+      padding: 64px 72px;
+      background: var(--paper);
+      box-shadow: 0 8px 28px rgba(20, 30, 40, 0.09);
+    }
+
+    h1, h2, h3, th, .eyebrow, .verdict, nav {
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    h1 {
+      max-width: 760px;
+      margin: 8px 0 18px;
+      font-size: 44px;
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 54px 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--line);
+      font-size: 26px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 30px 0 8px;
+      font-size: 19px;
+      letter-spacing: 0;
+    }
+
+    p { margin: 10px 0 16px; }
+
+    a { color: var(--accent); }
+
+    code, pre {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 0.9em;
+    }
+
+    code {
+      padding: 0.1em 0.28em;
+      border-radius: 3px;
+      background: var(--code);
+    }
+
+    pre {
+      overflow-x: auto;
+      margin: 18px 0;
+      padding: 18px 20px;
+      border-left: 4px solid var(--accent);
+      background: var(--code);
+      line-height: 1.5;
+    }
+
+    pre code { padding: 0; background: transparent; }
+
+    table {
+      width: 100%;
+      margin: 22px 0;
+      border-collapse: collapse;
+      font-size: 0.94em;
+    }
+
+    th, td {
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th { background: #f1f4f6; }
+
+    ul, ol { padding-left: 24px; }
+    li { margin: 6px 0; }
+
+    .eyebrow {
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 21px;
+      line-height: 1.5;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 22px;
+      margin: 28px 0 36px;
+      padding: 14px 0;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 14px;
+    }
+
+    .verdict, .note, .caution {
+      margin: 24px 0;
+      padding: 18px 20px;
+      border-radius: 4px;
+    }
+
+    .verdict {
+      border-left: 5px solid var(--accent);
+      background: var(--accent-soft);
+      font-weight: 700;
+    }
+
+    .note {
+      border: 1px solid #b9d7db;
+      background: var(--accent-soft);
+    }
+
+    .caution {
+      border: 1px solid #ecd591;
+      background: var(--warning-soft);
+      color: #573b00;
+    }
+
+    nav {
+      margin: 32px 0;
+      padding: 18px 22px;
+      border: 1px solid var(--line);
+      background: #fafbfc;
+      font-size: 15px;
+    }
+
+    nav strong { display: block; margin-bottom: 6px; }
+    nav ol { margin: 0; columns: 2; }
+
+    .timeline {
+      margin: 20px 0;
+      padding-left: 0;
+      list-style: none;
+      border-left: 3px solid var(--line);
+    }
+
+    .timeline li {
+      position: relative;
+      margin: 0 0 18px 22px;
+    }
+
+    .timeline li::before {
+      position: absolute;
+      top: 0.55em;
+      left: -29px;
+      width: 11px;
+      height: 11px;
+      border: 3px solid var(--paper);
+      border-radius: 50%;
+      background: var(--accent);
+      content: "";
+    }
+
+    .date {
+      color: var(--accent);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 0.86em;
+      font-weight: 700;
+    }
+
+    .source-list li { margin-bottom: 12px; }
+
+    .thesis-draft {
+      padding: 24px 28px;
+      border: 1px solid var(--line);
+      background: #fbfbfa;
+    }
+
+    .small { color: var(--muted); font-size: 0.9em; }
+
+    @media (max-width: 720px) {
+      main { width: 100%; margin: 0; padding: 32px 20px; box-shadow: none; }
+      h1 { font-size: 34px; }
+      nav ol { columns: 1; }
+      table { display: block; overflow-x: auto; }
+    }
+
+    @media print {
+      @page { size: A4; margin: 18mm; }
+      body { background: #fff; font-size: 11pt; }
+      main { width: auto; margin: 0; padding: 0; box-shadow: none; }
+      h1 { font-size: 28pt; }
+      h2 { break-after: avoid; font-size: 17pt; }
+      h3 { break-after: avoid; }
+      table, pre, .note, .caution, .verdict, .thesis-draft { break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+      a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 8pt; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">Nota architetturale per la tesi</div>
+    <h1>Perché il progetto usa il perf buffer invece del BPF ring buffer</h1>
+    <p class="subtitle">
+      Ricostruzione della decisione tecnica, dei vincoli del kernel target e dei
+      compromessi accettati nel canale di trasporto kernel/userspace.
+    </p>
+    <div class="meta">
+      <span><strong>Stato:</strong> decisione implementata</span>
+      <span><strong>Data decisione finale:</strong> 24 luglio 2026</span>
+      <span><strong>Documento aggiornato:</strong> 3 agosto 2026</span>
+      <span><strong>Target:</strong> Rocky Linux 8.10, kernel RHEL-compatible 4.18</span>
+    </div>
+  </header>
+
+  <div class="verdict">
+    Il perf buffer non è stato scelto perché sia universalmente superiore al
+    ring buffer. È stato scelto perché, per questo progetto, offre il miglior
+    equilibrio tra compatibilità con il kernel target, coerenza con il codice
+    esistente, osservabilità degli eventi persi e semplicità operativa.
+  </div>
+
+  <nav aria-label="Indice del documento">
+    <strong>Indice</strong>
+    <ol>
+      <li><a href="#terminologia">Terminologia</a></li>
+      <li><a href="#contesto">Contesto del progetto</a></li>
+      <li><a href="#evoluzione">Evoluzione della pipeline</a></li>
+      <li><a href="#confronto">Confronto tecnico</a></li>
+      <li><a href="#decisione">Motivazioni della decisione</a></li>
+      <li><a href="#implementazione">Implementazione corrente</a></li>
+      <li><a href="#limiti">Limiti e rischi residui</a></li>
+      <li><a href="#tesi">Testo riutilizzabile nella tesi</a></li>
+      <li><a href="#verifica">Comandi di verifica</a></li>
+      <li><a href="#fonti">Fonti</a></li>
+    </ol>
+  </nav>
+
+  <section id="terminologia">
+    <h2>1. Terminologia</h2>
+    <p>
+      In ambito eBPF, l'espressione <em>perf buffer</em> indica normalmente una
+      mappa <code>BPF_MAP_TYPE_PERF_EVENT_ARRAY</code> usata con la helper
+      <code>bpf_perf_event_output()</code>. Ogni CPU scrive nel proprio perf
+      ring buffer e lo userspace consuma i record attraverso l'infrastruttura
+      perf.
+    </p>
+    <p>
+      Il <em>BPF ring buffer</em>, invece, è la mappa
+      <code>BPF_MAP_TYPE_RINGBUF</code>, progettata come coda MPSC condivisa tra
+      più CPU e usata tramite helper come <code>bpf_ringbuf_output()</code> o
+      <code>bpf_ringbuf_reserve()</code>/<code>bpf_ringbuf_submit()</code>.
+    </p>
+    <div class="note">
+      <strong>Precisazione importante.</strong> Anche il perf buffer utilizza
+      internamente buffer circolari. In questo documento, “ring buffer” indica
+      però sempre la specifica mappa eBPF <code>BPF_MAP_TYPE_RINGBUF</code>, non
+      il generico concetto di memoria circolare.
+    </div>
+  </section>
+
+  <section id="contesto">
+    <h2>2. Contesto del progetto</h2>
+    <p>
+      Il tool deve operare su Rocky Linux 8.10 con kernel
+      <code>4.18.0-553.109.1.el8_10.x86_64</code>. In una distribuzione enterprise
+      il numero di versione non descrive da solo ogni funzionalità, perché Red
+      Hat applica backport selettivi. Non è tuttavia corretto assumere la
+      presenza di una feature upstream più recente senza verificarla sul target.
+    </p>
+    <p>
+      La mappa <code>BPF_MAP_TYPE_RINGBUF</code> è stata introdotta nell'upstream
+      Linux dopo la linea 4.18, con il
+      <a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=457f44363a88">commit 457f44363a88</a>.
+      La scelta compatibile, quindi, è non rendere il
+      funzionamento del tool dipendente da un eventuale backport specifico. Il
+      percorso perf era già disponibile nella generazione di kernel del target:
+      la documentazione Linux 4.20 descrive infatti
+      <code>bpf_perf_event_output()</code> come interfaccia efficiente per lo
+      streaming di dati BPF verso lo userspace.
+    </p>
+    <p>
+      Il transport è inoltre una parte infrastrutturale: tutti gli hook, il
+      decoder, i filtri e i detector dipendono dalla sua affidabilità. Un
+      requisito di compatibilità incerto in questo punto avrebbe un impatto
+      maggiore rispetto a una feature opzionale.
+    </p>
+  </section>
+
+  <section id="evoluzione">
+    <h2>3. Evoluzione della pipeline</h2>
+    <p>
+      La decisione finale non è stata presa in astratto. È emersa da una fase di
+      migrazione osservata direttamente nel progetto.
+    </p>
+    <ol class="timeline">
+      <li>
+        <span class="date">Prima fase</span><br>
+        I primi hook process/security inviavano record tramite
+        <code>events_ringbuf_submit</code>; il runtime Go leggeva soltanto la
+        mappa <code>events_ringbuf</code>.
+      </li>
+      <li>
+        <span class="date">12 maggio 2026</span><br>
+        Alcuni hook integrati, in particolare quelli networking, usavano già
+        <code>events_perf_submit</code>. Poiché lo userspace non apriva la mappa
+        perf <code>events</code>, tali hook potevano essere caricati e attaccati
+        senza produrre output visibile.
+      </li>
+      <li>
+        <span class="date">13 maggio 2026</span><br>
+        È stato introdotto temporaneamente un reader duale: ring buffer e perf
+        buffer confluivano nello stesso <code>handleRawEvent</code>. Questa fase
+        ha ripristinato la visibilità degli eventi, ma ha lasciato due transport
+        da mantenere e testare.
+      </li>
+      <li>
+        <span class="date">27 maggio 2026</span><br>
+        Gli hook process/security storici sono stati migrati verso
+        <code>events_perf_submit</code>. Il perf buffer è diventato il percorso
+        operativo principale, mentre il ring buffer restava solo come fallback
+        sperimentale non più usato dagli hook attivi.
+      </li>
+      <li>
+        <span class="date">24 luglio 2026</span><br>
+        La mappa ring buffer, la helper di submit e il reader Go sono stati
+        rimossi. Il runtime ha mantenuto un solo transport e ha collegato il
+        canale perf per il conteggio dei record persi.
+      </li>
+    </ol>
+    <p>
+      La migrazione ha quindi corretto prima un problema funzionale, poi un
+      problema architetturale: due canali equivalenti moltiplicavano i casi di
+      inizializzazione, shutdown, backpressure, debug e test senza offrire un
+      vantaggio operativo nel profilo corrente.
+    </p>
+  </section>
+
+  <section id="confronto">
+    <h2>4. Confronto tecnico</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Aspetto</th>
+          <th>Perf buffer</th>
+          <th>BPF ring buffer</th>
+          <th>Impatto sul progetto</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Modello</td>
+          <td>Buffer perf per CPU tramite <code>PERF_EVENT_ARRAY</code>.</td>
+          <td>Coda MPSC condivisa, oppure topologie composte con map-in-map.</td>
+          <td>Il modello perf è già integrato nel runtime corrente.</td>
+        </tr>
+        <tr>
+          <td>Compatibilità</td>
+          <td>Interfaccia disponibile nella generazione del kernel target.</td>
+          <td>Feature upstream successiva alla linea 4.18; un backport non va dato per scontato.</td>
+          <td>Il perf buffer riduce il rischio di deployment su Rocky Linux 8.10.</td>
+        </tr>
+        <tr>
+          <td>Ordine tra CPU</td>
+          <td>Non garantisce un unico ordine globale tra record prodotti su CPU diverse.</td>
+          <td>Preserva l'ordine di prenotazione nel ring condiviso.</td>
+          <td>Il ring buffer sarebbe migliore per sequenze molto ravvicinate tra CPU.</td>
+        </tr>
+        <tr>
+          <td>Uso della memoria</td>
+          <td>La capacità è distribuita su buffer per CPU.</td>
+          <td>La memoria può essere condivisa tra tutte le CPU.</td>
+          <td>Il ring buffer può utilizzare meglio la memoria con carichi sbilanciati.</td>
+        </tr>
+        <tr>
+          <td>Scrittura del record</td>
+          <td><code>bpf_perf_event_output()</code> copia il record preparato.</td>
+          <td><code>reserve/submit</code> può scrivere direttamente nello spazio riservato.</td>
+          <td>Il progetto prepara già eventi variabili in una scratch map per-CPU.</td>
+        </tr>
+        <tr>
+          <td>Dimensione dinamica</td>
+          <td>Adatta ai record del progetto, la cui lunghezza dipende dagli argomenti serializzati.</td>
+          <td><code>ringbuf_output</code> accetta lunghezze dinamiche; <code>reserve</code> classico richiede una dimensione nota al verifier.</td>
+          <td>Una migrazione non eliminerebbe automaticamente la copia senza ridisegnare il writer.</td>
+        </tr>
+        <tr>
+          <td>Eventi persi</td>
+          <td>L'infrastruttura perf espone record/canali di lost events.</td>
+          <td>Il producer riceve un fallimento quando non riesce a riservare o inviare.</td>
+          <td>Il runtime corrente ha già un canale perf dedicato ai record persi.</td>
+        </tr>
+        <tr>
+          <td>Complessità applicativa</td>
+          <td>Una mappa, un reader e una pipeline attualmente testati.</td>
+          <td>Richiederebbe un percorso alternativo o l'abbandono dei kernel non compatibili.</td>
+          <td>Il transport unico riduce stati e failure mode.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="decisione">
+    <h2>5. Motivazioni della decisione</h2>
+
+    <h3>5.1 Compatibilità prima dell'ottimizzazione teorica</h3>
+    <p>
+      Il requisito più rigido non è ottenere il transport eBPF più moderno, ma
+      eseguire il tool sul kernel aziendale definito. Il perf buffer soddisfa il
+      requisito senza introdurre feature detection, fallback multipli o oggetti
+      eBPF alternativi.
+    </p>
+
+    <h3>5.2 Uniformità tra gli hook</h3>
+    <p>
+      Durante la fase duale, il tipo di hook determinava anche il canale di
+      uscita. Questa associazione era accidentale e non semantica: due eventi
+      con lo stesso formato binario potevano essere trasportati da mappe diverse.
+      Uniformare il submit ha separato il significato dell'evento dal dettaglio
+      di trasporto.
+    </p>
+
+    <h3>5.3 Un solo ciclo di vita userspace</h3>
+    <p>
+      Un transport unico significa una sola inizializzazione, una sola goroutine
+      di consumo, un solo percorso di arresto e una sola politica di gestione
+      della pressione. La semplificazione è particolarmente utile nel pod
+      Kubernetes, dove avvio, readiness e shutdown devono essere prevedibili.
+    </p>
+
+    <h3>5.4 Osservabilità dei drop</h3>
+    <p>
+      Il reader perf è inizializzato con un canale dedicato agli eventi persi.
+      Questo non impedisce la perdita sotto carico, ma rende il fenomeno
+      osservabile e quindi misurabile. La capacità di rilevare i drop è parte
+      della correttezza del monitor, non soltanto del tuning.
+    </p>
+
+    <h3>5.5 Coerenza con le ottimizzazioni reali</h3>
+    <p>
+      Nel progetto il volume viene ridotto prima del transport: la policy limita
+      i programmi caricati e attaccati, mentre i filtri kernel-side possono
+      scartare eventi prima del submit. Questi interventi riducono direttamente
+      il numero di record prodotti e hanno un impatto più generale del semplice
+      cambio di buffer.
+    </p>
+
+    <div class="caution">
+      <strong>Nessuna conclusione prestazionale non misurata.</strong> I benchmark
+      esistenti misurano la pipeline completa e non costituiscono un confronto
+      controllato perf-buffer-versus-ring-buffer. La decisione non dimostra che
+      il perf buffer sia più veloce; dimostra che è il compromesso più solido per
+      il target e per l'architettura corrente.
+    </div>
+  </section>
+
+  <section id="implementazione">
+    <h2>6. Implementazione corrente</h2>
+    <p>
+      La mappa principale è definita in
+      <code>demo_project/pkg/ebpf/c/maps.h</code>:
+    </p>
+    <pre><code>struct events {
+    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+    __uint(max_entries, 1024);
+    __type(key, s32);
+    __type(value, u32);
+} events SEC(".maps");</code></pre>
+
+    <p>
+      La helper comune in <code>common/buffer.h</code> calcola la dimensione
+      effettiva del record e lo invia dalla CPU corrente:
+    </p>
+    <pre><code>u32 size = sizeof(event_context_t) + sizeof(u8) +
+           p-&gt;event-&gt;args_buf.offset;
+
+long perf_ret = bpf_perf_event_output(
+    p-&gt;ctx,
+    &amp;events,
+    BPF_F_CURRENT_CPU,
+    p-&gt;event,
+    size
+);</code></pre>
+
+    <p>
+      Nel runtime Go, <code>Project.Init()</code> apre soltanto la mappa perf e
+      mantiene separati record e notifiche di perdita:
+    </p>
+    <pre><code>p.perfBufChannel = make(chan []byte, 256)
+p.perfLostChannel = make(chan uint64, 16)
+
+pb, err := module.InitPerfBuf(
+    "events",
+    p.perfBufChannel,
+    p.perfLostChannel,
+    1024,
+)</code></pre>
+
+    <p>La pipeline risultante è:</p>
+    <pre><code>hook eBPF
+  -&gt; serializzazione nel record evento
+  -&gt; events_perf_submit()
+  -&gt; BPF_MAP_TYPE_PERF_EVENT_ARRAY "events"
+  -&gt; InitPerfBuf()
+  -&gt; handleRawEvent()
+  -&gt; decoder
+  -&gt; filtri e detector
+  -&gt; output evento o alert</code></pre>
+  </section>
+
+  <section id="limiti">
+    <h2>7. Limiti e rischi residui</h2>
+    <ul>
+      <li>
+        <strong>Ordine cross-CPU:</strong> il perf buffer non fornisce un unico
+        ordine globale. Le correlazioni collective molto ravvicinate e prodotte
+        su CPU diverse possono essere osservate in un ordine diverso da quello
+        causale.
+      </li>
+      <li>
+        <strong>Memoria per-CPU:</strong> un carico fortemente sbilanciato può
+        saturare il buffer di una CPU anche quando altra capacità rimane poco
+        utilizzata su CPU diverse.
+      </li>
+      <li>
+        <strong>Drop sotto pressione:</strong> il canale lost rende il problema
+        visibile, ma non lo elimina. Le metriche dei drop devono entrare nei test
+        prestazionali e nell'osservabilità di produzione.
+      </li>
+      <li>
+        <strong>Nessun fallback runtime:</strong> la versione corrente non prova
+        dinamicamente il ring buffer. Un ritorno al doppio transport aumenterebbe
+        nuovamente matrice di test e complessità.
+      </li>
+      <li>
+        <strong>Confronto A/B assente:</strong> non è stato eseguito lo stesso
+        workload, sullo stesso kernel compatibile, con due build differenti solo
+        per il transport.
+      </li>
+    </ul>
+
+    <h3>Possibile lavoro futuro</h3>
+    <p>
+      Su un kernel più recente si potrebbe realizzare un microbenchmark A/B che
+      misuri throughput, CPU kernel/userspace, memoria allocata, latenza e record
+      persi. Solo in quel contesto avrebbe senso valutare una nuova astrazione di
+      transport o una build ring-buffer-specifica. La compatibilità con il kernel
+      4.18 dovrebbe comunque restare una variante esplicita e testata.
+    </p>
+  </section>
+
+  <section id="tesi">
+    <h2>8. Testo riutilizzabile nella tesi</h2>
+    <p class="small">
+      La seguente è una bozza argomentativa: va adattata allo stile e alla
+      struttura definitiva dell'elaborato.
+    </p>
+    <div class="thesis-draft">
+      <p>
+        La scelta del canale di comunicazione tra programmi eBPF e componente
+        userspace è stata guidata principalmente dal requisito di compatibilità
+        con Rocky Linux 8.10 e con il kernel RHEL-compatible 4.18 adottato
+        nell'ambiente di destinazione. Sebbene il BPF ring buffer offra proprietà
+        interessanti, tra cui una memoria condivisa tra CPU e un ordinamento
+        globale dei record, tale interfaccia appartiene a una generazione
+        upstream successiva rispetto al kernel di riferimento. Il progetto ha
+        quindi adottato una mappa <code>BPF_MAP_TYPE_PERF_EVENT_ARRAY</code> e la
+        helper <code>bpf_perf_event_output()</code>, evitando di dipendere da
+        backport non verificati.
+      </p>
+      <p>
+        La decisione è stata anche il risultato di un'evoluzione sperimentale.
+        Una prima versione usava il ring buffer per alcuni hook, mentre altri
+        programmi producevano eventi sul perf buffer. Il runtime duale introdotto
+        durante la migrazione risolveva la visibilità degli eventi, ma duplicava
+        il ciclo di vita dei reader e i casi di errore. Dopo la migrazione di
+        tutti gli hook attivi verso il perf buffer, il percorso ring è rimasto
+        inutilizzato ed è stato rimosso. La pipeline finale presenta così un solo
+        contratto di trasporto, un unico decoder e un canale esplicito per
+        osservare gli eventi persi.
+      </p>
+      <p>
+        Questa scelta non implica una superiorità prestazionale generale del
+        perf buffer. Il ring buffer conserva vantaggi teorici e pratici su kernel
+        moderni, soprattutto per sequenze prodotte da CPU differenti. Nel caso
+        studiato, tuttavia, compatibilità, uniformità del codice e riduzione della
+        complessità operativa hanno avuto priorità. Le ottimizzazioni sul volume
+        sono state collocate a monte del transport, selezionando in base alle
+        policy soltanto i programmi eBPF necessari e applicando filtri precoci
+        quando disponibili.
+      </p>
+    </div>
+  </section>
+
+  <section id="verifica">
+    <h2>9. Comandi di verifica</h2>
+    <h3>Verificare sistema operativo e kernel</h3>
+    <pre><code>cat /etc/os-release
+uname -r
+uname -a</code></pre>
+
+    <h3>Verificare le feature BPF esposte dal kernel</h3>
+    <pre><code>sudo bpftool feature probe kernel | \
+  grep -Ei 'ringbuf|perf_event_array|perf_event_output'</code></pre>
+    <p class="small">
+      L'output dipende dalla versione di <code>bpftool</code>. L'assenza di una
+      voce testuale non è da sola una prova definitiva; il probe di creazione
+      della mappa sul kernel target resta la verifica più forte.
+    </p>
+
+    <h3>Verificare che il progetto usi soltanto il perf buffer</h3>
+    <pre><code>cd /home/simone/project/demo_project
+
+rg -n 'BPF_MAP_TYPE_PERF_EVENT_ARRAY|InitPerfBuf|events_perf_submit' \
+  pkg/ebpf
+
+rg -n 'BPF_MAP_TYPE_RINGBUF|InitRingBuf|events_ringbuf_submit' \
+  pkg/ebpf</code></pre>
+    <p>
+      Il secondo comando non deve trovare implementazioni operative. Eventuali
+      occorrenze in header generati, sorgenti terzi o documentazione storica non
+      indicano che il runtime stia usando una mappa ring buffer.
+    </p>
+
+    <h3>Verificare l'output e gli eventi persi</h3>
+    <pre><code>sudo ./dist/project \
+  --events sched_process_exec,security_file_open \
+  --output table \
+  --log-level error</code></pre>
+    <p>
+      Per una valutazione corretta sotto carico, l'output funzionale va affiancato
+      alle metriche del canale lost e ai benchmark userspace/kernel-side già
+      descritti in <code>documentation/implementation/performance.md</code>.
+    </p>
+  </section>
+
+  <section id="fonti">
+    <h2>10. Fonti</h2>
+    <ul class="source-list">
+      <li>
+        Linux Kernel Documentation,
+        <a href="https://docs.kernel.org/6.6/bpf/ringbuf.html">BPF ring buffer</a>:
+        motivazioni, modello MPSC, ordinamento cross-CPU e API
+        <code>output</code>/<code>reserve</code>/<code>submit</code>.
+      </li>
+      <li>
+        Linux upstream,
+        <a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=457f44363a88">commit 457f44363a88</a>:
+        introduzione dell'implementazione BPF ring buffer e del relativo
+        supporto nel verifier.
+      </li>
+      <li>
+        Linux Kernel Documentation,
+        <a href="https://docs.kernel.org/4.20/bpf/bpf_design_QA.html">BPF Design Q&amp;A, versione 4.20</a>:
+        uso di <code>bpf_perf_event_output()</code> per lo streaming efficiente
+        di dati verso lo userspace su una generazione vicina al kernel target.
+      </li>
+      <li>
+        Linux Kernel Documentation,
+        <a href="https://docs.kernel.org/next/userspace-api/perf_ring_buffer.html">Perf ring buffer</a>:
+        struttura del buffer perf, sincronizzazione e gestione dei record persi.
+      </li>
+      <li>
+        Evidenza locale: <code>documentation/decisions/decision-log.md</code>,
+        decisioni del 12, 13 e 27 maggio e del 24 luglio 2026.
+      </li>
+      <li>
+        Evidenza locale: <code>documentation/daily/2026-05-12.md</code>,
+        <code>2026-05-13.md</code>, <code>2026-05-26.md</code> e
+        <code>2026-07-24.md</code>.
+      </li>
+      <li>
+        Implementazione: <code>demo_project/pkg/ebpf/c/maps.h</code>,
+        <code>demo_project/pkg/ebpf/c/common/buffer.h</code> e
+        <code>demo_project/pkg/ebpf/project.go</code>.
+      </li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

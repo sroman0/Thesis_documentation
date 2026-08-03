@@ -33,6 +33,7 @@ policy.
 
 - [Userspace lifecycle](implementation/userspace-lifecycle.md)
 - [Event buffer](implementation/event-buffer.md)
+- [Scelta del transport: perf buffer e ring buffer](implementation/perf-buffer-vs-ring-buffer.html)
 - [Decoder](implementation/decoder.md)
 - [Output](implementation/output.md)
 - [Docker](implementation/docker.md)
