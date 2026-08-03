@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 4 Host Process Hook Implementation Audit</title>
+  <style>
+    body { max-width: 1180px; margin: 2rem auto; padding: 0 1.25rem; color: #20242a; font: 15px/1.5 system-ui, sans-serif; }
+    h1, h2, h3 { color: #172b4d; line-height: 1.2; }
+    h1 { border-bottom: 2px solid #334155; padding-bottom: .5rem; }
+    h2 { margin-top: 2.2rem; border-bottom: 1px solid #cbd5e1; padding-bottom: .3rem; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: .91rem; }
+    th, td { border: 1px solid #b8c2cc; padding: .5rem; text-align: left; vertical-align: top; }
+    th { background: #edf2f7; }
+    code { background: #f1f5f9; padding: .08rem .24rem; }
+    .note { border-left: 4px solid #2563eb; background: #eff6ff; padding: .75rem 1rem; }
+    .warning { border-left: 4px solid #b45309; background: #fff7ed; padding: .75rem 1rem; }
+    .verified { border-left: 4px solid #047857; background: #ecfdf5; padding: .75rem 1rem; }
+    .small { color: #475569; font-size: .9rem; }
+    ul { margin-top: .35rem; }
+  </style>
+</head>
+<body>
+  <h1>Host Process Hook Implementation Audit</h1>
+  <p><strong>Scope:</strong> host-only process creation, executable transition,
+  credential, capability, process-control and resource-limit hooks for the
+  hook-focused revision of Chapter 4. Networking, policies, output, benchmarks
+  and general eBPF theory are deliberately excluded.</p>
+
+  <h2>Audit Baseline</h2>
+  <table>
+    <tbody>
+      <tr><th>Repository baseline</th><td><code>demo_project</code> commit <code>ae653447d006b5952abfe9f57cbf0f67d94af673</code>, dated 30 July 2026, <em>Merge pull request #15 from V3suv1us/feature/network-policy-detector</em>.</td></tr>
+      <tr><th>Working tree</th><td>Modified: <code>Makefile</code>, <code>README.md</code>, <code>pkg/cmd/project.go</code>, <code>pkg/cmd/project_test.go</code>, <code>pkg/ebpf/probes/probes.go</code>, <code>pkg/ebpf/project.go</code>, <code>pkg/policy/loader.go</code>, <code>pkg/policy/loader_test.go</code>, <code>pkg/policy/policy.go</code>. Untracked: <code>pkg/policy/detector_selector.go</code>, its test, and <code>rules/policies/mitre-privilege-collective.yaml</code>.</td></tr>
+      <tr><th>Relevance of uncommitted code</th><td>The only dirty file inside this audit's implementation scope is <code>pkg/ebpf/probes/probes.go</code>. Its diff only marks six networking support probes as internal. Every host-process registration audited below is byte-for-byte unchanged from HEAD. Therefore none of the hook semantics or matrices below depends on uncommitted code. Claims about the repository-wide public/internal consistency checks describe the current tree and should be frozen against a clean thesis baseline before submission.</td></tr>
+      <tr><th>Tests</th><td><code>pkg/events</code> and <code>pkg/bufferdecoder</code> passed. <code>pkg/ebpf/probes</code> also passed when run with the repository's libbpf include and link settings. No BPF object rebuild or target-kernel attach test was performed during this audit.</td></tr>
+    </tbody>
+  </table>
+  <p class="verified"><strong>Authority order:</strong> current C programs and Go
+  schemas define emitted behaviour; the probe registry defines physical
+  attachment; tests establish registry and decoder consistency; historical
+  prose in <code>documentation/implementation/hooks.md</code> is supporting
+  evidence, not the runtime contract.</p>
+
+  <h2>Shared Construction Mechanisms</h2>
+  <p>All direct producers initialise the same per-CPU event workspace and later
+  submit a context plus indexed argument buffer through the perf-event map.
+  Context enrichment uses the LRU task and process maps. Large event, scratch
+  and path data therefore remain in maps rather than on the restricted BPF
+  stack. Entry/return events additionally use <code>args_map</code>, a 10,240-entry
+  hash keyed by logical event ID and current TID. Entry state is replaced on a
+  repeated key and normally deleted by the matching return program.</p>
+  <p>The main verifier-facing bounds are shared: at most 32 argument indexes,
+  a 32,000-byte argument buffer, fixed explicit copies from the seven-slot
+  temporary argument structure, and an in-line clamp before perf submission.
+  Executable argument vectors are unrolled to at most 38 elements; each string
+  is bounded and an ellipsis marks truncation. Kernel paths are reconstructed
+  using bounded per-CPU storage and a maximum of 20 components.</p>
+  <p>CO-RE relocates kernel-structure reads, but manually declared syscall
+  tracepoint contexts still encode the x86-64 Rocky Linux 4.18 field widths.
+  The implementation is therefore deliberately target-specific at this edge.
+  Common task context also contains CO-RE branches for task start-time field
+  evolution. Credential capability conversion selects either the older pair of
+  32-bit words used by the target or a newer 64-bit layout.</p>
+
+  <h2>Family 1: Process Creation and Lifecycle</h2>
+  <table>
+    <thead><tr><th>Logical event</th><th>Physical program and hook</th><th>Construction and semantic stage</th><th>Arguments and security meaning</th><th>State, compatibility and limits</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>fork</code></td>
+        <td><code>tracepoint__syscalls__sys_enter_fork</code> and <code>...sys_exit_fork</code>; dedicated syscall tracepoints.</td>
+        <td>Registered as an entry/return pair, but the entry program is a no-op. The exit program alone emits the returned syscall result. Positive values identify the child to the caller; negative values describe failure.</td>
+        <td><code>returnValue</code>: child PID or negative errno. This is the caller-visible result, not an independently confirmed lifecycle record.</td>
+        <td>No temporary map is used. The manually declared exit context uses target-sized <code>long</code>. The attached no-op entry program adds no evidence and is not needed for construction.</td>
+        <td><code>project.bpf.c</code>: <code>tracepoint__syscalls__sys_enter_fork</code>/<code>sys_exit_fork</code>; <code>events.Fork</code>; <code>TestSelectCanAttachProcessCreationSyscallFamilies</code>; hooks documentation “fork, vfork, clone”.</td>
+      </tr>
+      <tr>
+        <td><code>vfork</code></td>
+        <td><code>tracepoint__syscalls__sys_enter_vfork</code> and <code>...sys_exit_vfork</code>; dedicated syscall tracepoints.</td>
+        <td>Same return-only construction as <code>fork</code>. It reports the syscall result, while the vfork-specific shared-address-space/parent-suspension semantics are implied by the event type rather than separately encoded.</td>
+        <td><code>returnValue</code>: child PID or errno.</td>
+        <td>No temporary state; same target-specific exit context and redundant no-op entry attachment as <code>fork</code>.</td>
+        <td><code>project.bpf.c</code>: vfork entry/exit symbols; <code>events.Vfork</code>; process-creation selection test and hooks documentation.</td>
+      </tr>
+      <tr>
+        <td><code>clone</code></td>
+        <td><code>tracepoint__syscalls__sys_enter_clone</code> and <code>...sys_exit_clone</code>; dedicated syscall tracepoints.</td>
+        <td>True entry/return construction. Entry preserves the request; exit deletes it, appends the result and submits one logical event.</td>
+        <td><code>flags</code> identify requested <code>CLONE_*</code> sharing and namespace semantics; <code>stack</code>, <code>parent_tid</code>, <code>child_tid</code> and <code>tls</code> preserve pointer/value arguments; <code>returnValue</code> is child TID/PID or errno.</td>
+        <td>Uses <code>args_map</code> through <code>save_args</code>/<code>load_args</code>/<code>del_args</code>. The five request fields use 64-bit <code>unsigned long</code> on the x86-64 target; pointer contents are not dereferenced.</td>
+        <td><code>tracepoint__syscalls__sys_enter_clone</code>/<code>sys_exit_clone</code>; <code>events.Clone</code>; process-creation selection test; hooks documentation.</td>
+      </tr>
+      <tr>
+        <td><code>sched_process_fork</code></td>
+        <td><code>tracepoint__sched__sched_process_fork</code>; raw tracepoint <code>sched_process_fork</code>.</td>
+        <td>Direct post-transition event. It observes an existing child task, so it is stronger evidence of creation than a syscall request/result alone and also covers thread creation.</td>
+        <td>Parent host PID/TID, child host PID/TID and child start time. Start time disambiguates reused numeric IDs and is useful for process-aware correlation.</td>
+        <td>No entry state. Uses task helpers and the start-time CO-RE branch (<code>start_boottime</code>/<code>real_start_time</code>/<code>start_time</code> depending target fields/helper).</td>
+        <td>C symbol <code>tracepoint__sched__sched_process_fork</code>; <code>events.SchedProcessFork</code>; public registry consistency tests; hooks documentation.</td>
+      </tr>
+      <tr>
+        <td><code>task_rename</code></td>
+        <td><code>tracepoint__task__task_rename</code>; raw tracepoint <code>task_rename</code>.</td>
+        <td>Direct transition observation at the task rename tracepoint.</td>
+        <td><code>old_name</code> and <code>new_name</code> expose changes to the task's 16-byte command name. This is process labelling, not executable identity.</td>
+        <td>No temporary state. Both names are bounded by <code>TASK_COMM_LEN</code>; the old name is read from the task and the new value from the tracepoint argument.</td>
+        <td>C symbol <code>tracepoint__task__task_rename</code>; <code>events.TaskRename</code>; registry tests; hooks documentation.</td>
+      </tr>
+      <tr>
+        <td><code>sched_process_exit</code></td>
+        <td><code>tracepoint__sched__sched_process_exit</code>; raw tracepoint <code>sched_process_exit</code>.</td>
+        <td>Direct lifecycle observation when a task is exiting.</td>
+        <td><code>exit_code</code> is derived from the high byte of the kernel exit code; <code>group_dead</code> indicates that no live task remains in the thread group. It distinguishes thread exit from process-wide termination, but does not separately encode the terminating signal.</td>
+        <td>No entry state. Reads <code>task_struct</code> and <code>signal_struct.live</code> with CO-RE. The syscall field is invalidated for signalled tasks or an untrustworthy non-kthread context.</td>
+        <td>C symbol <code>tracepoint__sched__sched_process_exit</code>; <code>events.SchedProcessExit</code>; registry consistency tests; hooks documentation.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Family 2: Executable Transitions</h2>
+  <table>
+    <thead><tr><th>Logical event</th><th>Physical program and hook</th><th>Construction and semantic stage</th><th>Arguments and security meaning</th><th>State, compatibility and limits</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>execve</code></td>
+        <td><code>tracepoint__syscalls__sys_enter_execve</code>; dedicated syscall-entry tracepoint.</td>
+        <td>Direct attempt event before image replacement. It does not establish success.</td>
+        <td><code>pathname</code> is the user-requested path; <code>argv</code> preserves bounded command arguments for interpretation.</td>
+        <td>No entry/return state. Uses user-memory string reads; <code>argv</code> is capped at 38 bounded strings. The dedicated target tracepoint replaces the earlier generic raw-syscall dispatch and avoids running this program on every syscall.</td>
+        <td>C symbol <code>tracepoint__syscalls__sys_enter_execve</code>; <code>events.Execve</code>; string-array decoder tests; hooks documentation.</td>
+      </tr>
+      <tr>
+        <td><code>execveat</code></td>
+        <td><code>tracepoint__syscalls__sys_enter_execveat</code>; dedicated syscall-entry tracepoint.</td>
+        <td>Direct attempt event for fd-relative or flag-driven execution; no success claim.</td>
+        <td><code>dirfd</code>, <code>pathname</code>, <code>flags</code> and <code>argv</code>. The additional fields distinguish directory-relative execution and <code>AT_EMPTY_PATH</code>-style requests from ordinary <code>execve</code>.</td>
+        <td>Same bounded user-memory handling as <code>execve</code>. Context field widths are manually matched to the x86-64 target tracepoint.</td>
+        <td>C symbol <code>tracepoint__syscalls__sys_enter_execveat</code>; <code>events.Execveat</code>; decoder array tests; hooks documentation.</td>
+      </tr>
+      <tr>
+        <td><code>security_bprm_check</code></td>
+        <td><code>trace_security_bprm_check</code>; kprobe on the LSM dispatcher function <code>security_bprm_check</code>.</td>
+        <td>Direct security-mediation checkpoint over a kernel-resolved executable. It may occur more than once during one exec path, for example through interpreter handling, and it neither proves acceptance nor successful image replacement.</td>
+        <td>Resolved <code>pathname</code>, device and inode identify the executable object; <code>filename</code> retains the binary-parameter name; <code>argc</code>/<code>envc</code> quantify invocation data without exporting the environment.</td>
+        <td>Uses path scratch helpers and CO-RE file/inode/binprm reads; path walk is capped at 20 components. The long-record decoder regression test specifically covers later fields beyond 256 argument bytes.</td>
+        <td>C symbol <code>trace_security_bprm_check</code>; <code>events.SecurityBprmCheck</code>; <code>TestDecodeSecurityBprmCheckWithArgumentsBeyond256Bytes</code>; hooks documentation.</td>
+      </tr>
+      <tr>
+        <td><code>security_bprm_creds_for_exec</code></td>
+        <td><code>trace_security_bprm_creds_for_exec</code>; kprobe on <code>security_bprm_creds_for_exec</code>.</td>
+        <td>Direct credential-preparation checkpoint during exec. It is later than the initial request but still precedes committed credentials and successful scheduler transition.</td>
+        <td>Resolved path, device, inode and ctime identify the file; <code>filename</code>, <code>argc</code> and <code>envc</code> describe the pending execution. The event does not serialise proposed credentials despite its name.</td>
+        <td>Uses the same bounded path and CO-RE metadata helpers. Exposing this checkpoint as a public event is a project choice; it is not merely an internal exec dependency.</td>
+        <td>C symbol <code>trace_security_bprm_creds_for_exec</code>; <code>events.SecurityBprmCredsForExec</code>; high-priority hook selection test; hooks documentation.</td>
+      </tr>
+      <tr>
+        <td><code>sched_process_exec</code></td>
+        <td><code>tracepoint__sched__sched_process_exec</code>; raw tracepoint <code>sched_process_exec</code>.</td>
+        <td>Direct successful transition: the process image has been replaced while the task identity remains.</td>
+        <td><code>fileName</code> comes from <code>linux_binprm</code> and identifies the executable associated with the completed transition.</td>
+        <td>No temporary state. A null binprm or filename suppresses the record. Uses CO-RE to read the binprm field.</td>
+        <td>C symbol <code>tracepoint__sched__sched_process_exec</code>; <code>events.SchedProcessExec</code>; schema argument test and registry tests; hooks documentation.</td>
+      </tr>
+      <tr>
+        <td><code>process_execute_failed</code></td>
+        <td>Four dedicated tracepoint programs: enter/exit for both <code>execve</code> and <code>execveat</code>.</td>
+        <td>Many physical probes produce one logical event. Entry stores the variant and request; exit deletes state and emits only when <code>returnValue &lt; 0</code>. It is explicit failed-transition evidence.</td>
+        <td><code>operation</code> distinguishes execve from execveat; <code>dirfd</code>, <code>pathname</code> and <code>flags</code> preserve the request; <code>returnValue</code> is the negative errno.</td>
+        <td>Uses <code>args_map</code>. Successful calls remove entry state but emit nothing. The pathname pointer is retained and read only at exit; if user memory changes or becomes unreadable, that argument may be absent.</td>
+        <td>C helpers <code>save_process_execute_failed_args</code> and <code>submit_process_execute_failed_event</code>; <code>events.ProcessExecuteFailed</code>; public registry consistency tests; hooks documentation.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Family 3: Identity, Credentials and Capabilities</h2>
+  <table>
+    <thead><tr><th>Logical event</th><th>Physical program and hook</th><th>Construction and semantic stage</th><th>Arguments and security meaning</th><th>State, compatibility and limits</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>setuid</code>, <code>setgid</code>, <code>setfsuid</code>, <code>setfsgid</code></td>
+        <td>Dedicated <code>sys_enter_*</code>/<code>sys_exit_*</code> tracepoint pair for each syscall.</td>
+        <td>Entry/return syscall events. They join the requested single identifier with the syscall result. For <code>setfsuid</code>/<code>setfsgid</code>, the return value has syscall-specific semantics (the previous filesystem ID), not the conventional zero/errno contract.</td>
+        <td>Requested <code>uid</code>, <code>gid</code>, <code>fsuid</code> or <code>fsgid</code>, plus <code>returnValue</code>. These express user intent and completion, not a full before/after credential state.</td>
+        <td>Shared <code>save_one_id_arg</code>/<code>submit_one_id_event</code> and <code>args_map</code>. IDs are converted to signed 32-bit values, preserving the all-ones “unchanged” sentinel where applicable. Context layout is target-specific.</td>
+        <td>Corresponding C symbols; four event schemas; <code>TestSelectCanAttachIdentitySyscallFamilies</code>; hooks documentation.</td>
+      </tr>
+      <tr>
+        <td><code>setreuid</code>, <code>setregid</code></td>
+        <td>Dedicated entry/exit syscall tracepoint pairs.</td>
+        <td>Entry/return construction with final syscall result.</td>
+        <td>Requested real and effective UID/GID plus <code>returnValue</code>. A value of -1 in one requested ID means that component is not changed.</td>
+        <td>Shared two-ID helpers and <code>args_map</code>; same target field-width constraint.</td>
+        <td>Corresponding C symbols and schemas; identity-family selection test; hooks documentation.</td>
+      </tr>
+      <tr>
+        <td><code>setresuid</code>, <code>setresgid</code></td>
+        <td>Dedicated entry/exit syscall tracepoint pairs.</td>
+        <td>Entry/return construction with final result.</td>
+        <td>Requested real, effective and saved UID/GID plus <code>returnValue</code>; this is the most explicit request-level identity transition family.</td>
+        <td>Shared three-ID helpers and <code>args_map</code>; target-specific tracepoint contexts.</td>
+        <td>Corresponding C symbols and schemas; identity-family selection test; hooks documentation.</td>
+      </tr>
+      <tr>
+        <td><code>security_task_fix_setuid</code></td>
+        <td><code>trace_security_task_fix_setuid</code>; kprobe on <code>security_task_fix_setuid</code>.</td>
+        <td>Direct LSM/security mediation over old and proposed credentials. It precedes commit and does not contain the security-hook or syscall return value. No-op UID transitions are suppressed.</td>
+        <td>Old/new real, effective, saved and filesystem UIDs plus <code>flags</code>. Flags distinguish the kernel's set-ID operation class (<code>ID</code>, <code>RE</code>, <code>RES</code>, <code>FS</code>).</td>
+        <td>CO-RE credential reads; no temporary map. The target exports no corresponding <code>security_task_fix_setgid</code> symbol, so GID mediation is not represented by a symmetric event.</td>
+        <td>C symbol <code>trace_security_task_fix_setuid</code>; <code>events.SecurityTaskFixSetuid</code>; registry consistency tests; hooks documentation and target-symbol note.</td>
+      </tr>
+      <tr>
+        <td><code>commit_creds</code></td>
+        <td><code>trace_commit_creds</code>; kprobe on <code>commit_creds</code>.</td>
+        <td>Direct effect-level observation at the point prepared credentials become active. It covers changes caused by set-ID syscalls, exec and other kernel paths. Exact no-op snapshots are suppressed.</td>
+        <td>Structured <code>old_cred</code>/<code>new_cred</code> snapshots: real/effective/saved/filesystem UID and GID, user namespace, securebits, and inheritable/permitted/effective/bounding/ambient capability masks.</td>
+        <td>Uses CO-RE credential reads and <code>credcap_to_u64</code>. The latter branches between the target's two-word capability layout and a newer single-64-bit layout. Large snapshots are written to the map-backed event buffer, not the BPF stack.</td>
+        <td>C symbol <code>trace_commit_creds</code>; <code>events.CommitCreds</code>; <code>TestSelectCanAttachCommitCreds</code> and credential decoder tests; hooks documentation.</td>
+      </tr>
+      <tr>
+        <td><code>cap_capable</code></td>
+        <td><code>trace_cap_capable</code>; kprobe on <code>cap_capable</code>.</td>
+        <td>Direct capability-check observation at function entry. It records that a capability was checked, but not whether the check was granted or denied.</td>
+        <td><code>cap</code>: numeric capability requested. The supplied credentials, target user namespace and option flags are intentionally omitted, limiting attribution of the exact check context.</td>
+        <td>No temporary state. BPF_KPROBE argument recovery assumes the target function signature and x86-64 calling convention; user space may map the number to a symbolic capability.</td>
+        <td>C symbol <code>trace_cap_capable</code>; <code>events.CapCapable</code>; registry include/exclude tests; hooks documentation.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Family 4: Process Control and Limits</h2>
+  <table>
+    <thead><tr><th>Logical event</th><th>Physical program and hook</th><th>Construction and semantic stage</th><th>Arguments and security meaning</th><th>State, compatibility and limits</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>ptrace</code></td>
+        <td><code>tracepoint__syscalls__sys_enter_ptrace</code> and <code>...sys_exit_ptrace</code>; dedicated syscall tracepoints.</td>
+        <td>Entry/return construction. The resulting record distinguishes an attempted tracing/control request from its successful or failed completion.</td>
+        <td><code>request</code>, target <code>pid</code>, <code>addr</code>, <code>data</code> and <code>returnValue</code>. Request codes separate observation, attach and memory/register modification operations; pointer arguments are reported but not dereferenced.</td>
+        <td>Uses <code>args_map</code>; target-specific <code>long</code>/<code>unsigned long</code> tracepoint layout.</td>
+        <td>Ptrace C symbols; <code>events.Ptrace</code>; <code>TestSelectCanAttachMultipleProbesForOneEvent</code>; hooks documentation.</td>
+      </tr>
+      <tr>
+        <td><code>security_task_kill</code></td>
+        <td><code>trace_security_task_kill</code>; kprobe on <code>security_task_kill</code>.</td>
+        <td>Direct signal-delivery mediation point. It describes source-to-target intent, including signal 0 permission probes, but does not establish delivery or syscall success.</td>
+        <td>Target host PID/TID, target real UID, target command name and signal. These fields make cross-identity and process-targeted signalling visible.</td>
+        <td>No temporary state. Target task and credentials are read with CO-RE; command is bounded to <code>TASK_COMM_LEN</code>. The hook may be reached from kernel paths beyond the <code>kill(2)</code> syscall family.</td>
+        <td>C symbol <code>trace_security_task_kill</code>; <code>events.SecurityTaskKill</code>; registry consistency tests; hooks documentation.</td>
+      </tr>
+      <tr>
+        <td><code>do_sigaction</code></td>
+        <td><code>trace_do_sigaction</code>; kprobe on <code>do_sigaction</code>.</td>
+        <td>Direct entry observation of a requested signal-action change and the pre-call action snapshot. It does not include the function result and should not be described as a confirmed installation.</td>
+        <td>Signal number; presence of new/old action pointers; flags; first signal-mask word; handler category (default, ignore, custom); custom handler pointer. This exposes signal-handling changes without reading handler code.</td>
+        <td>No temporary map. The action array access is guarded by <code>0 &lt; sig &lt; _NSIG</code>; handler categories avoid treating sentinel values as pointers. Only the first mask word is serialised, and the kprobe depends on target signature/layout.</td>
+        <td>C symbol <code>trace_do_sigaction</code>; <code>events.DoSigaction</code>; registry consistency tests; hooks documentation.</td>
+      </tr>
+      <tr>
+        <td><code>security_task_prctl</code></td>
+        <td><code>trace_security_task_prctl</code>; kprobe on <code>security_task_prctl</code>.</td>
+        <td>Direct security mediation at entry. It captures the requested process-control operation but no final decision or syscall result.</td>
+        <td><code>option</code> and four opaque option-dependent arguments. Security meaning depends on the selected <code>PR_*</code> operation, such as dumpability, no-new-privileges or process naming.</td>
+        <td>No temporary state. The generic unsigned-long arguments preserve target ABI width but are not option-specifically dereferenced or typed.</td>
+        <td>C symbol <code>trace_security_task_prctl</code>; <code>events.SecurityTaskPrctl</code>; registry consistency tests; hooks documentation.</td>
+      </tr>
+      <tr>
+        <td><code>security_task_setrlimit</code></td>
+        <td><code>trace_security_task_setrlimit</code>; kprobe on <code>security_task_setrlimit</code>.</td>
+        <td>Direct security mediation for a proposed limit change; no final outcome.</td>
+        <td>Target host TGID, resource number and proposed soft/hard limits. Unlike <code>prlimit64</code>, it dereferences the proposed kernel <code>rlimit</code> and exposes actual values.</td>
+        <td>No temporary state. CO-RE reads the target task and kernel limit structure; null arguments suppress the event.</td>
+        <td>C symbol <code>trace_security_task_setrlimit</code>; <code>events.SecurityTaskSetrlimit</code>; registry consistency tests; hooks documentation.</td>
+      </tr>
+      <tr>
+        <td><code>prlimit64</code></td>
+        <td><code>tracepoint__syscalls__sys_enter_prlimit64</code> and <code>...sys_exit_prlimit64</code>; dedicated syscall tracepoints.</td>
+        <td>Entry/return construction with caller-visible result. It covers both reads and writes of limits.</td>
+        <td>Target <code>pid</code>, resource, <code>new_limit</code> pointer, <code>old_limit</code> pointer and <code>returnValue</code>. Contrary to a possible reading of the field names, the event carries addresses, not the soft/hard values stored in those structures.</td>
+        <td>Uses <code>args_map</code>. Tracepoint slots and pointers are retained as 64-bit values on Rocky Linux x86-64, then emitted as pointer types. User memory is not dereferenced at either stage.</td>
+        <td>C prlimit64 symbols; <code>events.Prlimit64</code>; identity-family selection test; hooks documentation explicitly notes target 8-byte fields.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Cross-Event Semantic Findings</h2>
+  <ul>
+    <li><strong>Several probes, one event:</strong> <code>process_execute_failed</code> is built by four exec-family tracepoint programs. Each of <code>clone</code>, the eight set-ID events, <code>ptrace</code> and <code>prlimit64</code> uses an entry/exit pair. <code>fork</code> and <code>vfork</code> also register pairs, although only their exit programs contribute to the record.</li>
+    <li><strong>Creation stages:</strong> <code>fork</code>/<code>vfork</code>/<code>clone</code> report syscall completion from the caller's perspective; <code>sched_process_fork</code> reports the child task that actually exists. They are complementary, not aliases.</li>
+    <li><strong>Exec stages:</strong> <code>execve</code>/<code>execveat</code> are attempts; <code>security_bprm_check</code> is executable validation; <code>security_bprm_creds_for_exec</code> is credential preparation; <code>sched_process_exec</code> is successful image replacement; <code>process_execute_failed</code> is an explicit negative syscall result.</li>
+    <li><strong>Credential stages:</strong> set-ID syscall events preserve request and return; <code>security_task_fix_setuid</code> observes proposed UID credentials at mediation; <code>commit_creds</code> observes the installed before/after state and also covers non-syscall credential paths.</li>
+    <li><strong>Limit stages:</strong> <code>security_task_setrlimit</code> exposes proposed values at mediation but no outcome; <code>prlimit64</code> exposes syscall completion but currently retains only user pointers to the limit structures.</li>
+    <li><strong>Naming correction:</strong> “<code>security_task_fix_setuid/security_task_fix_setgid</code>” must not be used as if both public events existed. The implementation and target expose only <code>security_task_fix_setuid</code>; GID changes are observed through syscall events and <code>commit_creds</code>.</li>
+  </ul>
+
+  <h2>Test and Evidence Gaps</h2>
+  <p>The tests strongly cover the registry contract: public probe names must
+  have decoder schemas, decoder events must be publicly exposed, internal
+  probes must remain hidden, and selected multi-probe families must attach the
+  expected number of programs. Decoder tests cover typed arguments, string
+  arrays, credential snapshots, truncation and the long
+  <code>security_bprm_check</code> record.</p>
+  <p class="warning">There are no automated tests in the inspected packages
+  that execute these eBPF programs on the target kernel and assert their exact
+  emitted arguments or stage semantics. There are also no event-specific
+  decoder fixtures for every row above, no automatic comparison between C
+  event constants and Go IDs, and no test proving cleanup after every missed
+  entry/return pairing. Chapter 4 may describe the implementation; Chapter 5
+  must own runtime validation claims.</p>
+
+  <h2>Source Excerpt Proposals</h2>
+  <table>
+    <thead><tr><th>Source and exact span</th><th>Reason</th><th>Prose replaced</th><th>Overlap check</th></tr></thead>
+    <tbody>
+      <tr><td><code>pkg/ebpf/c/project.bpf.c:1555-1618</code>, symbols <code>save_process_execute_failed_args</code> and <code>submit_process_execute_failed_event</code></td><td>One compact example demonstrates shared entry state, negative-result gating, request reconstruction and one logical event produced by two syscall variants.</td><td>Replace a long narrative explanation of the complete exec stage pipeline only where implementation mechanics are discussed; retain the semantic-stage comparison as prose.</td><td>No overlap with current Chapter 4 listings for common initialisation, argument-buffer bounds or detector state. Avoid also listing execve, execveat and sched exec separately.</td></tr>
+      <tr><td><code>pkg/ebpf/c/project.bpf.c:2495-2579</code>, symbols <code>save_one_id_arg</code>, <code>submit_one_id_event</code>, <code>save_two_id_args</code> and <code>submit_two_id_event</code></td><td>Shows that eight credential syscalls are implemented through reusable arity-based construction rather than hook-by-hook duplication.</td><td>Replace repetitive per-syscall implementation prose in the credentials subsection.</td><td>Does not duplicate existing listings. If space is tight, include only one-ID and two-ID helpers and explain the three-ID extension in prose.</td></tr>
+      <tr><td><code>pkg/ebpf/c/project.bpf.c:845-928</code>, symbol <code>trace_commit_creds</code>; excerpt only the snapshot comparison and submit portion, lines 905-928</td><td>Illustrates effect-level semantics and in-kernel suppression of unchanged credentials without reproducing all field assignments.</td><td>Replace detailed enumeration of every credential read; keep one sentence defining the snapshot contents.</td><td>No overlap with existing Chapter 4 listings. Do not combine it with a separate <code>security_task_fix_setuid</code> listing; contrast the stages in prose.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Redundancy Ledger</h2>
+  <table>
+    <thead><tr><th>Material already owned elsewhere</th><th>Chapter 4 treatment</th></tr></thead>
+    <tbody>
+      <tr><td>Chapter 2 defines tracepoints, kprobes/kretprobes, LSM mediation, entry/return correlation, verifier constraints and the fact that observation stages are complementary.</td><td>Do not redefine those mechanisms. State only why a concrete event uses one stage and what the implementation retains.</td></tr>
+      <tr><td>Chapter 3 defines semantic hook selection, producer/support probes, logical events, many-to-one construction, early selection and the stable public abstraction.</td><td>Do not repeat the architecture table or selection rationale. Show how the registry and C programs realise it through representative host families.</td></tr>
+      <tr><td>Chapter 3 already states that request, resolved object, transition and mediation are distinct meanings.</td><td>Use the exec and credential pipelines as implementation evidence, not as a second conceptual explanation.</td></tr>
+      <tr><td>Chapter 3 owns the kernel/user-space boundary and common binary contract.</td><td>Mention shared context, map-backed workspace and indexed arguments only to explain hook construction; leave full wire layout to the dedicated Chapter 4 contract section.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Appendix Candidates</h2>
+  <ul>
+    <li>Complete host event catalogue mapping logical names to all physical programs, hooks and schemas.</li>
+    <li>Full argument dictionary, including operation/flag enumerations, signed return conventions and the special <code>setfsuid</code>/<code>setfsgid</code> return semantics.</li>
+    <li>Target-kernel validation commands and per-hook test triggers from <code>documentation/implementation/hooks.md</code>.</li>
+    <li>Compatibility table for manually declared x86-64 syscall contexts, CO-RE field branches and unsupported symmetric hooks such as <code>security_task_fix_setgid</code>.</li>
+    <li>Known observability limits: entry-only security outcomes, pointer-only prlimit payloads, bounded argv/path data, exit-code signal ambiguity and lack of exhaustive target-kernel integration tests.</li>
+  </ul>
+</body>
+</html>

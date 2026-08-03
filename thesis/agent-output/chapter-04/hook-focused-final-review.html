@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 4 Hook-Focused Independent Final Review</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1f2933;
+      --muted: #52606d;
+      --line: #bcc5cf;
+      --panel: #f5f7f9;
+      --critical: #8b1e1e;
+      --high: #a84700;
+      --medium: #806000;
+      --low: #285f8f;
+      --pass: #176b36;
+    }
+    body {
+      max-width: 1180px;
+      margin: 2rem auto;
+      padding: 0 1.25rem 3rem;
+      color: var(--ink);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+    h1, h2, h3 { line-height: 1.2; }
+    h2 { margin-top: 2.1rem; border-bottom: 1px solid var(--line); padding-bottom: .35rem; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; }
+    th, td { border: 1px solid var(--line); padding: .55rem; text-align: left; vertical-align: top; }
+    th { background: #e9edf1; }
+    code { background: #edf0f2; padding: .08rem .25rem; overflow-wrap: anywhere; }
+    ul, ol { padding-left: 1.4rem; }
+    li { margin: .3rem 0; }
+    .summary, .baseline, .blocker, .passbox {
+      padding: .85rem 1rem;
+      margin: 1rem 0;
+      background: var(--panel);
+      border-left: 4px solid var(--low);
+    }
+    .blocker { border-left-color: var(--critical); background: #fff2f2; }
+    .passbox { border-left-color: var(--pass); background: #f1f8f3; }
+    .critical { color: var(--critical); font-weight: 700; }
+    .high { color: var(--high); font-weight: 700; }
+    .medium { color: var(--medium); font-weight: 700; }
+    .low { color: var(--low); font-weight: 700; }
+    .pass { color: var(--pass); font-weight: 700; }
+    .nowrap { white-space: nowrap; }
+    .small { color: var(--muted); font-size: .94rem; }
+  </style>
+</head>
+<body>
+  <h1>Independent Technical and Editorial Review of Chapter 4</h1>
+
+  <div class="summary">
+    <p><strong>Decision:</strong> conditionally acceptable after technical-baseline repair and editorial compression. The hook-focused structure is sound, all required host hook families are represented, and the chapter normally preserves the distinction between logical events, physical probes and observation stages. It should not yet be frozen because the recorded committed baseline is not buildable and does not satisfy its own probe-registry test.</p>
+    <p>The highest-priority textual correction is in Section 4.2: the common initialiser does substantially more than establish identity and timing data. The largest editorial issue is repetition of concepts already owned by Chapters 2 and 3, especially in Sections 4.4--4.7.</p>
+  </div>
+
+  <section>
+    <h2>1. Audited Baseline and Validation</h2>
+    <table>
+      <tbody>
+        <tr><th>Implementation repository</th><td><code>demo_project</code></td></tr>
+        <tr><th>Recorded commit</th><td><code>ae653447d006b5952abfe9f57cbf0f67d94af673</code> (<code>ae65344</code>, merge of <code>feature/network-policy-detector</code>)</td></tr>
+        <tr><th>Working tree</th><td>Dirty. Modified: <code>Makefile</code>, <code>README.md</code>, <code>pkg/cmd/project.go</code>, <code>pkg/cmd/project_test.go</code>, <code>pkg/ebpf/probes/probes.go</code>, <code>pkg/ebpf/project.go</code>, <code>pkg/policy/loader.go</code>, <code>pkg/policy/loader_test.go</code>, <code>pkg/policy/policy.go</code>. Untracked: <code>pkg/policy/detector_selector.go</code>, <code>pkg/policy/detector_selector_test.go</code>, <code>rules/policies/mitre-privilege-collective.yaml</code>.</td></tr>
+        <tr><th>Current-tree tests</th><td><code>go test ./...</code> passed with the repository's libbpf build environment. Focused tests for probes, events, decoder, policy and detectors also passed.</td></tr>
+        <tr><th>Committed-tree check</th><td>An isolated archive of <code>ae65344</code> failed: <code>pkg/ebpf/project.go</code> refers to undefined <code>proj</code>; <code>TestPublicProbesHaveDecoderSpecs</code> reports public probe <code>sock_alloc_file</code> without a decoder schema; the committed policy-preset count test also expects eight files while nine are loaded.</td></tr>
+        <tr><th>Thesis source</th><td><code>chapter4.tex</code> is modified relative to Thesis commit <code>4e798da09b105873be603a56af352db37804d246</code>.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="blocker">
+      <strong>Baseline blocker.</strong> The dirty tree repairs the constructor and classifies the networking support probes as internal, and all current tests pass. Those repairs must be committed and a clean commit must be recorded before Chapter 4 can claim a reproducible implementation baseline. Uncommitted policy-driven detector selection must remain excluded unless it is intentionally included in that new baseline and re-audited.
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Factual and Technical Findings</h2>
+    <table>
+      <thead>
+        <tr><th>Severity</th><th>Location</th><th>Finding</th><th>Required correction</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="critical">Critical</td>
+          <td>Chapter-wide baseline</td>
+          <td>The recorded commit cannot build the eBPF runtime and fails registry consistency. The chapter currently reads as a description of a reproducible committed implementation.</td>
+          <td>Commit the constructor, registry and stale preset-test repairs, rerun the complete Go suite, and replace the baseline hash in the editorial records. Do not use the dirty detector-selector code unless it is also deliberately committed and documented.</td>
+        </tr>
+        <tr>
+          <td class="high">High</td>
+          <td>4.2.1, lines 61--65</td>
+          <td>The claim that the common initialiser establishes <em>only</em> identity and timing data is false. It also obtains or creates process/task state, initialises task context for a new task, records cgroup/container state, refreshes policy configuration and selects event configuration. Only the full task-context refresh and optional stack capture are consistently deferred to submission.</td>
+          <td>Describe the initialiser as establishing the reusable collection state and minimal event header while deferring final task enrichment. Avoid the word “only”. State that policy and container-related fields are inherited from the common framework even though Chapter 4 does not analyse those legacy internals in detail.</td>
+        </tr>
+        <tr>
+          <td class="high">High</td>
+          <td>4.3 and 4.5 registry guarantees</td>
+          <td>The statement that internal support probes remain hidden is true for the current dirty tree, but false for <code>ae65344</code>: five networking support entries are not marked internal and the public-probe/schema test fails.</td>
+          <td>Freeze the fixed registry in a clean commit. After that, retain the claim and cite the consistency tests as executable evidence. Until then, qualify it as a property of the pending corrected tree.</td>
+        </tr>
+        <tr>
+          <td class="medium">Medium</td>
+          <td>4.2.1 shared listing</td>
+          <td>The abridged listing splices two non-contiguous helpers and visually places full task initialisation immediately after the event ID. This hides cgroup, process/task-map and policy-configuration work and reinforces the inaccurate prose.</td>
+          <td>Shorten the excerpt and make the discontinuity unmistakable, or keep only one boundary in code and explain the other in prose. The caption should continue to identify it as a composite excerpt.</td>
+        </tr>
+        <tr>
+          <td class="medium">Medium</td>
+          <td>Source evidence for <code>security_file_open</code></td>
+          <td>The C comment says open/openat event support “can be added later”, although the public <code>open</code> event already has open/openat entry and exit programs. Chapter 4 itself gives the current, correct account, but the underlying source comment is stale.</td>
+          <td>Correct the code comment before presenting source-level evidence or generating an appendix from code. No thesis semantic change is needed.</td>
+        </tr>
+        <tr>
+          <td class="medium">Medium</td>
+          <td>4.3 shutdown paragraph</td>
+          <td>“Runtime-managed cgroup mount” belongs to the cgroup-SKB networking attachment path, not to the host hook families being documented in this revision.</td>
+          <td>Remove this detail from the host-focused body, or state explicitly that it is conditional infrastructure for the excluded networking path.</td>
+        </tr>
+        <tr>
+          <td class="low">Low</td>
+          <td>4.4, lines 516--517</td>
+          <td>The exact corrective commit hash is useful for traceability but is not independently meaningful unless the final thesis identifies the repository and frozen revision.</td>
+          <td>Retain it only with a repository/appendix provenance statement; otherwise describe the regression test and move the hash to an implementation appendix.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="passbox">
+      <strong>Verified technical claims.</strong> The 136-byte context, one-byte argument count, 32,000-byte non-power-of-two argument buffer, 20-component path bound, 38-element execution-argument bound, seven retained entry slots, two-second default detector window, five-second maximum, 4,096 partial-state cap, one-second opportunistic pruning interval, five-second alert deduplication interval and 1,024-character table sequence limit match the current code. Their current primary ownership is generally appropriate.
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Logical Events, Physical Probes and Operation Stages</h2>
+    <table>
+      <thead><tr><th>Required distinction</th><th>Result</th><th>Review</th></tr></thead>
+      <tbody>
+        <tr><td>Process lifecycle versus executable transition</td><td class="pass">Pass</td><td>Fork/clone returns, scheduler fork, exec requests, binary mediation, successful scheduler exec and failed exec return are explicitly separated.</td></tr>
+        <tr><td>Syscall request versus successful operation</td><td class="pass">Pass</td><td>Paired events retain return evidence; entry-only events are not presented as successful calls. The special return meaning of <code>setfsuid</code>/<code>setfsgid</code> is preserved.</td></tr>
+        <tr><td>LSM mediation versus enforcement outcome</td><td class="pass">Pass</td><td>Security-function kprobes are consistently called mediation points and are not mislabelled as BPF-LSM enforcement programs.</td></tr>
+        <tr><td>Requested versus committed credential transition</td><td class="pass">Pass</td><td>Set-ID syscalls, <code>security_task_fix_setuid</code> and <code>commit_creds</code> are assigned different stages. The absence of <code>security_task_fix_setgid</code> is correctly stated.</td></tr>
+        <tr><td>Requested versus committed namespace transition</td><td class="pass">Pass</td><td><code>setns</code>/<code>unshare</code> returns are distinguished from sparse effect-level <code>switch_task_ns</code> evidence.</td></tr>
+        <tr><td>Caller path versus resolved kernel-object path</td><td class="pass">Pass</td><td>The <code>open</code> request pathname is not conflated with the resolved <code>security_file_open</code> path; best-effort syscall pathname recovery remains separately qualified.</td></tr>
+        <tr><td>One logical event from several probes</td><td class="pass">Pass</td><td>Exec failure, chmod, chown, ptrace and other paired/multi-probe families are described as converging on schemas rather than as duplicate public events.</td></tr>
+        <tr><td>Support probes versus public events</td><td class="medium">Conditional</td><td>The architecture is explained correctly, but its committed registry is currently inconsistent. Acceptance depends on the baseline repair in Section 2.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>4. Hook-Family and Shared-Mechanism Coverage</h2>
+    <p>No required host hook family is missing. Section 4.2 covers process creation and lifecycle, executable transitions, identity and credentials, process control and limits, filesystem operations, memory, namespace and cgroup transitions, module lifecycle, eBPF mediation, dynamic instrumentation and kernel-facing interfaces. The body also avoids becoming a complete hook catalogue.</p>
+
+    <table>
+      <thead><tr><th>Recurring mechanism</th><th>Coverage</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td>Common initialisation and deferred enrichment</td><td class="medium">Incomplete</td><td>Correct the scope of initialisation as described in Finding 2. Final task refresh, optional stack capture and perf submission remain correctly owned by the submission path.</td></tr>
+        <tr><td>Exact effective-UID admission</td><td class="pass">Complete</td><td>The equality-only semantics and map offsets are precise. Keep the warning that no loaded-object read-back test protects those offsets.</td></tr>
+        <tr><td>Direct versus entry/return construction</td><td class="pass">Complete</td><td>Keep one shared explanation. The paired listing should show or clearly cross-reference deletion after successful lookup.</td></tr>
+        <tr><td>Indexed argument serialisation and bounds</td><td class="pass">Complete</td><td>The non-power-of-two correction and commit-after-complete-write behaviour are accurately described.</td></tr>
+        <tr><td>Perf-event submission and loss reporting</td><td class="pass">Complete</td><td>Current implementation uses only perf-event transport. Ring-buffer implementation is not claimed.</td></tr>
+        <tr><td>Dependency expansion and selective autoload</td><td class="pass">Complete</td><td>Selection, implied probes and autoload disabling are represented accurately; libbpf skips CO-RE and program relocation/load work for programs whose autoload is disabled.</td></tr>
+        <tr><td>Event/probe registry consistency</td><td class="medium">Conditional</td><td>Tests are suitable, but the recorded commit fails them. Numeric C/Go ID synchronisation remains a manual maintenance obligation, as the chapter states.</td></tr>
+        <tr><td>Schema-directed decoding</td><td class="pass">Complete</td><td>Unknown IDs, unsafe payloads and out-of-range indexes are errors; missing fields and duplicate indexes are deliberately tolerated. No independent wire type tag exists.</td></tr>
+      </tbody>
+    </table>
+
+    <p class="small">Automated tests establish registry, decoder, policy and detector invariants, but the inspected packages do not provide kernel-runtime tests for every hook's semantics. Chapter 5 should own dynamic validation of representative hooks and operation stages.</p>
+  </section>
+
+  <section>
+    <h2>5. Source-Listing Audit</h2>
+    <p>The chapter contains seven body listings, below the ceiling of eight. Every listing is referenced and receives an architectural explanation. Four listings exceed the agreed normal range of 8--18 lines.</p>
+    <table>
+      <thead><tr><th>Listing</th><th>Approx. code lines</th><th>Decision</th><th>Reason</th></tr></thead>
+      <tbody>
+        <tr><td><code>ebpf-shared-construction</code></td><td>20</td><td class="high">Shorten</td><td>Composite and potentially misleading ordering; it should expose one recurring boundary in 12--16 lines and replace, rather than duplicate, the transport prose.</td></tr>
+        <tr><td><code>ebpf-entry-state</code></td><td>19</td><td class="medium">Shorten</td><td>Remove the stale source comment “or not a container” and line-by-line prose. Include deletion or avoid implying that the excerpt demonstrates it.</td></tr>
+        <tr><td><code>probe-dependency-expansion</code></td><td>13</td><td class="pass">Keep</td><td>Faithful, compact and the clearest evidence for logical selection expanding into public and support programs.</td></tr>
+        <tr><td><code>argument-buffer-bounds</code></td><td>17</td><td class="pass">Keep</td><td>Faithful to the corrected source and directly supports the 32,000-byte bounds discussion.</td></tr>
+        <tr><td><code>decoder-indexed-arguments</code></td><td>25</td><td class="high">Shorten</td><td>Reduce to registry lookup, index check, typed decode and schema-order reconstruction. Current prose repeats duplicate, missing and type-tag behaviour three times.</td></tr>
+        <tr><td><code>ebpf-early-admission</code></td><td>9</td><td class="pass">Keep</td><td>Complete and proportionate. Remove post-listing narration that restates every branch.</td></tr>
+        <tr><td><code>collective-state-advance</code></td><td>24</td><td class="high">Shorten</td><td>Retain expiry, next-step match, append, completion deletion and alert creation in 14--18 lines. The following prose should explain state ownership rather than narrate assignments.</td></tr>
+      </tbody>
+    </table>
+    <p>No generated code, networking code, complete catalogues or uncommitted detector-selector code appears in a listing. No additional body listing is needed.</p>
+  </section>
+
+  <section>
+    <h2>6. Redundancy Against Chapters 2 and 3</h2>
+    <table>
+      <thead><tr><th>Chapter 4 material</th><th>Existing owner</th><th>Edit</th></tr></thead>
+      <tbody>
+        <tr><td>4.2 opening explanation of direct, paired, logical and physical forms</td><td>Chapter 3, Sections 3.2 and 3.3.1</td><td>Keep one short transition to implementation; remove general architecture restatement.</td></tr>
+        <tr><td>4.2 lines 148--153 taxonomy of attempt, mediation, committed transition and return</td><td>Chapter 2 hook semantics and Chapter 3 collection design</td><td>Retain as a compact interpretive key because it controls the hook-family discussion; do not repeat it in each family.</td></tr>
+        <tr><td>4.4 record composition and omitted-field rationale</td><td>Chapter 3, Section 3.4.1</td><td>Keep exact byte layout, writer mechanics and corrected bounds bug; compress the conceptual contract explanation.</td></tr>
+        <tr><td>4.4 perf-loss and ordering discussion</td><td>Chapter 3, Section 3.4.2</td><td>Keep map/reader implementation and cross-reference failure semantics.</td></tr>
+        <tr><td>4.5 decoding acceptance model</td><td>Chapter 3, Section 3.5.2</td><td>Keep concrete parser behaviour once. Remove repeated definitions of normalisation and schema-directed interpretation.</td></tr>
+        <tr><td>4.6 selection and early filtering rationale</td><td>Chapter 3, Sections 3.3.2 and 3.6.1</td><td>Keep exact config-map fields, offsets and eBPF guard; compress the architecture recap.</td></tr>
+        <tr><td>4.7 definitions of policy, point path, collective path and correlation types</td><td>Chapters 2.3 and 3.6</td><td>Keep YAML conversion, compilation, indexed dispatch, state fields, exact limits and ATT&amp;CK propagation. Remove conceptual redefinition.</td></tr>
+        <tr><td>4.8 distinction between security output and diagnostics</td><td>Chapter 3, Section 3.5.3</td><td>Keep concrete adapters, Zap configuration and output-specific bounds; shorten the architectural distinction.</td></tr>
+        <tr><td>4.10 general CO-RE limitations</td><td>Chapter 2, Section 2.2.4</td><td>Keep only concrete compatibility branches and verifier-driven implementation choices, followed by one cross-reference.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>7. Internal Chapter 4 Redundancy</h2>
+    <table>
+      <thead><tr><th>Repeated topic</th><th>Occurrences</th><th>Primary owner</th></tr></thead>
+      <tbody>
+        <tr><td>Perf submission and record-size composition</td><td>Shared listing/prose in 4.2 and transport explanation in 4.4</td><td>4.4. Let 4.2 state only that the shared submit helper completes enrichment.</td></tr>
+        <tr><td>Missing and duplicate indexed arguments</td><td>4.5 listing explanation, malformed-record paragraph and tolerance paragraph</td><td>One paragraph after the decoder listing.</td></tr>
+        <tr><td>Absence of a wire type tag</td><td>4.4 and twice in 4.5</td><td>4.4 defines the format; 4.5 needs only the resulting decoder consequence.</td></tr>
+        <tr><td>Exact UID branches</td><td>4.6 before and after the complete helper listing</td><td>The listing plus one sentence on security scope.</td></tr>
+        <tr><td>Collective transition assignments</td><td>4.7 listing and the immediately following paragraph</td><td>The listing owns mechanics; prose owns key composition, limits and evidence semantics.</td></tr>
+        <tr><td>VMA red-black-tree helper is unused</td><td>4.2.5 and 4.10</td><td>4.10 compatibility section. Remove the earlier duplicate or reduce it to a cross-reference.</td></tr>
+        <tr><td>Policy-derived event allow-list</td><td>4.6 and 4.7</td><td>4.6. Section 4.7 may refer to the selected input set without restating probe planning.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>8. Policy/Detector, Networking and Evaluation Boundaries</h2>
+    <h3>Section 4.7</h3>
+    <p>The section is implementation-focused in substance but is still longer than the approved compressed form. It should become six to eight compact paragraphs plus one listing. Retain deterministic path loading, YAML conversion qualifications, condition compilation, event-indexed dispatch, concrete state transition, exact local correlation inputs, state/deduplication limits and threat-metadata propagation.</p>
+    <p>Reduce the general explanations of policy precedence, point versus collective meaning and why local correlation exists. The operator catalogue can be compressed into categories or moved to an appendix. Do not add the dirty policy-driven detector selector until it is committed and its bootstrap integration is frozen.</p>
+
+    <h3>Boundary compliance</h3>
+    <ul>
+      <li><span class="pass">Pass:</span> no networking event family or networking source listing appears in the chapter.</li>
+      <li><span class="medium">Adjust:</span> the conditional cgroup-mount cleanup detail in 4.3 leaks networking runtime infrastructure into the host-focused account.</li>
+      <li><span class="pass">Pass:</span> no experimental results or claim of meeting the CPU target appears; evaluation remains available to Chapter 5.</li>
+      <li><span class="pass">Pass:</span> no cluster-wide detector, contextual-anomaly implementation, Kubernetes workload identity or enforcement capability is claimed.</li>
+      <li><span class="pass">Pass:</span> module, eBPF and dynamic-instrumentation coverage is limited to the implemented observation points and does not claim hidden-module detection, attachment-graph construction or integrity proof.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>9. Terminology, Citations, Glossary and LaTeX</h2>
+    <table>
+      <thead><tr><th>Area</th><th>Finding</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td>British English</td><td>Generally consistent: <em>organisation</em>, <em>initialisation</em>, <em>serialisation</em>, <em>normalises</em> and <em>containerisation</em> are used correctly.</td><td>Keep the British forms even where the older outline uses American spellings.</td></tr>
+        <tr><td>Filesystem spelling</td><td>The chapter alternates between “filesystem” and “file-system” in a table caption.</td><td>Use “filesystem” consistently.</td></tr>
+        <tr><td>Event identifiers</td><td>Logical event names are often formatted with <code>\path</code>, although they are identifiers rather than filesystem paths.</td><td>Prefer <code>\texttt</code> for logical event names; reserve <code>\path</code> for actual paths and long path-like values.</td></tr>
+        <tr><td>Acronyms</td><td>No undefined glossary command is present. The global acronym list includes eBPF, CPU, ATT&amp;CK, LSM, JIT, BTF and CO-RE. PID and UID are used repeatedly but are not in the list.</td><td>Either expand PID/UID at their first thesis use or add glossary entries if they are intended to appear in the acronym list. Avoid adding every incidental format acronym mechanically.</td></tr>
+        <tr><td>Citations</td><td>The only Chapter 4 external citation, <code>uber_zap</code>, exists in the bibliography. Implementation claims appropriately rely on inspected source and tests rather than pretending to be general literature claims.</td><td>Add repository provenance if the body retains an exact commit hash.</td></tr>
+        <tr><td>Labels/references</td><td>No duplicate Chapter 4 label was found. Every statically inspected cross-reference target exists in the thesis source, and <code>uber_zap</code> resolves statically.</td><td>Confirm with the canonical full build after the local TeX environment is repaired.</td></tr>
+        <tr><td>Layout warnings</td><td>The isolated chapter check reported overfull prose around the kernel-coverage paragraph (about 8 pt) and the Section 4.9 heading (about 13 pt), plus a negligible 0.13 pt line in 4.6. Listing breaklines remove the much larger artefacts seen without the thesis listing configuration.</td><td>Reflow the affected prose/heading and inspect the final PDF visually.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>10. Build and Test Report</h2>
+    <ul>
+      <li><strong>Current implementation:</strong> complete <code>go test ./...</code> passed.</li>
+      <li><strong>Focused implementation packages:</strong> probes, events, buffer decoder, policy, detector core and YAML detector tests passed.</li>
+      <li><strong>Recorded commit:</strong> isolated checks exposed the constructor compile failure, public probe/schema inconsistency and stale policy-preset count described above.</li>
+      <li><strong>Canonical thesis build:</strong> attempted in an isolated copy. It stopped in the preamble because the local TeX installation lacks <code>biblatex.sty</code>; Chapter 4 was not reached.</li>
+      <li><strong>Isolated Chapter 4 syntax check:</strong> the complete chapter parsed without a LaTeX syntax error. PDF finalisation was blocked by the local TeX installation because <code>gftopk</code>/required EC font generation is unavailable.</li>
+      <li><strong>References:</strong> warnings from the isolated wrapper concerned cross-chapter references and <code>uber_zap</code>, which the wrapper deliberately did not load. Static inspection found their targets. No authoritative unresolved-reference result can be reported until the complete build runs.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>11. Ordered Edit List</h2>
+    <ol>
+      <li><strong>Freeze a clean implementation baseline.</strong> Commit the runtime constructor and registry repairs, update the preset test, run <code>go test ./...</code>, and record the new hash.</li>
+      <li><strong>Correct shared initialisation.</strong> Rewrite lines 61--65 and shorten the composite listing so the initialiser's task/process, cgroup/container and policy-configuration responsibilities are not erased.</li>
+      <li><strong>Revalidate registry claims.</strong> Confirm public/internal classification and event-schema consistency on the new clean commit.</li>
+      <li><strong>Bring all listings within budget.</strong> Shorten listings 1, 2, 5 and 7; remove narration that repeats their statements.</li>
+      <li><strong>Compress Sections 4.4--4.7.</strong> Keep exact implementation mechanisms and limits; replace background/design restatement with cross-references to Chapters 2 and 3.</li>
+      <li><strong>Remove internal repetition.</strong> Give perf submission to 4.4, decoder tolerance to one 4.5 paragraph, UID semantics to one 4.6 explanation and the unused VMA-helper qualification to 4.10.</li>
+      <li><strong>Restore the host-only boundary.</strong> Remove or qualify the networking-specific runtime-managed cgroup mount in 4.3.</li>
+      <li><strong>Clean terminology and provenance.</strong> Replace identifier uses of <code>\path</code>, standardise “filesystem”, decide PID/UID acronym treatment and contextualise the corrective commit hash.</li>
+      <li><strong>Repair the TeX environment and rebuild.</strong> Install the missing biblatex/font tooling, run the canonical build, inspect unresolved references and overfull boxes, and visually review all tables and listings.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>12. Final Acceptance Checklist</h2>
+    <ul>
+      <li>Clean, recorded <code>demo_project</code> commit builds and passes the complete test suite.</li>
+      <li>Probe registry tests pass without relying on uncommitted internal flags.</li>
+      <li>Shared event initialisation is described completely enough to match <code>init_program_data</code>.</li>
+      <li>All host hook families from the approved synthesis remain represented once.</li>
+      <li>Lifecycle, request, mediation, committed-state and return stages remain distinct.</li>
+      <li>Filesystem request paths and resolved object paths remain distinct.</li>
+      <li>No final outcome is inferred where the producer has no return evidence.</li>
+      <li>No <code>security_task_fix_setgid</code>, hidden-module, BPF attachment-graph or enforcement claim is introduced.</li>
+      <li>No complete catalogue, networking implementation or experimental evaluation dominates the body.</li>
+      <li>No more than eight listings are present; each is normally 8--18 lines and replaces prose.</li>
+      <li>Section 4.7 contains implementation mechanics and exact bounds, not repeated policy/detector theory.</li>
+      <li>Uncommitted detector-selector behaviour is absent unless included in a newly frozen baseline.</li>
+      <li>Each numerical limit has one primary owner and still matches code/tests.</li>
+      <li>British English, terminology, citations, glossary usage and LaTeX labels are consistent.</li>
+      <li>The canonical thesis build completes without unresolved references or material layout warnings.</li>
+    </ul>
+  </section>
+</body>
+</html>

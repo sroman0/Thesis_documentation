@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 4 Shared Pattern and Listing Audit</title>
+  <style>
+    body { max-width: 1180px; margin: 2rem auto; padding: 0 1.25rem; color: #20242a; font: 16px/1.52 Arial, sans-serif; }
+    h1, h2, h3 { color: #19324d; line-height: 1.2; }
+    h1 { border-bottom: 2px solid #19324d; padding-bottom: .45rem; }
+    h2 { margin-top: 2rem; border-bottom: 1px solid #c8d0d8; padding-bottom: .25rem; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: .93rem; }
+    th, td { border: 1px solid #b9c1ca; padding: .55rem; text-align: left; vertical-align: top; }
+    th { background: #edf2f6; }
+    code { background: #f1f3f5; padding: .08rem .25rem; overflow-wrap: anywhere; }
+    pre { background: #f5f7f9; border: 1px solid #cbd2d9; padding: .8rem; overflow-x: auto; font-size: .88rem; }
+    .note { border-left: 4px solid #3478a6; background: #f0f7fb; padding: .75rem 1rem; }
+    .warning { border-left: 4px solid #b36500; background: #fff7eb; padding: .75rem 1rem; }
+    .decision { border-left: 4px solid #2d7a45; background: #f0f8f2; padding: .75rem 1rem; }
+    .keep { color: #246b39; font-weight: bold; }
+    .move { color: #8b5b00; font-weight: bold; }
+    .remove { color: #9a2525; font-weight: bold; }
+    ul, ol { padding-left: 1.4rem; }
+  </style>
+</head>
+<body>
+  <h1>Chapter 4 Shared Implementation-Pattern and Source-Listing Audit</h1>
+
+  <p><strong>Audit date:</strong> 3 August 2026</p>
+  <p><strong>Preferred implementation baseline:</strong> <code>demo_project</code>
+  commit <code>ae653447d006b5952abfe9f57cbf0f67d94af673</code>
+  (<code>ae65344</code>, merge of the network policy/detector branch).</p>
+
+  <h2>1. Repository Baseline and Evidence</h2>
+  <p>The implementation was inspected primarily from committed source. The working
+  tree was not clean:</p>
+  <pre> M Makefile
+ M README.md
+ M pkg/cmd/project.go
+ M pkg/cmd/project_test.go
+ M pkg/ebpf/probes/probes.go
+ M pkg/ebpf/project.go
+ M pkg/policy/loader.go
+ M pkg/policy/loader_test.go
+ M pkg/policy/policy.go
+?? pkg/policy/detector_selector.go
+?? pkg/policy/detector_selector_test.go
+?? rules/policies/mitre-privilege-collective.yaml</pre>
+
+  <div class="warning">
+    <strong>Registry qualification.</strong> The local change to
+    <code>pkg/ebpf/probes/probes.go</code> marks five networking support programs as
+    internal. At the preferred commit those five specifications still appear public,
+    although they have no standalone decoder schema. This does not alter the host-hook
+    mechanisms audited here, and networking is excluded from the chapter revision, but
+    it means that the committed registry is not fully consistent with the current
+    public/internal tests. The relevant package tests pass on the present working tree.
+    The thesis should describe the intended public/internal model only after this small
+    repair is committed, or qualify the baseline explicitly.
+  </div>
+
+  <p>The current-tree tests for <code>pkg/ebpf/probes</code>,
+  <code>pkg/bufferdecoder</code>, and <code>pkg/events</code> pass when built with the
+  repository's local libbpf and libbpfgo configuration. Decoder and event-registry tests
+  also pass independently. No generated code or uncommitted detector-selection logic is
+  recommended as thesis evidence.</p>
+
+  <h2>2. Shared Mechanism Audit</h2>
+  <table>
+    <thead>
+      <tr><th>Mechanism</th><th>Committed implementation</th><th>Architectural meaning</th><th>Qualification</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Common initialisation and deferred enrichment</td>
+        <td><code>init_program_data</code> acquires the per-CPU event workspace and singleton configuration, resets arguments, records minimal identity and timing fields, and resolves task/process state. <code>events_perf_submit</code> refreshes the complete task context and optionally captures a user stack before transport.</td>
+        <td>Hook bodies supply only event-specific evidence; shared context construction and final submission remain centralised.</td>
+        <td>“Deferred enrichment” does not mean that initialisation is cheap or empty. It already performs map lookups, task-state setup, cgroup handling and policy-map work. Only the final full task-context refresh and optional stack capture are deferred.</td>
+      </tr>
+      <tr>
+        <td>Exact UID admission</td>
+        <td>The common initialiser reads <code>config_map[0]</code> and invokes <code>should_drop_by_kernel_uid_filter</code> before argument reset and most event construction. The low 32 bits of <code>bpf_get_current_uid_gid</code> are compared with one configured UID.</td>
+        <td>One verifier-simple equality guard applies uniformly to hooks using the common framework.</td>
+        <td>It is an exact effective-UID filter, not a policy compiler, range, exclusion set, namespace-aware identity rule or authorisation mechanism.</td>
+      </tr>
+      <tr>
+        <td>Direct versus entry/return construction</td>
+        <td>Direct hooks initialise, serialise and submit in one invocation. Paired hooks store up to seven argument slots in <code>args_map</code> under a key composed of logical event ID and current host thread ID; the return path loads, deletes and completes the record.</td>
+        <td>The mechanism preserves request arguments until a return value is available while allowing several logical operations from one thread to occupy distinct keys.</td>
+        <td><code>BPF_ANY</code> replaces stale state. A missing entry causes the return-side logical event to be skipped. This is bounded temporary correlation, not a general process history.</td>
+      </tr>
+      <tr>
+        <td>Indexed argument serialisation</td>
+        <td>Each argument begins with a one-byte schema index. Scalars use a schema-defined fixed width; variable records add bounded size or count fields. Writers update the offset and argument count only after successful writes.</td>
+        <td>An omitted argument does not shift the identity of later arguments, and the wire record need not carry names or type tags.</td>
+        <td>The index is meaningful only with the Go event schema. Type compatibility cannot be checked independently from the wire because no type tag is transmitted.</td>
+      </tr>
+      <tr>
+        <td>Explicit bounds and long records</td>
+        <td><code>save_to_submit_buf</code> preserves the checked offset and exposes its upper bound with <code>update_min</code>. Commit <code>163ad724a65ec8c701dc816fe87f174eeec51275</code> removed mask-based handling of the non-power-of-two 32,000-byte buffer and added a long-record regression test.</td>
+        <td>Verifier evidence is expressed without modifying a valid write position.</td>
+        <td>The regression proves the constructed long record decodes correctly; it is not an exhaustive proof for every serialiser and maximum-sized combination.</td>
+      </tr>
+      <tr>
+        <td>Perf-event submission</td>
+        <td><code>events_perf_submit</code> computes <code>sizeof(event_context_t) + 1 + offset</code>, clamps it to the maximum in verifier-visible form, and calls <code>bpf_perf_event_output</code> on the current CPU. Go consumes the <code>events</code> perf-event array with one libbpfgo reader.</td>
+        <td>Only the used portion of the large workspace crosses the kernel/user boundary.</td>
+        <td>There is no active BPF ring-buffer alternative. Per-CPU ordering and loss semantics belong to Chapter 3 and evaluation, not repeated implementation prose.</td>
+      </tr>
+      <tr>
+        <td>Dependency expansion and selective autoload</td>
+        <td><code>Select</code> resolves selected public logical events to direct producers and specifications whose <code>impliedBy</code> triggers match. <code>ConfigureAutoload</code> disables unrelated registered programs before object loading; <code>Attach</code> selects the libbpfgo API by probe kind.</td>
+        <td>Logical selection controls a physical program plan without embedding naming rules in the loader.</td>
+        <td>The guarantee covers registered programs only. Registry omissions cannot be disabled or attached by this mechanism.</td>
+      </tr>
+      <tr>
+        <td>Event/probe registry consistency</td>
+        <td>The event registry owns numeric IDs, public names and ordered argument schemas. The probe registry owns program names, hooks, attachment kinds and dependencies. Tests cover public decoder availability, public production, internal hiding, multi-probe families and implied dependencies.</td>
+        <td>The two registries define the semantic and production halves of one logical interface.</td>
+        <td>There is no automated comparison of Go IDs with the C event enum. The dirty internal-flag repair described above is also needed for the current consistency suite to represent the intended committed baseline.</td>
+      </tr>
+      <tr>
+        <td>Schema-directed decoding</td>
+        <td><code>DecodeEvent</code> reads the 136-byte context and count, resolves the event ID, and decodes indexed records using the selected schema. A temporary index map is emitted in schema order as <code>bufferdecoder.Event</code>.</td>
+        <td>The decoder is the normalisation boundary consumed directly by policies and detectors; the output model is presentation-only.</td>
+        <td>Unknown IDs, invalid indexes, truncation, oversized variable fields and invalid text are rejected. Missing arguments and duplicate indexes are accepted, the later duplicate wins, and trailing bytes need not be consumed.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>3. Audit of Existing Chapter 4 Listings</h2>
+  <table>
+    <thead>
+      <tr><th>Current listing</th><th>Decision</th><th>Fidelity and overlap</th><th>Required treatment</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>lst:ebpf-early-admission</code><br>Early UID admission</td>
+        <td class="move">Move and shorten</td>
+        <td>The two excerpts are faithful to committed <code>context.h</code>, but the listing splices two symbols and its current 4.2 explanation is repeated almost completely in 4.6.</td>
+        <td>Move the guard itself to 4.6 and retain only 8-10 lines showing disabled/null admission and exact UID comparison. Explain its call position in one sentence and refer back to the shared construction framework. Do not reproduce the surrounding map lookup.</td>
+      </tr>
+      <tr>
+        <td><code>lst:ebpf-entry-state</code><br>Entry/return state</td>
+        <td class="keep">Keep, but shorten</td>
+        <td>The key and map operations are faithful. The current 19-line excerpt exceeds the normal budget, omits the fixed copies and does not show deletion, while the following prose narrates it nearly line by line.</td>
+        <td>Use 12-16 lines containing key creation plus save/lookup operations. State deletion and seven-slot copying architecturally in prose. Remove sentence-by-sentence commentary after the listing.</td>
+      </tr>
+      <tr>
+        <td><code>lst:probe-dependency-expansion</code><br>Logical selection to probes</td>
+        <td class="keep">Keep</td>
+        <td>The 13-line loop is faithful to committed <code>Select</code> and demonstrates a one-to-many dependency rule better than prose alone. It does not itself show autoload configuration.</td>
+        <td>Keep it in 4.3 and narrow the caption to dependency expansion. Explain selective autoload separately without adding a second registry listing. Avoid networking names and catalogue excerpts.</td>
+      </tr>
+      <tr>
+        <td><code>lst:argument-buffer-bounds</code><br>Checked offset handling</td>
+        <td class="keep">Keep</td>
+        <td>The abridgement is faithful to <code>save_to_submit_buf</code> and captures a real cross-version verifier issue fixed by commit <code>163ad72</code>. Its explanatory value is stronger than the surrounding prose alone.</td>
+        <td>Keep in 4.4 at 14-18 lines. Replace the placeholder comment with a short ellipsis comment or the compact verifier clamp if it still fits. Retain one architectural paragraph about preserving the offset; move exhaustive helper layouts to an appendix.</td>
+      </tr>
+      <tr>
+        <td><code>lst:collective-state-advance</code><br>Collective transition</td>
+        <td class="keep">Keep, but shorten</td>
+        <td>The excerpt is faithful to committed detector code, but the following prose restates each assignment and branch. It is outside the host-hook focus yet remains the strongest implementation excerpt in 4.7.</td>
+        <td>Retain 12-16 lines as the single policy/detector listing, subject to the policy-compression audit. Remove line-by-line prose. Do not combine it with uncommitted policy-driven detector selection.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="decision">
+    <strong>Overall decision:</strong> no existing listing must be removed outright.
+    One should move, two should be shortened, and two can remain in their current
+    sections. The revision should add only two new primary excerpts: common
+    initialisation/deferred submission and schema-directed decoding.
+  </div>
+
+  <h2>4. Approved Listing Budget</h2>
+  <p>The recommended body budget is seven listings, leaving one unused slot below
+  the hard maximum of eight. The spare slot should not be filled unless the final
+  editorial synthesis identifies a mechanism that cannot be explained more clearly in
+  prose.</p>
+  <table>
+    <thead>
+      <tr><th>No.</th><th>Section</th><th>Primary mechanism</th><th>Source and target length</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td>4.2</td><td>Common construction and deferred final enrichment</td><td><code>context.h:init_program_data</code> plus <code>buffer.h:events_perf_submit</code>, one explicitly abridged 12-18-line excerpt</td><td>New; replaces the current opening catalogue of common steps.</td></tr>
+      <tr><td>2</td><td>4.2</td><td>Entry/return argument retention</td><td><code>arguments.h:get_args_id/save_args/load_args</code>, 12-16 lines</td><td>Shortened existing listing.</td></tr>
+      <tr><td>3</td><td>4.3</td><td>Probe dependency expansion</td><td><code>probes.go:Select</code>, 13-16 lines</td><td>Existing listing retained.</td></tr>
+      <tr><td>4</td><td>4.4</td><td>Verifier-safe indexed write</td><td><code>buffer.h:save_to_submit_buf</code>, 14-18 lines</td><td>Existing listing retained.</td></tr>
+      <tr><td>5</td><td>4.5</td><td>Schema-directed indexed decode</td><td><code>eventsreader.go:decodeArguments</code>, 12-18 lines</td><td>New; replaces the prose description of map-by-index and schema-order reconstruction.</td></tr>
+      <tr><td>6</td><td>4.6</td><td>Exact effective-UID guard</td><td><code>context.h:should_drop_by_kernel_uid_filter</code>, 8-10 lines</td><td>Moved and shortened existing listing.</td></tr>
+      <tr><td>7</td><td>4.7</td><td>Collective state transition</td><td><code>detectors/yaml/detector.go:onStatefulEvent</code>, 12-16 lines</td><td>Shortened existing listing; final ownership belongs to the policy-compression synthesis.</td></tr>
+      <tr><td>8</td><td>Unassigned</td><td>Reserved</td><td>No source selected</td><td>Leave unused by default.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Listings Explicitly Excluded</h3>
+  <ul>
+    <li>Individual hook bodies: they create a catalogue and repeat the shared framework.</li>
+    <li>The complete event or probe registry: large declarative catalogues belong in generated documentation or an appendix table.</li>
+    <li>Generated BPF skeletons or generated headers.</li>
+    <li>Networking programs and packet parsing.</li>
+    <li>The uncommitted detector-selector implementation.</li>
+    <li>Output formatting and Zap setup: prose is sufficient and these mechanisms are not part of hook construction.</li>
+    <li>Map declarations without an algorithmic operation: they duplicate prose and expose layout detail without explaining control flow.</li>
+  </ul>
+
+  <h2>5. Section-to-Mechanism Ownership Matrix</h2>
+  <table>
+    <thead>
+      <tr><th>Section</th><th>Owns</th><th>May reference</th><th>Must not repeat</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>4.2 eBPF program implementation</td>
+        <td>Per-CPU workspace, shared initialisation, deferred final enrichment, direct submission, entry/return retention, and how hook families reuse these patterns.</td>
+        <td>Refer to 4.4 for byte encoding and perf submission; refer to 4.6 for UID configuration semantics.</td>
+        <td>Full wire layout, decoder behaviour, registry selection loop, filter offsets, perf-buffer rationale, or one mini-lifecycle per hook family.</td>
+      </tr>
+      <tr>
+        <td>4.3 loader and probe registry</td>
+        <td>Logical-event resolution to producer/support specifications, dependency expansion, selective autoload, attachment-kind dispatch, link ownership and shutdown.</td>
+        <td>Refer to 4.5 for semantic event schemas and cross-registry checks.</td>
+        <td>Hook payload semantics already owned by 4.2, generic logical/physical definitions from Chapter 3, decoder rules, or event-record layout.</td>
+      </tr>
+      <tr>
+        <td>4.4 binary contract and transport</td>
+        <td>136-byte context, count byte, indexed payload encodings, explicit write bounds, exact submitted size, perf-event output and long-record correction.</td>
+        <td>Refer to 4.2 for when hooks capture arguments and to 4.5 for their interpretation.</td>
+        <td>General perf-versus-ring-buffer comparison, complete event context field narration, probe selection, policy admission, or decoder malformed-record policy.</td>
+      </tr>
+      <tr>
+        <td>4.5 decoder and event registry</td>
+        <td>Little-endian context decode, ID resolution, schema-index dispatch, schema-order reconstruction, malformed-record boundary and semantic registry authority.</td>
+        <td>Refer to 4.3 for production/attachment registry and to 4.4 for wire encoding.</td>
+        <td>Re-explaining the record layout, output adaptation, policy evaluation, or all probe-registry lifecycle details.</td>
+      </tr>
+      <tr>
+        <td>4.6 selection and filtering</td>
+        <td>Ordering and distinction of producer selection, exact kernel UID admission, userspace event/command/policy admission, raw-output suppression and detector dispatch; configuration-map ABI for the UID guard.</td>
+        <td>Refer to 4.2 for the shared call site and 4.3 for autoload implementation.</td>
+        <td>Common event construction, complete policy language, decoder mechanics, or a second copy of the dependency-expansion algorithm.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>6. Repetition to Remove During the Hook-Family Rewrite</h2>
+  <table>
+    <thead><tr><th>Repeated explanation</th><th>Primary owner</th><th>Rewrite rule</th></tr></thead>
+    <tbody>
+      <tr><td>Attempt, mediation, successful transition and return-result semantics</td><td>Concepts in Chapters 2-3; concrete family distinctions in 4.2</td><td>State the general distinction once, then classify each family without redefining kprobes, tracepoints or LSM hooks.</td></tr>
+      <tr><td>Direct versus entry/return construction</td><td>4.2 shared framework</td><td>Family subsections should say only which pattern they use and why a result is or is not available.</td></tr>
+      <tr><td>Logical event versus physical probe</td><td>Chapter 3 concept; 4.3 concrete registry implementation</td><td>Do not restate the definition in every multi-probe family.</td></tr>
+      <tr><td>Indexed arguments and omitted fields</td><td>4.4</td><td>4.2 may say that arguments are appended; names, widths, indexes and bounds are explained only in 4.4.</td></tr>
+      <tr><td>Perf transport</td><td>4.4</td><td>4.2 says “submit”; 4.3 says “create/close reader”; only 4.4 explains exact size and helper invocation. Chapter 3 owns the design trade-off.</td></tr>
+      <tr><td>Exact UID filtering</td><td>4.6</td><td>4.2 mentions the early guard as one stage but does not reproduce its semantics or listing.</td></tr>
+      <tr><td>Event/probe registry relationship</td><td>4.3 for production, 4.5 for schema and consistency</td><td>Use one cross-reference instead of duplicating both registries in both sections.</td></tr>
+      <tr><td>Normalisation and decoder rejection</td><td>Chapter 3 concept; 4.5 concrete implementation</td><td>Do not repeat the end-to-end lifecycle or output model in 4.5.</td></tr>
+      <tr><td>Verifier and CO-RE theory</td><td>Chapter 2</td><td>Chapter 4 should retain only target-specific bounds, fallbacks and source-level consequences.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>7. Editorial Guidance for the Revised 4.2</h2>
+  <ol>
+    <li>Open with the shared construction framework and its two execution forms: direct and paired.</li>
+    <li>Use the two 4.2 listings once; every later hook family refers to those patterns.</li>
+    <li>For each family, explain observation stage, event-specific evidence and implementation-specific compatibility only.</li>
+    <li>Do not enumerate every scalar field or reproduce registry catalogues. A complete hook-to-event matrix is an appendix candidate.</li>
+    <li>When similar hooks represent different stages, contrast their semantics in one paragraph rather than repeating their common initialisation and submission.</li>
+    <li>Keep all performance claims and measured effects out of Chapter 4; describe only the implemented control path.</li>
+  </ol>
+
+  <h2>8. Appendix Candidates</h2>
+  <ul>
+    <li>A generated host-hook catalogue with logical event, physical programs, attach kind, kernel symbol, direct/paired construction, observation stage and schema.</li>
+    <li>The complete 136-byte C/Go context field table and all argument encoding variants.</li>
+    <li>Detailed malformed-record acceptance/rejection cases and their test coverage.</li>
+    <li>Target-kernel compatibility branches and fixed verifier limits by helper.</li>
+    <li>The public/internal registry consistency obligations, including the remaining C/Go numeric-ID test gap.</li>
+  </ul>
+
+  <h2>9. Acceptance Conditions for the Writer</h2>
+  <ul>
+    <li>No more than seven approved listings are expected; eight is an absolute maximum.</li>
+    <li>Each listing is 8-18 lines unless the editorial synthesis records a justified exception.</li>
+    <li>Every listing replaces prose, and its surrounding paragraph explains architecture rather than individual statements.</li>
+    <li>The revised chapter uses committed host-hook behaviour as its factual baseline.</li>
+    <li>Networking and uncommitted detector selection are absent.</li>
+    <li>The UID listing is owned by 4.6, while the common construction and paired-retention listings are owned by 4.2.</li>
+    <li>Cross-references replace repeated descriptions of the record, registry, decoder and transport mechanisms.</li>
+  </ul>
+</body>
+</html>

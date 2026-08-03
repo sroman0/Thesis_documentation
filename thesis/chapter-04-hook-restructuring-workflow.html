@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Workflow hook-focused - Capitolo 4</title>
+  <style>
+    body { max-width: 1100px; margin: 2rem auto; padding: 0 1rem; font: 16px/1.5 system-ui, sans-serif; color: #202124; }
+    h1, h2, h3 { line-height: 1.2; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 1rem; background: #f4f5f7; border: 1px solid #d5d8dc; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    th, td { border: 1px solid #c8cdd2; padding: .55rem; text-align: left; vertical-align: top; }
+    th { background: #f2f4f6; }
+    .rule { border-left: 4px solid #a33; padding: .75rem 1rem; background: #fff5f5; }
+  </style>
+</head>
+<body>
+  <h1>Ristrutturazione hook-focused del Capitolo 4</h1>
+
+  <h2>Decisione editoriale</h2>
+  <p>
+    La revisione mantiene le sezioni principali 4.1-4.10 ma amplia 4.2 per
+    spiegare l'implementazione delle famiglie di hook host. La sezione 4.7 viene
+    compressa e conserva esclusivamente i meccanismi implementativi di policy e
+    detector. Gli audit precedenti restano validi per build, loader, contratto,
+    decoder, output, containerizzazione e compatibilita'.
+  </p>
+  <div class="rule">
+    <strong>Regola vincolante:</strong> nessun agente della prima ondata modifica
+    Thesis o demo_project. I quattro audit devono usare nomi verificati nei
+    registry correnti, distinguere hook fisici ed eventi logici, escludere il
+    networking e proporre snippet soltanto quando sostituiscono prosa ridondante.
+  </div>
+
+  <h2>Struttura obiettivo provvisoria di 4.2</h2>
+  <ol>
+    <li>Shared Event-Construction Framework</li>
+    <li>Process Creation and Lifecycle</li>
+    <li>Executable Transition Monitoring</li>
+    <li>Identity, Credentials and Capabilities</li>
+    <li>Process Control and Resource Limits</li>
+    <li>File and Filesystem Security</li>
+    <li>Memory Management</li>
+    <li>Namespace and Cgroup Transitions</li>
+    <li>Kernel Module Lifecycle</li>
+    <li>eBPF and Dynamic Instrumentation Surfaces</li>
+    <li>Kernel-Facing Interfaces</li>
+  </ol>
+  <p>
+    La sintesi editoriale potra' accorpare sottosezioni se il materiale risulta
+    frammentato, ma non dovra' mescolare famiglie con semantiche incompatibili.
+    <code>sched_process_exec</code> appartiene alla transizione dell'eseguibile,
+    <code>process_execute_failed</code> e' il nome logico dell'evento di fallimento,
+    e <code>security_sb_umount</code> e' il nome implementato per l'unmount.
+  </p>
+
+  <h2>Ondata 1 - Quattro audit in parallelo</h2>
+
+  <h3>Agente A - Process, Execution and Identity Hooks</h3>
+  <p>Output: <code>agent-output/chapter-04/host-process-hook-audit.html</code></p>
+  <pre><code>You are the host process-hook implementation auditor for the hook-focused
+revision of Chapter 4 of an MSc thesis.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-04-hook-restructuring-workflow.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/editorial-synthesis.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/kernel-implementation-audit.html
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+- /home/simone/project/documentation/implementation/hooks.md
+
+Inspect the current code and tests under:
+- /home/simone/project/demo_project/pkg/ebpf/c
+- /home/simone/project/demo_project/pkg/ebpf/probes
+- /home/simone/project/demo_project/pkg/events
+- /home/simone/project/demo_project/pkg/bufferdecoder
+
+Record the demo_project commit and dirty working tree. Current code and tests
+are authoritative, but identify every claim that depends on uncommitted code.
+
+Audit these host-only families:
+1. process creation and lifecycle: fork, vfork, clone, sched_process_fork,
+   task_rename and sched_process_exit;
+2. executable transitions: execve, execveat, security_bprm_check,
+   security_bprm_creds_for_exec, sched_process_exec and
+   process_execute_failed;
+3. identity, credentials and capabilities: the complete setuid/setgid syscall
+   families, security_task_fix_setuid, commit_creds and cap_capable;
+4. process control and limits: ptrace, security_task_kill, do_sigaction,
+   security_task_prctl, security_task_setrlimit and prlimit64.
+
+For each family produce a matrix containing:
+- public logical event name;
+- physical program and hook type;
+- direct or entry/return construction;
+- whether the event describes an attempt, mediation point, committed state,
+  successful transition or returned syscall result;
+- event-specific arguments and their security meaning;
+- temporary maps or shared helpers used;
+- target-kernel compatibility branches and verifier limits;
+- relevant tests and documentation evidence.
+
+Identify where several physical probes produce one logical event and where
+similar-looking events intentionally represent different execution stages.
+Correct naming mistakes rather than preserving them from prose.
+
+Propose at most three short source excerpts for the thesis body. Each proposal
+must include source location, exact line span or symbol, reason for inclusion,
+prose it would replace and overlap with existing Chapter 4 listings. Do not
+recommend one listing per hook.
+
+Include a redundancy ledger against Chapters 2 and 3 and a concise appendix
+candidate list. Do not discuss networking, policy internals, output,
+benchmarks or general eBPF theory.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-04/host-process-hook-audit.html
+Do not modify Thesis, demo_project or other documentation files.</code></pre>
+
+  <h3>Agente B - Filesystem, Memory and Kernel-Integrity Hooks</h3>
+  <p>Output: <code>agent-output/chapter-04/host-resource-kernel-hook-audit.html</code></p>
+  <pre><code>You are the host resource and kernel-integrity hook implementation auditor for
+the hook-focused revision of Chapter 4 of an MSc thesis.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-04-hook-restructuring-workflow.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/editorial-synthesis.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/kernel-implementation-audit.html
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+- /home/simone/project/documentation/implementation/hooks.md
+
+Inspect the current code and tests under:
+- /home/simone/project/demo_project/pkg/ebpf/c
+- /home/simone/project/demo_project/pkg/ebpf/probes
+- /home/simone/project/demo_project/pkg/events
+- /home/simone/project/demo_project/pkg/bufferdecoder
+
+Record the demo_project commit and dirty working tree. Current code and tests
+are authoritative, but identify every claim that depends on uncommitted code.
+
+Audit these host-only families:
+1. file and filesystem security: open, security_file_open,
+   security_file_permission, security_file_ioctl, chmod and chown families,
+   security_inode_unlink, security_inode_rename, security_inode_symlink,
+   security_inode_mknod, security_sb_mount and security_sb_umount;
+2. memory management: mmap, mprotect, pkey_mprotect, memfd_create,
+   process_vm_readv, process_vm_writev, security_mmap_file and
+   security_file_mprotect;
+3. namespace and cgroup transitions: setns, unshare, switch_task_ns,
+   cgroup_attach_task, cgroup_mkdir and cgroup_rmdir;
+4. module lifecycle: module_load, module_free and do_init_module;
+5. eBPF and dynamic instrumentation surfaces: security_bpf,
+   security_bpf_map, security_bpf_prog, register_kprobe and
+   kallsyms_lookup_name;
+6. kernel-facing interfaces: proc_create, call_usermodehelper,
+   security_kernel_read_file and security_kernel_post_read_file.
+
+For each family produce a matrix containing:
+- public logical event name;
+- physical program and hook type;
+- direct or entry/return construction;
+- observation semantics and returned result, when available;
+- event-specific arguments and their security meaning;
+- path, inode, file, VMA, namespace, module or kernel-object helpers used;
+- compatibility branches, architecture assumptions and verifier bounds;
+- relevant tests and documentation evidence.
+
+Separate syscall request paths from resolved LSM or kernel-object paths. Do not
+claim that entry-only security hooks prove operation success. Explain why full
+payloads, arbitrary ancestry, persistent graphs or kernel integrity proofs are
+not produced when the code does not support them.
+
+Propose at most four short source excerpts for the thesis body. Each proposal
+must include source location, exact symbol, reason for inclusion, prose it
+would replace and overlap with existing Chapter 4 listings. Prefer excerpts
+that explain a reusable implementation pattern.
+
+Include a redundancy ledger against Chapters 2 and 3 and a concise appendix
+candidate list. Do not discuss packet or socket networking, policy internals,
+output, benchmarks or general eBPF theory.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-04/host-resource-kernel-hook-audit.html
+Do not modify Thesis, demo_project or other documentation files.</code></pre>
+
+  <h3>Agente C - Shared Runtime Patterns and Listing Curator</h3>
+  <p>Output: <code>agent-output/chapter-04/shared-pattern-listing-audit.html</code></p>
+  <pre><code>You are the shared implementation-pattern and source-listing curator for the
+hook-focused revision of Chapter 4 of an MSc thesis.
+
+Read completely:
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-04-hook-restructuring-workflow.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/runtime-event-pipeline-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/final-review.html
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+
+Inspect the current implementation and tests under:
+- /home/simone/project/demo_project/pkg/ebpf/c/common
+- /home/simone/project/demo_project/pkg/ebpf/probes
+- /home/simone/project/demo_project/pkg/bufferdecoder
+- /home/simone/project/demo_project/pkg/events
+
+Record the demo_project commit and working-tree status. Prefer committed code.
+
+Audit the shared implementation mechanisms used by the host hook families:
+- common event initialisation and deferred enrichment;
+- exact UID admission;
+- direct submission versus entry/return argument retention;
+- indexed argument serialisation and explicit bounds;
+- perf-event submission;
+- probe dependency expansion and selective autoload;
+- event/probe registry consistency;
+- schema-directed decoding.
+
+Review every source listing currently present in Chapter 4. For each listing,
+decide whether to keep, shorten, move or remove it. Detect excerpts that merely
+repeat prose, are not faithful to current source, overlap another listing or
+expose detail better placed in an appendix.
+
+Construct a listing budget for the revised chapter:
+- no more than eight body listings in total;
+- normally 8-18 lines per listing;
+- at most one primary listing for each recurring mechanism;
+- no generated code, networking code, catalogues or uncommitted detector
+  selection;
+- every excerpt must replace prose and receive an architectural explanation,
+  not a line-by-line commentary.
+
+Produce a section-to-mechanism ownership matrix showing which shared details
+belong in 4.2, 4.3, 4.4, 4.5 or 4.6. Identify repeated explanations that the
+hook-family rewrite must remove. Do not rewrite Chapter 4.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-04/shared-pattern-listing-audit.html
+Do not modify Thesis, demo_project or other documentation files.</code></pre>
+
+  <h3>Agente D - Policy Compression and Editorial Boundary Auditor</h3>
+  <p>Output: <code>agent-output/chapter-04/policy-compression-audit.html</code></p>
+  <pre><code>You are the policy-runtime compression and editorial-boundary auditor for the
+hook-focused revision of Chapter 4 of an MSc thesis.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-04-hook-restructuring-workflow.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/policy-detector-implementation-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/final-review.html
+- /home/simone/project/Thesis/content/chapters/chapter1.tex
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+
+Inspect the current implementation and tests under:
+- /home/simone/project/demo_project/pkg/policy
+- /home/simone/project/demo_project/pkg/detectors
+- /home/simone/project/demo_project/pkg/cmd/project.go
+- /home/simone/project/demo_project/rules
+
+Record the demo_project commit and dirty working tree. Distinguish committed
+behaviour from local detector-selection changes.
+
+Design a compressed, implementation-only Section 4.7. It must preserve enough
+material to satisfy the thesis objective and Chapter 1 structure while removing
+definitions and architectural rationale already owned by Chapters 2 and 3.
+
+The proposed section should cover only:
+- YAML loading and conversion boundaries;
+- condition compilation before event processing;
+- event-indexed detector dispatch;
+- point evaluation as the stateless path;
+- collective state transition and bounded retained evidence;
+- correlation-key compilation at implementation level;
+- time and capacity limits, pruning and deduplication;
+- ATT&amp;CK metadata validation and propagation.
+
+Produce:
+1. paragraphs to keep, compress, move to Chapter 5 or remove from current 4.7;
+2. one recommended section structure without conceptual subsections unless
+   strictly necessary;
+3. one primary code-listing recommendation and one optional alternative;
+4. exact limits and qualifications that must remain;
+5. a redundancy map against Chapters 2 and 3;
+6. a list of claims dependent on uncommitted code.
+
+Do not redefine policy, detector, point anomaly, collective anomaly or MITRE
+ATT&amp;CK. Do not discuss hook implementation, networking, output formatting or
+benchmark results. Do not modify the chapter.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-04/policy-compression-audit.html
+Do not modify Thesis, demo_project or other documentation files.</code></pre>
+
+  <h2>Passaggio intermedio - Nuova sintesi editoriale</h2>
+  <p>
+    Dopo i quattro audit, un solo agente deve creare
+    <code>hook-focused-editorial-synthesis.html</code>. La sintesi deve risolvere
+    conflitti a favore del codice corrente, congelare la struttura di 4.2,
+    assegnare ogni evento a una sola famiglia, approvare un massimo di otto
+    listing e definire il testo residuo di 4.7. Nessuna modifica LaTeX deve
+    avvenire prima dell'approvazione esplicita della sintesi.
+  </p>
+
+  <h3>Agente E - Hook-Focused Editorial Synthesiser</h3>
+  <p>Output: <code>agent-output/chapter-04/hook-focused-editorial-synthesis.html</code></p>
+  <pre><code>You are the editorial synthesiser for the hook-focused revision of Chapter 4
+of an MSc thesis about an eBPF-based runtime security monitoring system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-04-hook-restructuring-workflow.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/editorial-synthesis.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/final-review.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/host-process-hook-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/host-resource-kernel-hook-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/shared-pattern-listing-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/policy-compression-audit.html
+- /home/simone/project/Thesis/content/chapters/chapter1.tex
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+
+Inspect the current implementation and relevant tests under:
+- /home/simone/project/demo_project/pkg/ebpf/c
+- /home/simone/project/demo_project/pkg/ebpf/probes
+- /home/simone/project/demo_project/pkg/events
+- /home/simone/project/demo_project/pkg/bufferdecoder
+- /home/simone/project/demo_project/pkg/policy
+- /home/simone/project/demo_project/pkg/detectors
+
+Record the inspected demo_project commit and working-tree status. Resolve
+disagreements between audit reports against the current code and tests. Mark
+behaviour that exists only in the dirty working tree and do not silently make
+it part of the committed implementation baseline.
+
+Create the binding editorial specification for the revised Chapter 4. Produce:
+1. a final section and subsection structure preserving canonical Sections
+   4.1-4.10;
+2. the final internal structure of Section 4.2, grouping related host hook
+   families when separate subsections would be too fragmented;
+3. a one-owner event catalogue assigning every discussed logical event to
+   exactly one hook family and distinguishing it from its physical probes;
+4. a section-purpose table stating the implementation mechanism added by each
+   subsection and the Chapter 2 or 3 material that must not be repeated;
+5. a body-listing plan with no more than eight excerpts in the whole chapter,
+   including source symbol, owning subsection, approximate length, reason for
+   inclusion and prose to remove;
+6. a final decision for every listing already present in Chapter 4: keep,
+   shorten, replace, move to an appendix or remove;
+7. the exact implementation content retained in the compressed Section 4.7;
+8. transitions and cross-references needed to keep the chapter readable
+   without restating background or design;
+9. claims and numerical limits that require explicit qualification;
+10. an ordered writer checklist and an acceptance checklist.
+
+The specification must enforce these boundaries:
+- focus on host process and security monitoring;
+- no packet or socket networking implementation;
+- no exhaustive prose catalogue of hooks;
+- no repeated explanation of general eBPF theory, architecture, requirements,
+  policies, detectors or anomaly taxonomies;
+- no benchmark conclusions or unsupported performance claims;
+- no enforcement, cluster-wide correlation or contextual-anomaly claims;
+- policy and detector material must be implementation-focused and concise;
+- British English and no internal product name.
+
+Prefer representative hook families and recurring implementation patterns.
+When multiple events expose the same mechanism, prescribe comparative prose or
+a compact table instead of one paragraph or listing per event. Ensure that
+attempt, mediation, committed transition, success and syscall return are not
+treated as interchangeable semantics.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-04/hook-focused-editorial-synthesis.html
+Do not modify Thesis, demo_project or any other documentation file.</code></pre>
+
+  <div class="rule">
+    <strong>Gate di approvazione:</strong> la sintesi deve essere letta e
+    approvata prima di avviare l'Ondata 2. Eventuali correzioni alla struttura,
+    alla selezione degli hook o al budget dei listing devono essere applicate
+    alla sintesi, non direttamente al capitolo.
+  </div>
+
+  <h2>Ondata 2 - Writer unico</h2>
+  <p>
+    Dopo l'approvazione della sintesi, un solo writer modifica
+    <code>chapter4.tex</code>. Gli agenti tecnici non scrivono sezioni in
+    parallelo, per evitare duplicazioni, stili incompatibili e listing
+    sovrapposti.
+  </p>
+
+  <h3>Agente F - Chapter 4 Hook-Focused Writer</h3>
+  <p>Modifica autorizzata: <code>Thesis/content/chapters/chapter4.tex</code></p>
+  <pre><code>You are the sole implementation writer for the hook-focused revision of
+Chapter 4 of an MSc thesis about an eBPF-based runtime security monitoring
+system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-04-hook-restructuring-workflow.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/hook-focused-editorial-synthesis.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/host-process-hook-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/host-resource-kernel-hook-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/shared-pattern-listing-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/policy-compression-audit.html
+- /home/simone/project/Thesis/content/chapters/chapter1.tex
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+- /home/simone/project/Thesis/common/packages.tex
+- /home/simone/project/Thesis/common/package_config.tex
+
+Inspect the exact source excerpts approved by the synthesis in the current
+implementation. Record the demo_project commit and working-tree status before
+editing. Current code and tests remain authoritative; do not introduce a
+listing or claim from uncommitted behaviour unless the synthesis explicitly
+authorises and qualifies it.
+
+Modify only:
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+
+Implement the approved synthesis exactly enough to preserve its ownership and
+anti-redundancy decisions. In particular:
+1. preserve canonical Sections 4.1-4.10;
+2. rewrite Section 4.2 around representative host hook families and their
+   implementation mechanisms;
+3. distinguish physical attachment points from public logical events;
+4. distinguish attempt, mediation, committed transition, successful operation
+   and returned syscall result;
+5. explain recurring patterns once, then compare how hook families reuse or
+   adapt them;
+6. use concise tables where they communicate family coverage better than
+   repetitive prose;
+7. introduce only the source excerpts approved in the listing plan;
+8. remove or shorten prose made redundant by those excerpts;
+9. compress Section 4.7 to the approved implementation-only account;
+10. preserve the established loader, binary-contract, decoder, output, logging,
+    packaging and compatibility material without reopening Chapter 3 design.
+
+For every source listing:
+- copy faithfully from the inspected implementation;
+- use the existing LaTeX listings support;
+- provide a concise caption and unique lst: label;
+- identify abridgement honestly;
+- introduce the implementation problem before the listing;
+- explain state ownership, bounds, contracts and failure behaviour afterwards;
+- avoid line-by-line commentary.
+
+Do not enumerate every hook in body prose. The body must explain why each
+family is observed, where its programs attach, what stage of the operation is
+visible, what evidence is emitted and which implementation pattern is reused.
+Place exhaustive hook coverage in an appendix candidate or compact table only
+when already authorised by the synthesis.
+
+Do not:
+- add networking implementation material;
+- repeat general eBPF, CO-RE, perf transport, policy, detector, anomaly or
+  MITRE ATT&amp;CK definitions from Chapter 2;
+- repeat requirements, component boundaries or the complete event pipeline
+  from Chapter 3;
+- claim enforcement, cluster-wide correlation or contextual-anomaly support;
+- present benchmark results or performance improvements;
+- use the internal product name;
+- modify bibliography, glossary, other chapters, documentation or demo_project.
+
+Use British English and maintain a natural academic style. Prefer transitions
+and cross-references over repeated definitions.
+
+Validation after editing:
+1. verify the canonical section structure and subsection order;
+2. verify that each discussed event belongs to one family only;
+3. verify that all listing and section labels are unique and referenced;
+4. compare the final prose against Chapters 2 and 3 for repetition;
+5. verify every source excerpt against the inspected implementation;
+6. run an isolated LaTeX syntax check;
+7. run the complete thesis build if dependencies are available;
+8. report warnings, unresolved references and environmental blockers.
+
+At the end, report the rewritten sections, introduced or removed listings,
+major redundancy removals, inspected commit and dirty-tree qualification, and
+validation results. Do not create a Git commit.</code></pre>
+
+  <h2>Ondata 3 - Revisione indipendente</h2>
+  <p>
+    Il revisore finale verifica accuratezza dei nomi, distinzione tra hook ed
+    evento logico, semantica attempt/mediation/success/return, fedelta' degli
+    snippet, copertura delle famiglie host, compressione di 4.7, assenza di
+    networking e ridondanza con i Capitoli 2 e 3.
+  </p>
+
+  <h3>Agente G - Independent Hook-Focused Final Reviewer</h3>
+  <p>Output: <code>agent-output/chapter-04/hook-focused-final-review.html</code></p>
+  <pre><code>You are the independent technical and editorial reviewer for the hook-focused
+revision of Chapter 4 of an MSc thesis about an eBPF-based runtime security
+monitoring system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-04-hook-restructuring-workflow.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/hook-focused-editorial-synthesis.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/host-process-hook-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/host-resource-kernel-hook-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/shared-pattern-listing-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/policy-compression-audit.html
+- /home/simone/project/Thesis/content/chapters/chapter1.tex
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+
+Inspect the current implementation and relevant tests under:
+- /home/simone/project/demo_project/pkg/ebpf/c
+- /home/simone/project/demo_project/pkg/ebpf/probes
+- /home/simone/project/demo_project/pkg/events
+- /home/simone/project/demo_project/pkg/bufferdecoder
+- /home/simone/project/demo_project/pkg/policy
+- /home/simone/project/demo_project/pkg/detectors
+
+Record the inspected demo_project commit and dirty working tree. Review the
+chapter independently: the synthesis is an editorial specification, not proof
+that its technical claims are correct.
+
+Produce:
+1. factual errors, stale event names and claims unsupported by code or tests;
+2. confusion between logical events, physical probes and kernel operation
+   stages;
+3. missing host hook families or missing recurring implementation mechanisms
+   required by the approved synthesis;
+4. source listings that are inaccurate, overlong, redundant, unreferenced or
+   insufficiently explained;
+5. a paragraph-level redundancy audit against Chapters 2 and 3;
+6. an internal Chapter 4 redundancy audit, including repeated helper, map,
+   transport, decoder, policy or compatibility explanations;
+7. policy/detector theory that should be removed or reduced to implementation;
+8. networking or evaluation material that violates the chapter boundary;
+9. terminology, British English, citation, glossary, label and LaTeX issues;
+10. an edit list ordered by severity and a final acceptance checklist.
+
+Check explicitly that:
+- process lifecycle and executable transition events are not conflated;
+- syscall requests are not presented as successful operations without return
+  evidence;
+- LSM mediation points are not described as final enforcement outcomes;
+- committed credential and namespace transitions are distinguished from
+  requests;
+- filesystem syscall paths and resolved kernel-object paths are distinguished;
+- module, eBPF, dynamic instrumentation and kernel-interface observations are
+  described only to the extent implemented;
+- complete hook catalogues do not dominate the body;
+- Section 4.7 is concise and implementation-focused;
+- no cluster-wide, contextual-anomaly or enforcement claims appear;
+- all numerical limits have one primary owner and match current code.
+
+Run an isolated LaTeX syntax check and the complete thesis build if the local
+environment permits it. Report unresolved references, warnings and blockers.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-04/hook-focused-final-review.html
+Do not modify Thesis, demo_project or any other documentation file.</code></pre>
+
+  <h2>Ordine di esecuzione</h2>
+  <ol>
+    <li>Avviare in parallelo gli agenti A-D.</li>
+    <li>Verificare che tutti e quattro gli output HTML siano presenti e validi.</li>
+    <li>Avviare l'agente E e approvare la sintesi editoriale.</li>
+    <li>Avviare soltanto l'agente F per modificare il Capitolo 4.</li>
+    <li>Avviare l'agente G dopo il completamento e la build del capitolo.</li>
+    <li>Applicare le correzioni finali soltanto dopo aver esaminato il review.</li>
+  </ol>
+</body>
+</html>

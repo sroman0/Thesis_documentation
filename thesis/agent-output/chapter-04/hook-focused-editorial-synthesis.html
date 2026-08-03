@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Binding Editorial Specification for Chapter 4</title>
+  <style>
+    body { max-width: 1220px; margin: 2rem auto; padding: 0 1.25rem; color: #20242a; font: 15px/1.52 system-ui, sans-serif; }
+    h1, h2, h3 { color: #172b4d; line-height: 1.2; }
+    h1 { border-bottom: 2px solid #334155; padding-bottom: .5rem; }
+    h2 { margin-top: 2.2rem; border-bottom: 1px solid #cbd5e1; padding-bottom: .3rem; }
+    h3 { margin-top: 1.5rem; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: .9rem; }
+    th, td { border: 1px solid #b8c2cc; padding: .5rem; text-align: left; vertical-align: top; }
+    th { background: #edf2f7; }
+    code { background: #f1f5f9; padding: .08rem .24rem; overflow-wrap: anywhere; }
+    .note { border-left: 4px solid #2563eb; background: #eff6ff; padding: .75rem 1rem; }
+    .warning { border-left: 4px solid #b45309; background: #fff7ed; padding: .75rem 1rem; }
+    .verified { border-left: 4px solid #047857; background: #ecfdf5; padding: .75rem 1rem; }
+    .binding { border: 2px solid #334155; background: #f8fafc; padding: .8rem 1rem; }
+    .small { color: #475569; font-size: .9rem; }
+    ul, ol { margin-top: .35rem; }
+  </style>
+</head>
+<body>
+  <h1>Binding Editorial Specification for the Hook-Focused Chapter 4</h1>
+  <p><strong>Purpose.</strong> This document is the binding writing specification
+  for the revision of Chapter 4. It resolves the preceding audit reports against
+  the current source and tests, preserves the canonical Sections 4.1--4.10, and
+  prevents the implementation chapter from repeating the background and design
+  already established in Chapters 2 and 3.</p>
+
+  <h2>Audited Baseline and Authority</h2>
+  <table>
+    <tbody>
+      <tr><th>Inspected repository</th><td><code>demo_project</code> at commit <code>ae653447d006b5952abfe9f57cbf0f67d94af673</code>, dated 30 July 2026, with subject <em>Merge pull request #15 from V3suv1us/feature/network-policy-detector</em>.</td></tr>
+      <tr><th>Dirty working tree</th><td>Modified: <code>Makefile</code>, <code>README.md</code>, <code>pkg/cmd/project.go</code>, <code>pkg/cmd/project_test.go</code>, <code>pkg/ebpf/probes/probes.go</code>, <code>pkg/ebpf/project.go</code>, <code>pkg/policy/loader.go</code>, <code>pkg/policy/loader_test.go</code>, and <code>pkg/policy/policy.go</code>. Untracked: <code>pkg/policy/detector_selector.go</code>, <code>pkg/policy/detector_selector_test.go</code>, and <code>rules/policies/mitre-privilege-collective.yaml</code>.</td></tr>
+      <tr><th>Authority order</th><td>Current C producers and Go schemas define the record semantics; the probe registry defines physical attachment; tests establish executable invariants; documentation provides historical context only. A claim that conflicts with current code or tests must be rewritten.</td></tr>
+      <tr><th>Verification performed</th><td>The current <code>events</code>, <code>bufferdecoder</code>, <code>policy</code>, and detector suites passed with a writable Go cache. The probe package could not be rebuilt in this audit because the ad hoc command lacked the repository's libbpf CGO include/link environment; its source tests were inspected. No BPF rebuild or target-kernel attachment test was performed.</td></tr>
+    </tbody>
+  </table>
+
+  <p class="warning"><strong>Baseline qualification.</strong> The committed
+  constructor at <code>ae65344</code> contains invalid <code>proj</code> references
+  and duplicate option application. The dirty <code>pkg/ebpf/project.go</code>
+  corrects this path. The dirty policy files additionally implement metadata-based
+  detector catalogue selection, and the dirty probe registry changes only the
+  classification of networking support probes. None of these uncommitted changes
+  may be presented as part of the committed implementation. Before the thesis is
+  finalised, create and record a clean, buildable commit and repeat the relevant
+  tests.</p>
+
+  <p class="verified"><strong>Resolved audit disagreements.</strong> The current
+  transport is perf-event only; there is no retained BPF ring-buffer path.
+  Correlation by stable process, immediate parent, device/inode resource, local
+  cgroup and ordered composite dimensions is committed. <code>user_session</code>
+  is rejected rather than approximated through UID. The logical names are
+  <code>process_execute_failed</code> and <code>security_sb_umount</code>.
+  <code>security_task_fix_setgid</code> is not implemented. Proposals for one
+  listing per hook are rejected in favour of shared-pattern listings and compact
+  comparative tables.</p>
+
+  <h2>1. Final Chapter Structure</h2>
+  <p class="binding">The following numbered structure is mandatory. Canonical
+  Sections 4.1--4.10 must remain in this order. Additional numbered sections must
+  not be introduced.</p>
+  <ol>
+    <li><strong>4.1 Build Toolchain and Project Organisation</strong></li>
+    <li><strong>4.2 eBPF Program Implementation</strong>
+      <ol>
+        <li>4.2.1 Shared Event-Construction Framework</li>
+        <li>4.2.2 Process Lifecycle and Executable Transitions</li>
+        <li>4.2.3 Identity, Credentials, Process Control and Limits</li>
+        <li>4.2.4 File and Filesystem Security</li>
+        <li>4.2.5 Memory, Namespace and Cgroup Transitions</li>
+        <li>4.2.6 Kernel Integrity and Kernel-Facing Activity</li>
+      </ol>
+    </li>
+    <li><strong>4.3 Loader, Probe Registry and Attachment Lifecycle</strong></li>
+    <li><strong>4.4 Binary Event Contract and Kernel Transport</strong></li>
+    <li><strong>4.5 User-Space Decoder and Event Registry</strong></li>
+    <li><strong>4.6 Event Selection and Kernel-Side Filtering</strong></li>
+    <li><strong>4.7 Policy and Detector Engine</strong></li>
+    <li><strong>4.8 Output and Structured Logging</strong></li>
+    <li><strong>4.9 Containerisation and Deployment Considerations</strong></li>
+    <li><strong>4.10 Compatibility and Verifier Challenges</strong></li>
+  </ol>
+
+  <h2>2. Internal Structure of Section 4.2</h2>
+  <table>
+    <thead><tr><th>Subsection</th><th>Implementation story</th><th>Prescribed organisation</th></tr></thead>
+    <tbody>
+      <tr><td>4.2.1 Shared Event-Construction Framework</td><td>Explain the per-CPU event workspace, common initialisation, deferred context enrichment, indexed argument buffer, perf submission, and the entry/return state map.</td><td>One shared-framework listing and one entry/return listing. Establish the semantic vocabulary: attempt, mediation point, committed transition, successful transition, and syscall return.</td></tr>
+      <tr><td>4.2.2 Process Lifecycle and Executable Transitions</td><td>Compare syscall-return creation events with scheduler-confirmed lifecycle events; then compare execution request, binary mediation, credential preparation, successful image replacement, and failed return.</td><td>Use two compact comparison paragraphs or one table. Do not give every event its own paragraph. Keep creation and execution as clearly labelled internal paragraphs.</td></tr>
+      <tr><td>4.2.3 Identity, Credentials, Process Control and Limits</td><td>Contrast requested and returned set-ID operations, credential mediation, committed credential snapshots, capability checks, signal/control attempts, and limit changes.</td><td>Use internal paragraph headings for identity/credentials and process control/limits. Explicitly explain the unusual return semantics of <code>setfsuid</code>/<code>setfsgid</code>.</td></tr>
+      <tr><td>4.2.4 File and Filesystem Security</td><td>Show how syscall families converge into logical events and how security hooks add resolved kernel-object evidence at a different stage.</td><td>Compare <code>open</code> with <code>security_file_open</code>; group chmod/chown variants; group inode and mount mediation. No individual hook listings.</td></tr>
+      <tr><td>4.2.5 Memory, Namespace and Cgroup Transitions</td><td>Present returned memory syscalls, resolved memory-security hooks, returned namespace syscalls, committed namespace replacement, and local cgroup lifecycle observations.</td><td>Use one comparative table. State that cgroup identifiers are local kernel observations, not Kubernetes workload identities.</td></tr>
+      <tr><td>4.2.6 Kernel Integrity and Kernel-Facing Activity</td><td>Group module lifecycle, eBPF security hooks, dynamic instrumentation and symbol lookup, kernel file reads, procfs creation and user-mode helper invocation.</td><td>Distinguish lifecycle, mediation, return outcome and invocation attempt. Avoid claims of hidden-module detection, enforcement or complete kernel-tampering coverage.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. One-Owner Event Catalogue</h2>
+  <p>Every logical event discussed in Chapter 4 belongs to exactly one family
+  below. A grouped row is still a one-owner assignment: all names in that row
+  inherit the stated owner. Physical programs are implementation units and must
+  not be presented as additional logical events.</p>
+
+  <table>
+    <thead><tr><th>Owning family</th><th>Public logical event(s)</th><th>Physical producer pattern</th><th>Semantic stage and principal evidence</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="4">Process creation and lifecycle</td><td><code>fork</code>, <code>vfork</code></td><td>Registered syscall enter and exit tracepoints; enter programs are no-ops and exit programs submit.</td><td>Returned syscall result: child PID or negative errno. Not independent confirmation that a child reached a scheduler lifecycle hook.</td></tr>
+      <tr><td><code>clone</code></td><td><code>tracepoint__syscalls__sys_enter_clone</code> plus <code>...sys_exit_clone</code>.</td><td>Entry/return event containing clone flags, pointer arguments and returned child identifier or errno.</td></tr>
+      <tr><td><code>sched_process_fork</code></td><td>Raw tracepoint <code>sched_process_fork</code>.</td><td>Successful child-task transition with parent/child host identifiers and child start time.</td></tr>
+      <tr><td><code>task_rename</code>, <code>sched_process_exit</code></td><td>Raw tracepoints <code>task_rename</code> and <code>sched_process_exit</code>.</td><td>Committed command-name change; lifecycle exit with exit code and group-dead indicator.</td></tr>
+
+      <tr><td rowspan="4">Executable transitions</td><td><code>execve</code>, <code>execveat</code></td><td>Dedicated syscall-entry tracepoints.</td><td>Execution attempts. They retain pathname/argv; <code>execveat</code> also records directory FD and flags. No success result.</td></tr>
+      <tr><td><code>security_bprm_check</code>, <code>security_bprm_creds_for_exec</code></td><td>Kprobes on the corresponding security functions.</td><td>Binary mediation and credential-preparation stages over a resolved <code>linux_binprm</code>. They may occur more than once for interpreter processing and do not report the final hook result.</td></tr>
+      <tr><td><code>sched_process_exec</code></td><td>Raw tracepoint <code>sched_process_exec</code>.</td><td>Successful executable-image replacement with the resolved filename.</td></tr>
+      <tr><td><code>process_execute_failed</code></td><td>Four syscall tracepoints: execve/execveat entry and exit.</td><td>Entry state plus negative syscall return; emits only failed execution and preserves operation, directory FD, pathname, flags and errno.</td></tr>
+
+      <tr><td rowspan="4">Identity and credentials</td><td><code>setuid</code>, <code>setgid</code>, <code>setreuid</code>, <code>setregid</code>, <code>setresuid</code>, <code>setresgid</code>, <code>setfsuid</code>, <code>setfsgid</code></td><td>Dedicated syscall entry/exit pairs; related variants share common helpers.</td><td>Requested identities plus syscall return. For <code>setfsuid</code>/<code>setfsgid</code>, the return is the previous filesystem identity rather than the ordinary zero/error convention.</td></tr>
+      <tr><td><code>security_task_fix_setuid</code></td><td>Kprobe on <code>security_task_fix_setuid</code>.</td><td>Credential-mediation proposal: old/new real, effective, saved and filesystem UIDs plus LSM set-ID flag. It is not a final syscall result. No equivalent setgid event is implemented.</td></tr>
+      <tr><td><code>commit_creds</code></td><td>Kprobe on <code>commit_creds</code>.</td><td>Committed effect, expressed as before/after credential snapshots including IDs, secure bits and capability sets; no-op changes are suppressed.</td></tr>
+      <tr><td><code>cap_capable</code></td><td>Kprobe on <code>cap_capable</code>.</td><td>Capability-check mediation point. The current payload records the capability number, not the function return or a complete allow/deny decision.</td></tr>
+
+      <tr><td rowspan="5">Process control and limits</td><td><code>ptrace</code></td><td>Syscall entry/exit pair.</td><td>Request, target PID, address/data arguments and returned result.</td></tr>
+      <tr><td><code>security_task_kill</code>, <code>do_sigaction</code></td><td>Kprobes on the corresponding kernel functions.</td><td>Signal-related mediation or request. <code>security_task_kill</code> includes signal zero permission checks; <code>do_sigaction</code> records requested action data but not confirmed installation.</td></tr>
+      <tr><td><code>security_task_prctl</code></td><td>Kprobe on <code>security_task_prctl</code>.</td><td>Security mediation request with option and opaque arguments, without final result.</td></tr>
+      <tr><td><code>security_task_setrlimit</code>, <code>prlimit64</code></td><td>Kprobe for the security hook; syscall entry/exit pair for <code>prlimit64</code>.</td><td>The security hook observes proposed soft/hard limits; <code>prlimit64</code> records syscall request pointers and return rather than dereferenced limit values.</td></tr>
+      <tr><td><code>security_settime64</code></td><td>Kprobe on <code>security_settime64</code>.</td><td>Attempt to change wall-clock time, recording requested time/timezone fields when available; no final return.</td></tr>
+
+      <tr><td rowspan="5">File and filesystem security</td><td><code>open</code></td><td>Four tracepoints covering open/openat entry and exit.</td><td>Syscall request and returned file descriptor or errno; pathname is caller supplied and may differ from the resolved object.</td></tr>
+      <tr><td><code>security_file_open</code>, <code>security_file_permission</code>, <code>security_file_ioctl</code></td><td>Direct kprobes on security functions.</td><td>Resolved file-object mediation with pathname, device/inode and operation-specific flags, mask or ioctl data. No hook result is emitted.</td></tr>
+      <tr><td><code>chmod</code></td><td>Six syscall tracepoints for chmod/fchmod/fchmodat entry and exit.</td><td>One logical returned event across path-, FD- and dirfd-relative variants.</td></tr>
+      <tr><td><code>chown</code></td><td>Eight syscall tracepoints for chown/fchown/fchownat/lchown entry and exit.</td><td>One logical returned event across ownership-change variants.</td></tr>
+      <tr><td><code>security_inode_unlink</code>, <code>security_inode_rename</code>, <code>security_inode_symlink</code>, <code>security_inode_mknod</code>, <code>security_sb_mount</code>, <code>security_sb_umount</code></td><td>Direct security-function kprobes.</td><td>Filesystem mediation points over resolved dentries, inodes or superblocks. They describe attempted mediated operations, not confirmed completion.</td></tr>
+
+      <tr><td rowspan="3">Memory security</td><td><code>memfd_create</code>, <code>mmap</code>, <code>mprotect</code>, <code>pkey_mprotect</code></td><td>Dedicated syscall entry/exit pairs.</td><td>Returned syscall events carrying request parameters and result; <code>memfd_create</code> returns an FD or errno, mapping operations return address/zero or errno as appropriate.</td></tr>
+      <tr><td><code>process_vm_readv</code>, <code>process_vm_writev</code></td><td>Dedicated syscall entry/exit pairs.</td><td>Cross-process memory request and byte-count/error result; iovec payload contents are not captured.</td></tr>
+      <tr><td><code>security_mmap_file</code>, <code>security_file_mprotect</code></td><td>Direct security-function kprobes.</td><td>Resolved file/VMA mediation with protection and mapping evidence, without final decision result.</td></tr>
+
+      <tr><td rowspan="3">Namespace and cgroup transitions</td><td><code>setns</code>, <code>unshare</code></td><td>Syscall entry/exit pairs.</td><td>Namespace-change request and syscall return.</td></tr>
+      <tr><td><code>switch_task_ns</code></td><td>Kprobe on <code>switch_task_namespaces</code>.</td><td>Committed namespace replacement; emits changed namespace identifiers rather than a request result.</td></tr>
+      <tr><td><code>cgroup_attach_task</code>, <code>cgroup_mkdir</code>, <code>cgroup_rmdir</code></td><td>Raw cgroup tracepoints.</td><td>Local cgroup task attachment and lifecycle observations with kernel cgroup IDs, paths and hierarchy data.</td></tr>
+
+      <tr><td rowspan="5">Kernel integrity and kernel-facing activity</td><td><code>module_load</code>, <code>module_free</code></td><td>Raw module tracepoints.</td><td>Observed module lifecycle transitions with module identity metadata.</td></tr>
+      <tr><td><code>do_init_module</code></td><td>Kprobe/kretprobe pair on <code>do_init_module</code>.</td><td>Module initialisation request completed with returned result.</td></tr>
+      <tr><td><code>security_bpf</code>, <code>security_bpf_map</code>, <code>security_bpf_prog</code></td><td>Direct security-function kprobes.</td><td>eBPF command, map and program mediation evidence. These are not BPF-LSM enforcement programs and do not include final security-hook results.</td></tr>
+      <tr><td><code>register_kprobe</code>, <code>kallsyms_lookup_name</code></td><td>Kprobe/kretprobe pairs on the named kernel functions.</td><td>Dynamic-instrumentation registration or symbol lookup with returned outcome/address.</td></tr>
+      <tr><td><code>proc_create</code>, <code>call_usermodehelper</code>, <code>security_kernel_read_file</code>, <code>security_kernel_post_read_file</code></td><td>Direct kprobes on the named functions.</td><td>Kernel-facing interface creation, kernel-triggered user-mode execution, and pre/post kernel-file-read stages. The two read events are distinct stages, not duplicates; no file payload is retained.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. Section-Purpose and Non-Repetition Table</h2>
+  <table>
+    <thead><tr><th>Owner</th><th>Implementation mechanism to add</th><th>Material that must not be repeated</th></tr></thead>
+    <tbody>
+      <tr><td>4.1</td><td>Actual Make targets, clang/bpf build, local libbpf archive, Go/linking path, object embedding, and source-tree responsibilities.</td><td>Do not re-teach compilation, CO-RE or Go rationale from Chapters 1--2. Do not claim a fully static executable.</td></tr>
+      <tr><td>4.2.1</td><td>Common program initialisation, deferred enrichment, map-backed workspaces, indexed arguments, perf submission and entry/return retention.</td><td>Do not repeat the eBPF execution model, verifier theory, architecture diagram or logical-event definition from Chapters 2--3.</td></tr>
+      <tr><td>4.2.2</td><td>Concrete construction and stage semantics for process creation, lifecycle and execution families.</td><td>Do not repeat why tracepoints/kprobes were selected. Do not treat attempt, successful transition and failure as synonyms.</td></tr>
+      <tr><td>4.2.3</td><td>Requested, mediated, returned and committed identity/control evidence.</td><td>Do not repeat Linux credential background or LSM theory. Security-function kprobes must not be called BPF-LSM programs.</td></tr>
+      <tr><td>4.2.4</td><td>Variant convergence and resolved-object extraction for file/filesystem events.</td><td>Do not repeat filesystem threat examples or a hook-by-hook prose catalogue.</td></tr>
+      <tr><td>4.2.5</td><td>Paired memory/namespace syscalls, resolved memory mediation, namespace effects and local cgroup tracepoints.</td><td>Do not infer container/Kubernetes identity or cluster context from cgroup IDs.</td></tr>
+      <tr><td>4.2.6</td><td>Module lifecycle, eBPF mediation, instrumentation outcomes and kernel-facing interfaces.</td><td>Do not claim enforcement, hidden-module detection, payload inspection or comprehensive tamper detection.</td></tr>
+      <tr><td>4.3</td><td>Probe specification, public/internal distinction, many-probe logical events, dependency closure, autoload control, attachment ownership and cleanup.</td><td>Do not repeat Chapter 3's conceptual hook/probe/event table.</td></tr>
+      <tr><td>4.4</td><td>Exact 136-byte header, indexed argument records, variable record length, 32,000-byte workspace, checked writes, perf-event map and loss channel.</td><td>Do not repeat generic transport comparison or ring-buffer background.</td></tr>
+      <tr><td>4.5</td><td>Schema-directed decoding, malformed-record handling, tolerant omissions/duplicates, registry consistency tests and the direct normalised event output.</td><td>Do not repeat Chapter 3's abstract event model. The output adapter is not a second normalisation stage.</td></tr>
+      <tr><td>4.6</td><td>Pre-load program reduction, exact effective-UID guard, config-map update and post-decode policy/command admission.</td><td>Do not repeat design motivation or claim a general kernel policy engine.</td></tr>
+      <tr><td>4.7</td><td>Committed YAML loading, conversion, dispatch indexing, condition compilation, bounded ordered state, correlation, deduplication and ATT&amp;CK propagation.</td><td>Do not repeat policies, detector definitions or anomaly taxonomy from Chapters 2--3. Exclude dirty detector-selector implementation.</td></tr>
+      <tr><td>4.8</td><td>Event/alert adapters, table/JSON printers, evidence rendering and Zap diagnostic separation.</td><td>Do not repeat the three-stream architecture. No listing is required.</td></tr>
+      <tr><td>4.9</td><td>Multi-stage image, embedded BPF object, dynamic runtime libraries, absent rule catalogues and current host mount/privilege assumptions.</td><td>Do not present a Kubernetes deployment or future platform integration as implemented.</td></tr>
+      <tr><td>4.10</td><td>Concrete Rocky Linux branches, old/new structure layouts, x86-64 register fallback and verifier-driven loop/index bounds.</td><td>Do not repeat general BTF/CO-RE theory or claim universal portability.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. Body Listing Plan</h2>
+  <p class="binding">The chapter may contain seven listings. Eight is the hard
+  ceiling and the eighth slot remains unused. All excerpts must be abridged,
+  retain source-faithful identifiers, and be followed by interpretation rather
+  than line-by-line narration.</p>
+  <table>
+    <thead><tr><th>No.</th><th>Owner</th><th>Source symbol</th><th>Length</th><th>Reason and prose to remove</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>4.2.1</td><td><code>context.h:init_program_data</code> plus the submission boundary in <code>buffer.h:events_perf_submit</code></td><td>14--18 lines</td><td>Demonstrates common initialisation and deferred enrichment. Replace repetitive statements that every hook initialises context and submits via perf.</td></tr>
+      <tr><td>2</td><td>4.2.1</td><td><code>arguments.h:get_args_id</code>, <code>save_args</code> and the essential part of <code>load_args</code></td><td>12--16 lines</td><td>Shows event-ID/TID correlation and stale-state replacement. Replace the current longer entry-state explanation and all per-family repetitions of map retention.</td></tr>
+      <tr><td>3</td><td>4.3</td><td><code>probes.go:Select</code>, dependency-expansion fragment</td><td>13--16 lines</td><td>Shows how logical selection expands to producer/support programs. Remove surrounding pseudocode-like prose.</td></tr>
+      <tr><td>4</td><td>4.4</td><td><code>buffer.h:save_to_submit_buf</code>, checked offset fragment</td><td>14--18 lines</td><td>Explains the non-power-of-two buffer correction. Remove duplicated prose that restates each check.</td></tr>
+      <tr><td>5</td><td>4.5</td><td><code>eventsreader.go:decodeArguments</code></td><td>12--16 lines</td><td>Shows schema lookup, index-directed decoding and schema-order reconstruction. Replace a purely narrative decoder walk-through.</td></tr>
+      <tr><td>6</td><td>4.6</td><td><code>context.h:should_drop_by_kernel_uid_filter</code></td><td>8--10 lines</td><td>Shows the exact-match guard and its narrow scope. Remove the current listing from 4.2 and the repeated early-filter explanation.</td></tr>
+      <tr><td>7</td><td>4.7</td><td><code>detectors/yaml/detector.go:onStatefulEvent</code>, expiry check and successful transition only</td><td>14--18 lines</td><td>Shows bounded ordered state advancement. Replace the current incomplete excerpt and prose that mechanically narrates every assignment.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>6. Decisions on Existing Chapter 4 Listings</h2>
+  <table>
+    <thead><tr><th>Existing label</th><th>Final decision</th><th>Required action</th></tr></thead>
+    <tbody>
+      <tr><td><code>lst:ebpf-early-admission</code></td><td>Keep, shorten and move.</td><td>Move from 4.2 to 4.6; retain only the enabled check, current effective UID extraction and equality decision (8--10 lines).</td></tr>
+      <tr><td><code>lst:ebpf-entry-state</code></td><td>Keep but replace with a shorter shared-pattern excerpt.</td><td>Own it in 4.2.1 and show event-ID/TID keying, update and lookup. Do not repeat fixed copies for all seven slots.</td></tr>
+      <tr><td><code>lst:probe-dependency-expansion</code></td><td>Keep and shorten.</td><td>Retain in 4.3; show only selection and dependency closure, not unrelated validation and attachment code.</td></tr>
+      <tr><td><code>lst:argument-buffer-bounds</code></td><td>Keep and tighten.</td><td>Retain in 4.4 with the original-offset bounds logic and final commit. Mention commit <code>163ad724a65ec8c701dc816fe87f174eeec51275</code> in prose or a footnote, not in the caption.</td></tr>
+      <tr><td><code>lst:collective-state-advance</code></td><td>Replace with a complete but shorter transition excerpt.</td><td>Retain in compressed 4.7 and include direct expiry handling, step match, evidence append, completion deletion and alert creation.</td></tr>
+    </tbody>
+  </table>
+  <p>No current listing should move to an appendix. Individual hook bodies,
+  complete registries, generated headers, map declarations in isolation,
+  networking programs, output formatters and dirty detector-selector code are
+  excluded from the body. Appendix candidates are listed later.</p>
+
+  <h2>7. Exact Content of Compressed Section 4.7</h2>
+  <p>Section 4.7 must be one compact implementation section. It may use
+  unnumbered paragraph headings, but must not retain the current four numbered
+  conceptual subsections.</p>
+  <ol>
+    <li><strong>Configuration boundary.</strong> Files and non-recursive directories are expanded deterministically; YAML is decoded into file schemas, converted into policy or detector definitions, validated, and then compiled into runtime objects. State explicitly that unknown YAML fields are not universally rejected and unsupported compact policy-filter forms are ignored during conversion.</li>
+    <li><strong>Policy admission.</strong> Scope is checked before alternative rules; exclusions and suppress matches take precedence. Exact finite policy allow-lists can reduce the event set before probe loading. Do not describe metadata-based detector catalogue selection unless it has first been committed, retested and adopted as the final baseline.</li>
+    <li><strong>Indexed point dispatch.</strong> Detector event names build an index once. Conditions and operators are normalised and numeric constants parsed before processing. Runtime supports equality, inequality, containment, membership, prefix, suffix, existence and numeric comparisons. Errors remain associated with one detector and do not stop other candidates.</li>
+    <li><strong>Collective transition.</strong> A stateful detector with more than one ordered step stores the next expected step, first-observation time and ordered evidence. Completion deletes the partial match before constructing the alert. Non-stateful multi-step definitions act as alternative event-specific condition groups rather than sequences.</li>
+    <li><strong>Correlation and bounds.</strong> Explain stable process identity (host PID plus start time), immediate-parent lookup only, device/inode resource identity without pathname fallback, non-zero local cgroup identity and ordered composite conjunction. Missing components produce no key; <code>user_session</code> is rejected. The default window is two seconds, the maximum five seconds, and the deadline starts at the first observation. Each detector retains at most 4,096 partial keys and one sequence per key; a repeated first step replaces that key and capacity pressure evicts the oldest first observation.</li>
+    <li><strong>Expiry and deduplication.</strong> Expiry is checked on addressed state and opportunistically pruned at intervals no longer than one second. <code>Flush</code> removes expired state without timeout alerts, but the main runtime does not schedule it periodically. Alert deduplication uses a five-second interval and a key derived from detector/output identity and the first evidence event; later collective evidence is not part of that key.</li>
+    <li><strong>Threat metadata.</strong> ATT&amp;CK tactic and technique identifiers receive syntactic validation and complete detector metadata is copied to alerts. The implementation does not consult an external ATT&amp;CK catalogue, infer mappings or establish complete technique coverage.</li>
+  </ol>
+
+  <h2>8. Transitions and Cross-References</h2>
+  <table>
+    <thead><tr><th>Location</th><th>Required transition</th></tr></thead>
+    <tbody>
+      <tr><td>Chapter opening to 4.1</td><td>State that Chapter 3 fixed responsibilities and contracts; Chapter 4 now explains the mechanisms that realise them.</td></tr>
+      <tr><td>4.1 to 4.2</td><td>Move from the produced BPF object and Go binary to the common implementation shared by the programs inside that object.</td></tr>
+      <tr><td>4.2.1 to hook families</td><td>State once that subsequent families reuse this construction framework and differ chiefly in observation stage and extracted evidence.</td></tr>
+      <tr><td>4.2 to 4.3</td><td>Explain that physical programs become active only after the registry maps selected logical events to producers and dependencies.</td></tr>
+      <tr><td>4.3 to 4.4</td><td>After attachment, every producer crosses the same binary and perf-event boundary.</td></tr>
+      <tr><td>4.4 to 4.5</td><td>Cross-reference the shared contract in Chapter 3, then focus on how Go validates and reconstructs it.</td></tr>
+      <tr><td>4.5 to 4.6</td><td>Once a record is decoded, distinguish post-decode admission from the earlier producer-selection and UID guard.</td></tr>
+      <tr><td>4.6 to 4.7</td><td>Only admitted normalised events reach the indexed detector engine; suppressing raw presentation is a later independent choice.</td></tr>
+      <tr><td>4.7 to 4.8</td><td>Detector matches produce alert evidence, while unmatched admitted events may still follow the raw event output path.</td></tr>
+      <tr><td>4.8 to 4.9</td><td>Move from runtime streams to how the executable and embedded object are packaged, without introducing an unimplemented deployment architecture.</td></tr>
+      <tr><td>4.9 to 4.10</td><td>Conclude that packaging does not remove dependence on host kernel facilities, motivating the concrete compatibility branches.</td></tr>
+    </tbody>
+  </table>
+  <p>Use existing labels from Chapters 2 and 3 for CO-RE, logical events,
+  event flow, policy/detector roles and perf ordering. Do not reproduce their
+  figures or definitions. Section 4.2 should refer forward to 4.3 for physical
+  activation and to 4.4 for wire details; Section 4.7 should refer back to 4.5
+  for the normalised event and forward to 4.8 for rendering.</p>
+
+  <h2>9. Claims and Numerical Limits Requiring Qualification</h2>
+  <table>
+    <thead><tr><th>Claim or limit</th><th>Mandatory qualification</th></tr></thead>
+    <tbody>
+      <tr><td>Target compatibility</td><td>Claim the audited Rocky Linux 8.10 kernel <code>4.18.0-553.109.1.el8_10.x86_64</code>, not arbitrary Linux portability. Vendor backports require validation on the actual host.</td></tr>
+      <tr><td>BTF and CO-RE</td><td>They adapt compatible data-layout differences; they do not provide absent hooks, helpers, symbols, program types, attachment paths, permissions or verifier acceptance.</td></tr>
+      <tr><td>Security hooks</td><td>The implementation attaches kprobes to <code>security_*</code> functions. These are observation points, not BPF-LSM programs, and entry-only records do not contain the eventual return decision.</td></tr>
+      <tr><td>Semantic stages</td><td>Attempt, mediation, committed state, successful transition and syscall return are distinct. A result field must be interpreted according to its syscall, especially <code>setfsuid</code>/<code>setfsgid</code>.</td></tr>
+      <tr><td>Event context</td><td>The C/Go header is exactly 136 bytes. Its explicit field order is a maintained ABI, not a self-describing format.</td></tr>
+      <tr><td>Argument workspace</td><td><code>ARGS_BUF_SIZE</code> is 32,000 bytes per workspace, but perf submission transports only the populated variable record. The non-power-of-two offset fix is commit <code>163ad724...</code>.</td></tr>
+      <tr><td>Argument limits</td><td>The generic temporary syscall structure has seven 64-bit slots; the general argument index ceiling is 32. String-array traversal and compact argument-array traversal have different bounds (38 and 15 on the C side); individual strings are bounded to 4,096 bytes.</td></tr>
+      <tr><td>Paths</td><td>Kernel path reconstruction is bounded to 20 components and 4,096-byte storage. It may produce partial or disconnected representations and is not a universal canonical-path guarantee.</td></tr>
+      <tr><td>Perf-event transport</td><td>There is one libbpfgo reader over a perf-event array with per-CPU ordering/loss characteristics. Do not claim a global total order or a ring-buffer fallback.</td></tr>
+      <tr><td>Decoder validation</td><td>Unknown IDs, invalid indexes, truncation, oversized variable fields and invalid textual payloads fail. Missing arguments, duplicate indexes (last value wins) and trailing bytes are tolerated. The wire carries no independent type tag.</td></tr>
+      <tr><td>Registry consistency</td><td>Go tests relate public probes and decoder schemas, including multi-probe families. Numeric C and Go event IDs are not automatically compared across languages.</td></tr>
+      <tr><td>Kernel UID filter</td><td>It is one exact effective-UID equality guard. Go currently writes C-layout offsets 12 and 16 after a size check; no loaded-object readback integration test verifies those fields.</td></tr>
+      <tr><td>Collective state</td><td>Two-second default, five-second maximum and 4,096 partial keys are per-detector implementation limits. State is local and process/resource/cgroup correlation is not a persistent process graph, arbitrary ancestry or cluster-wide CEP.</td></tr>
+      <tr><td>Expiry</td><td>Pruning is event-driven and <code>Flush</code> is not periodically scheduled by the main loop. Idle expired entries may remain until another relevant event or an external flush.</td></tr>
+      <tr><td>Deduplication</td><td>The five-second key includes only the first evidence event for collective alerts, so distinct completions sharing that first observation may be collapsed.</td></tr>
+      <tr><td>ATT&amp;CK</td><td>Metadata improves classification and traceability. Validation is syntactic; it does not infer mappings or establish correctness or complete coverage.</td></tr>
+      <tr><td>Container image</td><td>The BPF object is embedded, but policy/detector YAML catalogues are not copied into the runtime image. The executable retains runtime dependencies on libc, libelf and zlib. No Kubernetes resources are implemented.</td></tr>
+      <tr><td>Performance and security effect</td><td>Do not derive benchmark conclusions from implementation structure. The system observes and detects; it does not enforce, prevent attacks or provide contextual/cluster-wide anomaly detection.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Redundancy Ledger</h2>
+  <table>
+    <thead><tr><th>Material already owned elsewhere</th><th>Chapter 4 treatment</th></tr></thead>
+    <tbody>
+      <tr><td>Chapter 2: eBPF execution, maps, helpers, verifier, attachment types, BTF/CO-RE and perf/ring-buffer background</td><td>Use only concrete source mechanisms and target-specific consequences; cross-reference background.</td></tr>
+      <tr><td>Chapter 2: runtime-security concepts, point/collective taxonomy, policies, detectors and ATT&amp;CK</td><td>Explain loading, compilation, dispatch, bounded state and metadata copying only.</td></tr>
+      <tr><td>Chapter 3: requirements, kernel/user responsibility split and end-to-end architecture</td><td>Do not restate motivation or flow diagrams. Begin each section at the implementation boundary.</td></tr>
+      <tr><td>Chapter 3: physical hook, producer probe, support probe and logical event definitions</td><td>Show registry representation and dependency resolution, not the conceptual definitions.</td></tr>
+      <tr><td>Chapter 3: event contract and transport failure boundaries</td><td>Give byte layout, checks, submission and decoder behaviour; refer back for architectural consequences.</td></tr>
+      <tr><td>Chapter 3: policy/detector roles and local-correlation model</td><td>Give the exact code path and limits once, in compressed Section 4.7.</td></tr>
+      <tr><td>Future Chapter 5: functional and performance evaluation</td><td>No CPU, memory, loss-rate or effectiveness conclusions in Chapter 4.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Appendix Candidates</h2>
+  <ul>
+    <li>Complete public logical-event catalogue with argument schemas and numeric IDs.</li>
+    <li>Complete physical probe registry, including attachment kind and support dependencies.</li>
+    <li>Kernel/user 136-byte context layout and variable argument-record grammar.</li>
+    <li>Target-compatibility matrix for CO-RE branches, helpers and x86-64 fallbacks.</li>
+    <li>Complete detector YAML schema, operator table and correlation-strategy table.</li>
+    <li>Reproducible build, container and target-host launch commands.</li>
+  </ul>
+  <p>These are candidates, not requirements. Appendix material must not be
+  duplicated in the body and must be generated from the final clean baseline.</p>
+
+  <h2>10. Ordered Writer Checklist</h2>
+  <ol>
+    <li>Freeze and record a clean, buildable <code>demo_project</code> commit. Decide whether to commit or exclude metadata-based detector selection; update Chapters 3 and 4 consistently.</li>
+    <li>Apply the canonical section titles and the six-subsection structure for 4.2.</li>
+    <li>Write 4.2.1 first, fixing the shared vocabulary and eliminating repeated mechanics from later families.</li>
+    <li>Rewrite 4.2.2--4.2.6 from the one-owner catalogue, using comparison tables and stage semantics instead of per-hook narration.</li>
+    <li>Rewrite 4.3--4.6 around the concrete registry, wire, decoder and filtering mechanisms, preserving only the approved listings.</li>
+    <li>Compress 4.7 to the seven implementation points specified above and remove dirty selector claims unless they enter the frozen baseline.</li>
+    <li>Tighten 4.8--4.10, correcting packaging, dynamic-library, host-mount and compatibility qualifications.</li>
+    <li>Add transitions and cross-references after content stabilises; then remove every paragraph whose main purpose is already fulfilled by Chapters 2 or 3.</li>
+    <li>Verify all names against <code>pkg/events/spec.go</code> and all physical mappings against <code>pkg/ebpf/probes/probes.go</code>.</li>
+    <li>Run formatting, Go tests with repository CGO settings, BPF build, target-kernel smoke tests and the thesis build before final editorial review.</li>
+  </ol>
+
+  <h2>Acceptance Checklist</h2>
+  <ul>
+    <li>The chapter preserves Sections 4.1--4.10 and uses British English throughout.</li>
+    <li>No internal product name appears.</li>
+    <li>Networking, packets and socket implementation are absent.</li>
+    <li>Every discussed logical event has exactly one owner in Section 4.2 and is distinguished from physical probes.</li>
+    <li>Attempt, mediation, committed transition, successful transition and syscall return are never conflated.</li>
+    <li>The chapter contains no more than seven planned listings and no individual hook-body listing.</li>
+    <li>Section 4.7 is implementation-focused, compact and limited to committed behaviour.</li>
+    <li>Perf-event transport is described as the sole current transport.</li>
+    <li>All numerical limits and compatibility claims carry the qualifications in this specification.</li>
+    <li>No enforcement, contextual anomaly, cluster-wide correlation, arbitrary ancestry, Kubernetes workload-identity or benchmark conclusion is claimed.</li>
+    <li>Container text states that rule catalogues and Kubernetes resources are not packaged or implemented in the current repository.</li>
+    <li>The final source baseline is clean, buildable, recorded in the chapter workflow and consistent with the cited tests.</li>
+  </ul>
+
+  <p class="small"><strong>Editorial status:</strong> binding specification for
+  the next Chapter 4 writing pass. It does not modify the thesis or establish a
+  new implementation baseline by itself.</p>
+</body>
+</html>

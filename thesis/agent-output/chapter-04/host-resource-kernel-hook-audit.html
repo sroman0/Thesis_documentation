@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 4 Host Resource and Kernel-Integrity Hook Audit</title>
+  <style>
+    :root { color-scheme: light; --ink:#1d2733; --muted:#566474; --line:#cbd3dc; --head:#eef2f5; --accent:#155b75; --warn:#7a4c00; }
+    body { margin: 2rem auto; max-width: 1500px; padding: 0 1.2rem 4rem; color: var(--ink); background:#fff; font: 15px/1.5 system-ui, sans-serif; }
+    h1,h2,h3 { line-height:1.2; color:#14212d; }
+    h1 { border-bottom:3px solid var(--accent); padding-bottom:.5rem; }
+    h2 { margin-top:2.2rem; border-bottom:1px solid var(--line); padding-bottom:.25rem; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    code { background:#f2f4f6; padding:.05rem .25rem; }
+    pre { overflow:auto; border:1px solid var(--line); background:#f7f9fa; padding:.8rem; font-size:13px; }
+    .table-wrap { overflow-x:auto; margin:1rem 0 1.5rem; }
+    table { width:100%; border-collapse:collapse; min-width:1200px; font-size:13px; }
+    th,td { border:1px solid var(--line); padding:.48rem .55rem; vertical-align:top; text-align:left; }
+    th { background:var(--head); position:sticky; top:0; z-index:1; }
+    tbody tr:nth-child(even) { background:#fafbfc; }
+    .status { border-left:4px solid var(--accent); background:#f2f7f9; padding:.7rem 1rem; }
+    .warning { border-left:4px solid var(--warn); background:#fff8e8; padding:.7rem 1rem; }
+    .small { color:var(--muted); font-size:13px; }
+    ul.compact li { margin:.25rem 0; }
+  </style>
+</head>
+<body>
+<h1>Host Resource and Kernel-Integrity Hook Implementation Audit</h1>
+
+<p><strong>Purpose.</strong> This report supplies implementation evidence for the hook-focused revision of Chapter 4. It covers host file-system, memory, namespace, cgroup, module, eBPF, dynamic-instrumentation and kernel-facing interfaces only. It deliberately excludes networking, policy internals, output formatting, benchmarks and general eBPF theory.</p>
+
+<h2>1. Repository Baseline and Authority</h2>
+<div class="status">
+  <p><strong>Audited commit:</strong> <code>ae653447d006b5952abfe9f57cbf0f67d94af673</code> (<code>ae65344 Merge pull request #15 from V3suv1us/feature/network-policy-detector</code>).</p>
+  <p><strong>Dirty working tree:</strong> modified <code>Makefile</code>, <code>README.md</code>, <code>pkg/cmd/project.go</code>, <code>pkg/cmd/project_test.go</code>, <code>pkg/ebpf/probes/probes.go</code>, <code>pkg/ebpf/project.go</code>, <code>pkg/policy/loader.go</code>, <code>pkg/policy/loader_test.go</code> and <code>pkg/policy/policy.go</code>; untracked <code>pkg/policy/detector_selector.go</code>, its test, and <code>rules/policies/mitre-privilege-collective.yaml</code>.</p>
+</div>
+<p>The only dirty registry hunks mark networking support probes as internal. The dirty runtime and policy files do not change the host-only programs, schemas or probe entries audited here. Consequently, no positive claim in the six matrices depends on uncommitted host-hook code. The current dirty <code>pkg/ebpf/project.go</code> does contain unrelated unfinished edits and must not be used as evidence for this chapter.</p>
+<p>Current C programs, the public probe registry and the event schema are treated as authoritative in that order for physical behaviour, attachment, and wire interpretation. Documentation is corroborative evidence and is explicitly identified when incomplete.</p>
+
+<h3>Validation performed</h3>
+<p><code>go test ./pkg/events ./pkg/ebpf/probes ./pkg/bufferdecoder</code> passed when run with the repository's libbpf include/library settings and a writable temporary Go build cache. These tests validate registry consistency, probe selection and decoder behaviour; they do not execute the eBPF programs against the Rocky Linux kernel.</p>
+
+<h2>2. Interpretation Rules</h2>
+<ul class="compact">
+  <li><strong>Syscall request path:</strong> a dedicated syscall entry tracepoint retains request arguments in <code>args_map</code>; the matching exit tracepoint emits one logical event with the kernel return value. A non-negative return generally indicates success, while a negative value is an errno.</li>
+  <li><strong>Resolved semantic path:</strong> an LSM/VFS kprobe receives a kernel object such as <code>struct file</code>, <code>dentry</code>, <code>vfsmount</code> or VMA. It can expose resolved identity that the userspace request cannot, but an entry-only probe does not establish the final operation result.</li>
+  <li><strong>State/lifecycle tracepoint:</strong> cgroup and module raw tracepoints describe the kernel lifecycle notification represented by that tracepoint. They do not carry a syscall return value.</li>
+  <li><strong>Paired kernel function:</strong> selected kprobe/kretprobe pairs retain the entry object and emit at return, making the function result part of the event.</li>
+</ul>
+<p>All events use the shared context and indexed argument buffer. Variable data are bounded: path reconstruction traverses at most 20 components; strings are bounded by 4096 bytes; string arrays inspect at most 38 elements; the event supports at most 32 indexed arguments; paired state stores seven machine-word slots. These are verifier and transport bounds, not claims of complete object capture.</p>
+
+<h2>3. Family Matrices</h2>
+
+<h3>3.1 File and File-System Security</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Logical event</th><th>Physical program and hook</th><th>Construction</th><th>Observation and result</th><th>Event-specific arguments and security meaning</th><th>Helpers / object source</th><th>Compatibility and bounds</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td><code>open</code></td><td><code>tracepoint__syscalls__sys_enter_open[at]</code> and matching exit programs; syscall tracepoints</td><td>Entry/exit; both variants map to one event and are distinguished by <code>operation</code>.</td><td>Userspace request plus returned file descriptor or negative errno. It does not provide the canonical resolved path.</td><td><code>operation</code>, <code>dirfd</code>, request <code>pathname</code>, <code>flags</code>, <code>mode</code>, <code>returnValue</code>.</td><td><code>save_args</code>/<code>load_args</code>/<code>del_args</code>; user string copied at exit.</td><td>Dedicated Rocky 4.18 typed tracepoint layout; seven-slot paired state; pointer lifetime is assumed until syscall exit.</td><td><code>events.Open</code>; <code>TestSelectCanAttachOpenSyscallFamily</code>; hooks.md “open”.</td></tr>
+<tr><td><code>security_file_open</code></td><td><code>trace_security_file_open</code>; kprobe on <code>security_file_open</code></td><td>Direct entry observation.</td><td>Resolved <code>struct file</code> before it is returned to userspace. No final syscall result; pair with <code>open</code> when outcome matters.</td><td>Resolved <code>pathname</code>, file <code>flags</code>, <code>dev</code>, <code>inode</code>, <code>ctime</code>, and best-effort original <code>syscall_pathname</code>.</td><td><code>get_path_str</code>; file metadata helpers; current task registers and syscall-argument helpers recover the request path.</td><td>Path: 20 components/4096 bytes. Request-path recovery recognises execve, execveat, open, openat and openat2 and relies on x86-64 register handling/fallback assumptions.</td><td><code>events.SecurityFileOpen</code>; registry consistency tests; hooks.md section. The C comment saying open/openat could be added later is stale.</td></tr>
+<tr><td><code>security_file_permission</code></td><td><code>trace_security_file_permission</code>; kprobe</td><td>Direct entry observation.</td><td>Permission check on an already-open resolved file; high-volume and not a success event.</td><td>Resolved <code>pathname</code>, access <code>mask</code> (read/write/execute/append/open bits), <code>dev</code>, <code>inode</code>, <code>ctime</code>.</td><td>Path and file metadata helpers.</td><td>Same path and inode-layout bounds as file open.</td><td><code>events.SecurityFilePermission</code>; <code>TestSelectCanAttachHighPrioritySecurityHooks</code>; hooks.md.</td></tr>
+<tr><td><code>security_file_ioctl</code></td><td><code>trace_security_file_ioctl</code>; kprobe</td><td>Direct entry observation.</td><td>Security check for an ioctl against a resolved file/device; no ioctl or LSM result.</td><td><code>pathname</code>, raw device-specific <code>cmd</code>, opaque <code>arg</code>, <code>dev</code>, <code>inode</code>, <code>ctime</code>. No pointed-to ioctl payload is copied.</td><td>Path and file metadata helpers.</td><td>Opaque argument retained as machine-width pointer/value; path bounds apply.</td><td><code>events.SecurityFileIoctl</code>; high-priority probe-selection test; hooks.md.</td></tr>
+<tr><td><code>chmod</code></td><td>Six syscall tracepoints for chmod, fchmod and fchmodat entry/exit</td><td>Entry/exit, unified logical schema.</td><td>Requested permission change and final status.</td><td><code>operation</code>; variant-specific <code>dirfd</code>/<code>fd</code>/<code>pathname</code>; 16-bit <code>mode</code>; <code>returnValue</code>.</td><td>Generic paired-argument map helpers.</td><td>Target tracepoint structures; no fchmodat2 flags on the Rocky 4.18 path.</td><td><code>events.Chmod</code>; <code>TestSelectCanAttachChmodSyscallFamily</code>; hooks.md.</td></tr>
+<tr><td><code>chown</code></td><td>Eight syscall tracepoints for chown, fchown, fchownat and lchown entry/exit</td><td>Entry/exit, unified logical schema.</td><td>Requested ownership change and final status.</td><td><code>operation</code>; variant-specific descriptors/path; requested <code>owner</code>, <code>group</code>, fchownat <code>flags</code>; <code>returnValue</code>.</td><td>Generic paired-argument map helpers.</td><td>Uses all seven retained slots, the fixed maximum in <code>args_t</code>.</td><td><code>events.Chown</code>; <code>TestSelectCanAttachChownSyscallFamily</code>; hooks.md.</td></tr>
+<tr><td><code>security_inode_unlink</code></td><td><code>trace_security_inode_unlink</code>; kprobe</td><td>Direct entry observation.</td><td>Deletion validation after dentry resolution, before removal; no unlink result.</td><td>Resolved <code>pathname</code>, target <code>inode</code>, <code>dev</code>, <code>ctime</code>. Parent inode is not emitted.</td><td><code>get_dentry_path_str</code> and dentry metadata helpers.</td><td>Dentry path capped at 20 components; inode ctime supports old and newer layouts.</td><td><code>events.SecurityInodeUnlink</code>; namespace/filesystem selection test; hooks.md.</td></tr>
+<tr><td><code>security_inode_rename</code></td><td><code>trace_security_inode_rename</code>; kprobe</td><td>Direct entry observation.</td><td>Resolved source/destination rename request; no final rename result.</td><td><code>old_path</code>, <code>new_path</code>, <code>flags</code>, and source <code>inode</code>/<code>dev</code>/<code>ctime</code>.</td><td>Dentry path helper. Source path is serialised before resolving destination because both use one per-CPU scratch buffer.</td><td>Two bounded path walks; source identity only.</td><td><code>events.SecurityInodeRename</code>; high-priority selection test. No dedicated hooks.md section.</td></tr>
+<tr><td><code>security_inode_symlink</code></td><td><code>trace_security_inode_symlink</code>; kprobe</td><td>Direct entry observation.</td><td>Symlink creation validation; no creation result.</td><td>Resolved new <code>linkpath</code> and caller-provided <code>target</code>, which may be relative or unresolved.</td><td>Dentry path reconstruction plus string copy.</td><td>Both strings bounded; target is not canonicalised.</td><td><code>events.SecurityInodeSymlink</code>; high-priority selection test. No dedicated hooks.md section.</td></tr>
+<tr><td><code>security_inode_mknod</code></td><td><code>trace_security_inode_mknod</code>; kprobe</td><td>Direct entry observation.</td><td>Node-creation validation; no mknod result.</td><td>Resolved <code>pathname</code>, <code>mode</code> containing type and permissions, requested device <code>dev</code>.</td><td>Dentry path reconstruction.</td><td>Mode is 16-bit; device value is meaningful primarily for block/character nodes.</td><td><code>events.SecurityInodeMknod</code>; high-priority selection test. No dedicated hooks.md section.</td></tr>
+<tr><td><code>security_sb_mount</code></td><td><code>trace_security_sb_mount</code>; kprobe</td><td>Direct entry observation.</td><td>LSM mount request with resolved target; no mount result.</td><td>Source <code>dev_name</code>, resolved target <code>path</code>, filesystem <code>type</code>, mount <code>flags</code>. Filesystem-specific data/options are deliberately not copied.</td><td><code>get_path_str</code> on the supplied <code>struct path</code>.</td><td>Path bounds apply; optional strings may be absent.</td><td><code>events.SecuritySbMount</code>; namespace/filesystem selection test; hooks.md.</td></tr>
+<tr><td><code>security_sb_umount</code></td><td><code>trace_security_sb_umount</code>; kprobe</td><td>Direct entry observation.</td><td>Unmount validation over resolved <code>vfsmount</code>; no umount result.</td><td>Resolved <code>mountpoint</code>, filesystem <code>type</code>, unmount <code>flags</code>.</td><td><code>real_mount</code>, mountpoint dentry lookup, <code>get_dentry_path_str</code>.</td><td>Container-of layout and CO-RE object reads; bounded mountpoint reconstruction.</td><td><code>events.SecuritySbUmount</code>; namespace/filesystem selection test; hooks.md.</td></tr>
+</tbody></table></div>
+
+<h3>3.2 Memory Management</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Logical event</th><th>Physical program and hook</th><th>Construction</th><th>Observation and result</th><th>Arguments and security meaning</th><th>Helpers / object source</th><th>Compatibility and bounds</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td><code>mmap</code></td><td>Dedicated <code>sys_enter_mmap</code>/<code>sys_exit_mmap</code> tracepoints</td><td>Entry/exit.</td><td>Mapping request plus returned address or errno.</td><td>Requested <code>addr</code>, <code>length</code>, <code>prot</code>, <code>flags</code>, <code>fd</code>, <code>offset</code>, <code>returnValue</code>.</td><td>Paired-argument map.</td><td>Typed Rocky 4.18 tracepoint layout; six retained slots.</td><td><code>events.Mmap</code>; memory-family selection test; hooks.md.</td></tr>
+<tr><td><code>mprotect</code></td><td>Dedicated mprotect entry/exit tracepoints</td><td>Entry/exit.</td><td>Protection-change request and status.</td><td><code>addr</code>, <code>length</code>, requested <code>prot</code>, <code>returnValue</code>.</td><td>Paired-argument map.</td><td>Typed target tracepoint; no VMA/file enrichment in this event.</td><td><code>events.Mprotect</code>; memory-family selection test; hooks.md.</td></tr>
+<tr><td><code>pkey_mprotect</code></td><td>Dedicated pkey_mprotect entry/exit tracepoints</td><td>Entry/exit.</td><td>Protection-key request and status.</td><td><code>addr</code>, <code>length</code>, <code>prot</code>, <code>pkey</code>, <code>returnValue</code>.</td><td>Paired-argument map.</td><td>Depends on the target kernel exposing this syscall tracepoint.</td><td><code>events.PkeyMprotect</code>; memory-family selection test; hooks.md.</td></tr>
+<tr><td><code>memfd_create</code></td><td>Dedicated memfd_create entry/exit tracepoints</td><td>Entry/exit.</td><td>Anonymous-file request plus returned fd or errno.</td><td>User <code>name</code>, creation <code>flags</code>, <code>returnValue</code>.</td><td>Paired state; user string copied on exit.</td><td>String pointer lifetime assumption and 4096-byte string cap.</td><td><code>events.MemfdCreate</code>; memfd selection test; hooks.md.</td></tr>
+<tr><td><code>process_vm_readv</code></td><td>Dedicated process_vm_readv entry/exit tracepoints</td><td>Entry/exit.</td><td>Cross-process read request plus bytes transferred or errno.</td><td>Target <code>pid</code>, local/remote iovec addresses and counts, <code>flags</code>, <code>returnValue</code>.</td><td>Paired state only.</td><td>No iovec elements or memory payload are copied; pointer metadata is machine-width.</td><td><code>events.ProcessVmReadv</code>; dedicated selection test; hooks.md.</td></tr>
+<tr><td><code>process_vm_writev</code></td><td>Dedicated process_vm_writev entry/exit tracepoints</td><td>Entry/exit.</td><td>Cross-process write request plus bytes transferred or errno.</td><td>Same vector metadata as readv and <code>returnValue</code>.</td><td>Paired state only.</td><td>No transferred payload; six retained request slots.</td><td><code>events.ProcessVmWritev</code>; dedicated selection test; hooks.md.</td></tr>
+<tr><td><code>security_mmap_file</code></td><td><code>trace_security_mmap_file</code>; kprobe</td><td>Direct entry observation.</td><td>LSM check for a resolved file-backed mapping. Anonymous mappings are intentionally skipped; no mapping result.</td><td>Resolved <code>pathname</code>, file flags and identity, requested <code>prot</code> and mmap <code>flags</code>.</td><td>File path and metadata helpers.</td><td>Path/inode-layout bounds; <code>file == NULL</code> is dropped.</td><td><code>events.SecurityMmapFile</code>; high-priority selection test. No dedicated hooks.md section.</td></tr>
+<tr><td><code>security_file_mprotect</code></td><td><code>trace_security_file_mprotect</code>; kprobe</td><td>Direct entry observation.</td><td>LSM check with the VMA supplied directly by the kernel; no final mprotect status.</td><td>Optional backing <code>pathname</code>, requested and adjusted protections, previous access bits, VMA start/length, optional file identity.</td><td>Direct CO-RE VMA reads; path/file helpers only for file-backed VMAs.</td><td>Anonymous VMAs omit path and retain zero identity. The 35-level <code>find_vma</code> RB-tree helper is <em>not called</em> by this hook.</td><td><code>events.SecurityFileMprotect</code>; high-priority selection test. No dedicated hooks.md section.</td></tr>
+</tbody></table></div>
+
+<h3>3.3 Namespace and Cgroup Transitions</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Logical event</th><th>Physical program and hook</th><th>Construction</th><th>Observation and result</th><th>Arguments and security meaning</th><th>Helpers / object source</th><th>Compatibility and bounds</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td><code>setns</code></td><td>Dedicated setns entry/exit syscall tracepoints</td><td>Entry/exit.</td><td>Namespace-join request and status; it does not identify the installed namespace inode.</td><td>Namespace fd, requested/inferred <code>nstype</code>, <code>returnValue</code>.</td><td>Paired state.</td><td>Typed Rocky tracepoint structure.</td><td><code>events.Setns</code>; <code>TestSelectCanAttachSetnsSyscallFamily</code>; hooks.md.</td></tr>
+<tr><td><code>unshare</code></td><td>Dedicated unshare entry/exit syscall tracepoints</td><td>Entry/exit.</td><td>Isolation request and status.</td><td><code>CLONE_*</code> <code>flags</code>, <code>returnValue</code>.</td><td>Paired state.</td><td>Flags retained at machine width from the target tracepoint.</td><td><code>events.Unshare</code>; dedicated selection test; hooks.md.</td></tr>
+<tr><td><code>switch_task_ns</code></td><td><code>trace_switch_task_namespaces</code>; kprobe</td><td>Direct effect-level observation.</td><td>Compares old and proposed <code>nsproxy</code> values when the kernel installs namespace state. Emits only if at least one namespace ID differs.</td><td>Task <code>pid</code> and only changed new mount, PID-for-children, UTS, IPC, network and cgroup namespace inode numbers.</td><td>Namespace accessors in <code>common/namespaces.h</code> and task wrappers.</td><td>Sparse optional wire arguments. IDs are local namespace inode numbers, not workload or Kubernetes identities.</td><td><code>events.SwitchTaskNS</code>; namespace/filesystem selection test; hooks.md.</td></tr>
+<tr><td><code>cgroup_attach_task</code></td><td><code>tracepoint__cgroup__cgroup_attach_task</code>; raw tracepoint</td><td>Direct lifecycle observation.</td><td>Task migration notification; no syscall result.</td><td>Destination cgroup and hierarchy IDs/path, target command and host PID/TID, thread-group flag.</td><td>Cgroup ID/hierarchy helpers and task host-ID helpers.</td><td><code>kernfs_node</code> ID branches cover pre-5.5, RHEL 8 hidden KABI and newer layouts.</td><td><code>events.CgroupAttachTask</code>; public-probe/schema consistency and high-priority selection tests; hooks.md.</td></tr>
+<tr><td><code>cgroup_mkdir</code></td><td><code>tracepoint__cgroup__cgroup_mkdir</code>; raw tracepoint</td><td>Direct lifecycle observation.</td><td>Cgroup hierarchy creation notification.</td><td><code>cgroup_id</code>, tracepoint <code>path</code>, <code>hierarchy_id</code>.</td><td>Cgroup ID/hierarchy helpers.</td><td>Same three-way kernfs ID branch; path is supplied by tracepoint and bounded during serialisation.</td><td><code>events.CgroupMkdir</code>; registry consistency/high-priority tests; hooks.md.</td></tr>
+<tr><td><code>cgroup_rmdir</code></td><td><code>tracepoint__cgroup__cgroup_rmdir</code>; raw tracepoint</td><td>Direct lifecycle observation.</td><td>Cgroup hierarchy removal notification.</td><td>Same identity/path fields as mkdir.</td><td>Cgroup ID/hierarchy helpers.</td><td>Same cgroup compatibility branch and string bound.</td><td><code>events.CgroupRmdir</code>; registry consistency/high-priority tests; hooks.md.</td></tr>
+</tbody></table></div>
+
+<h3>3.4 Module Lifecycle</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Logical event</th><th>Physical program and hook</th><th>Construction</th><th>Observation and result</th><th>Arguments and security meaning</th><th>Helpers / object source</th><th>Compatibility and bounds</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td><code>module_load</code></td><td><code>tracepoint__module__module_load</code>; raw tracepoint</td><td>Direct lifecycle observation.</td><td>Module added to the kernel module lifecycle path; no initialisation result.</td><td>Module <code>name</code>, optional <code>version</code>, optional <code>srcversion</code>.</td><td>CO-RE reads from <code>struct module</code>.</td><td>Null optional strings are omitted; strings bounded. No module text or section data.</td><td><code>events.ModuleLoad</code>; high-priority selection test; hooks.md.</td></tr>
+<tr><td><code>module_free</code></td><td><code>tracepoint__module__module_free</code>; raw tracepoint</td><td>Direct lifecycle observation.</td><td>Module removal notification; no unload syscall result.</td><td>Same compact module identity.</td><td>CO-RE module reads.</td><td>Same optional fields and bounds.</td><td><code>events.ModuleFree</code>; high-priority selection test; hooks.md.</td></tr>
+<tr><td><code>do_init_module</code></td><td><code>trace_do_init_module</code> kprobe plus <code>trace_ret_do_init_module</code> kretprobe</td><td>Entry/return.</td><td>Associates the module object with module-initialisation status.</td><td><code>name</code>, optional version strings, signed <code>returnValue</code>.</td><td>Generic entry macro retains the module pointer; return program reads identity and <code>PT_REGS_RC</code>.</td><td>Pointer must remain valid through return; seven-slot map key includes event ID and TID.</td><td><code>events.DoInitModule</code>; multi-probe/public-registry consistency; hooks.md.</td></tr>
+</tbody></table></div>
+<p class="warning"><strong>Boundary:</strong> these events observe declared lifecycle points. They do not enumerate all modules, detect list unlinking, scan executable kernel memory, or prove that no module is hidden.</p>
+
+<h3>3.5 eBPF and Dynamic Instrumentation Surfaces</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Logical event</th><th>Physical program and hook</th><th>Construction</th><th>Observation and result</th><th>Arguments and security meaning</th><th>Helpers / object source</th><th>Compatibility and bounds</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td><code>security_bpf</code></td><td><code>trace_security_bpf</code>; kprobe</td><td>Direct entry observation.</td><td>LSM check for <code>bpf(2)</code>; not the syscall outcome.</td><td>BPF <code>cmd</code> and supplied attribute <code>size</code>. The command-dependent <code>union bpf_attr</code> is deliberately not copied.</td><td>Scalar arguments only.</td><td>Compact, verifier-stable payload; no command-specific object reconstruction.</td><td><code>events.SecurityBPF</code>; high-priority selection test; hooks.md.</td></tr>
+<tr><td><code>security_bpf_map</code></td><td><code>trace_security_bpf_map</code>; kprobe</td><td>Direct entry observation.</td><td>Security operation targeting an existing map; no operation result.</td><td>Kernel <code>map_id</code> and bounded <code>map_name</code>.</td><td>CO-RE map ID/name reads.</td><td>Null map is dropped; no map contents or full metadata.</td><td><code>events.SecurityBPFMap</code>; high-priority selection test; hooks.md.</td></tr>
+<tr><td><code>security_bpf_prog</code></td><td><code>trace_security_bpf_prog</code>; kprobe</td><td>Direct entry observation.</td><td>Security operation targeting an existing program; no operation result.</td><td><code>prog_id</code>, <code>prog_name</code>, <code>prog_type</code>.</td><td>CO-RE reads through <code>bpf_prog_aux</code>.</td><td>Null program/aux is dropped; no instructions, tags or attachment graph.</td><td><code>events.SecurityBPFProg</code>; high-priority selection test; hooks.md.</td></tr>
+<tr><td><code>register_kprobe</code></td><td><code>trace_register_kprobe</code> kprobe plus <code>trace_ret_register_kprobe</code> kretprobe</td><td>Entry/return.</td><td>Kprobe registration attempt with final registration status.</td><td>Target <code>symbol_name</code>, pre/post handler addresses, <code>returnValue</code>.</td><td>Retained <code>struct kprobe *</code>, CO-RE field reads, return register.</td><td>Symbol may be absent when registration uses an address; handler values are addresses, not copied code.</td><td><code>events.RegisterKprobe</code>; <code>TestSelectCanAttachKernelInstrumentationHooks</code>; hooks.md.</td></tr>
+<tr><td><code>kallsyms_lookup_name</code></td><td><code>trace_kallsyms_lookup_name</code> kprobe plus return program</td><td>Entry/return.</td><td>Kernel symbol-resolution request and returned address; zero denotes no resolved address.</td><td>Requested <code>symbol_name</code>, returned <code>address</code>.</td><td>Retained name pointer and return register.</td><td>String bounded; records lookups only through this symbol, not all kernel address discovery.</td><td><code>events.KallsymsLookupName</code>; kernel-instrumentation selection test; hooks.md.</td></tr>
+</tbody></table></div>
+<p class="warning"><strong>Boundary:</strong> the three security hooks expose mediation checkpoints, not BPF program attachment, execution, or success. The implementation does not construct an attachment graph or establish that observed instrumentation is malicious.</p>
+
+<h3>3.6 Kernel-Facing Interfaces</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Logical event</th><th>Physical program and hook</th><th>Construction</th><th>Observation and result</th><th>Arguments and security meaning</th><th>Helpers / object source</th><th>Compatibility and bounds</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td><code>proc_create</code></td><td><code>trace_proc_create</code>; kprobe</td><td>Direct entry observation.</td><td>Request to create a procfs interface; no returned proc entry or result.</td><td>Entry <code>name</code> and raw <code>proc_ops_addr</code>, useful as a compact kernel-interface signal.</td><td>Reads first and fourth function parameters from registers.</td><td>Relies on the target function signature/argument positions; string bounded. It does not reconstruct the procfs parent or full path.</td><td><code>events.ProcCreate</code>; high-priority selection test; hooks.md.</td></tr>
+<tr><td><code>call_usermodehelper</code></td><td><code>trace_call_usermodehelper</code>; kprobe</td><td>Direct entry observation.</td><td>Kernel request to invoke a userspace helper; no helper execution or exit result.</td><td>Executable <code>path</code>, bounded <code>argv</code>/<code>envp</code>, <code>wait</code> mode.</td><td>String and string-array serialisers.</td><td>At most 38 array elements and bounded total event space; environment capture may contain sensitive data and is not complete.</td><td><code>events.CallUsermodehelper</code>; high-priority selection test; hooks.md.</td></tr>
+<tr><td><code>security_kernel_read_file</code></td><td><code>trace_security_kernel_read_file</code>; kprobe</td><td>Direct pre/read checkpoint.</td><td>Kernel-mediated consumption of a resolved file (for example module, firmware or kexec category); no final read or security result.</td><td>Resolved <code>pathname</code>, <code>dev</code>, <code>inode</code>, read <code>type</code>, <code>ctime</code>.</td><td>File path and metadata helpers.</td><td>Path/inode-layout bounds; only non-null files emit.</td><td><code>events.SecurityKernelReadFile</code>; high-priority selection test; hooks.md including cache/path caveat.</td></tr>
+<tr><td><code>security_kernel_post_read_file</code></td><td><code>trace_security_kernel_post_read_file</code>; kprobe</td><td>Direct post-read checkpoint, not an entry/return pair with the preceding event.</td><td>Observes the post-read hook and supplied size. The captured <code>size</code> is not the hook's return value and the file buffer is not copied.</td><td>Resolved file identity, byte <code>size</code>, and read <code>type</code>.</td><td>File path and metadata helpers.</td><td>No correlation map joins pre/post records; no payload bytes or digest.</td><td><code>events.SecurityKernelPostReadFile</code>; high-priority selection test; hooks.md.</td></tr>
+</tbody></table></div>
+
+<h2>4. Cross-Cutting Compatibility and Verifier Findings</h2>
+<ul class="compact">
+  <li><strong>Path and inode handling.</strong> <code>common/filesystem.h</code> reconstructs paths backwards in per-CPU scratch storage with a fixed 20-component loop. Disconnected dentries produce a marker. Inode change time selects among pre-6.6, 6.6--6.10 and later layouts through CO-RE field checks.</li>
+  <li><strong>Cgroups.</strong> <code>common/cgroups.h</code> explicitly handles upstream pre-5.5 <code>kernfs_node_id</code>, the RHEL 8 hidden KABI field and the newer direct ID. Current-context lookup also distinguishes configured cgroup v1 from helper-based cgroup identity.</li>
+  <li><strong>Architecture.</strong> The deployment target is x86-64 Rocky Linux 8.10, kernel 4.18. Compatible 32-bit syscall IDs are translated through a map in the raw path. Current-register fallback assumes 4 KiB pages, a 16 KiB kernel stack and no KASAN stack expansion.</li>
+  <li><strong>Typed syscall tracepoints.</strong> The audited syscall families use target-specific typed tracepoint context structures rather than the generic raw dispatcher. Their portability therefore depends on the named tracepoints and field layouts existing on the deployment kernel.</li>
+  <li><strong>VMA qualification.</strong> <code>common/memory.h</code> contains a bounded 35-level RB-tree VMA lookup and rejects kernels without <code>mm_rb</code>, but no audited host-memory hook calls that helper. Chapter 4 should not present that traversal as part of <code>mmap</code>, <code>mprotect</code>, <code>pkey_mprotect</code> or <code>security_file_mprotect</code>.</li>
+  <li><strong>Transport and record bounds.</strong> All audited programs call <code>events_perf_submit</code>. The active implementation does not use the BPF ring buffer for these events.</li>
+</ul>
+
+<h2>5. Test and Documentation Evidence Assessment</h2>
+<p>The strongest automated evidence is structural rather than behavioural:</p>
+<ul class="compact">
+  <li><code>TestPublicProbesHaveDecoderSpecs</code> and <code>TestDecoderEventsAreExposedByPublicProbes</code> enforce the public probe/schema relationship.</li>
+  <li>Family tests verify that one logical event expands to the expected number of physical probes, including six chmod, eight chown, four open, paired memory/namespace probes and paired dynamic-instrumentation probes.</li>
+  <li><code>pkg/events/spec_test.go</code> enforces unique IDs/names and name-ID round trips.</li>
+  <li>Decoder tests cover the common context, long argument records, arrays, invalid UTF-8 and truncated fixed/array payloads. They do not provide event-by-event kernel emission tests.</li>
+</ul>
+<p><code>documentation/implementation/hooks.md</code> documents open, chmod/chown, memory syscalls, setns/unshare, cgroups, module lifecycle, BPF security hooks, kernel-read hooks, mount/umount and unlink. It currently lacks dedicated sections for <code>security_inode_rename</code>, <code>security_inode_symlink</code>, <code>security_inode_mknod</code>, <code>security_mmap_file</code> and <code>security_file_mprotect</code>. For those events, the C program, Go schema and registry tests are the authoritative evidence.</p>
+
+<h2>6. Claims the Thesis Must Not Make</h2>
+<ul class="compact">
+  <li>Entry-only LSM probes do not prove that the checked operation succeeded or that a later security module did not deny it.</li>
+  <li>Vector addresses and counts from process_vm operations are metadata; no transferred process-memory payload is collected.</li>
+  <li>File and cgroup identifiers support local comparison. They do not reconstruct arbitrary process ancestry, persistent resource graphs or Kubernetes workload identity.</li>
+  <li>Module and instrumentation hooks expose selected lifecycle and registration surfaces. They do not prove kernel integrity, detect hidden modules, enumerate all hooks, or inspect handler code.</li>
+  <li>Kernel-read events do not copy the read buffer, calculate a digest or automatically pair the pre/post checkpoints.</li>
+  <li>CO-RE adapts known field layouts; it cannot supply missing symbols, tracepoints, helpers, permissions or verifier capabilities.</li>
+</ul>
+
+<h2>7. Candidate Source Excerpts for Chapter 4</h2>
+<p>Only three excerpts are recommended. Each demonstrates a reusable mechanism rather than adding another event catalogue.</p>
+
+<h3>Candidate A: bounded resolved-path construction</h3>
+<p><strong>Location and symbol:</strong> <code>pkg/ebpf/c/common/filesystem.h</code>, <code>get_path_str_buf</code>.</p>
+<pre><code>#pragma unroll
+for (int i = 0; i &lt; MAX_PATH_COMPONENTS; i++) {
+    mnt_root = get_mnt_root_ptr_from_vfsmount(vfsmnt);
+    d_parent = get_d_parent_ptr_from_dentry(dentry);
+    if (dentry == mnt_root || dentry == d_parent) {
+        /* mount transition or root termination */
+        ...
+    }
+    /* prepend the bounded dentry name into per-CPU storage */
+}</code></pre>
+<p><strong>Reason:</strong> explains how several file, inode, mount and memory hooks obtain resolved paths under verifier bounds. <strong>Prose replaced:</strong> the path-reconstruction sentences in the current filesystem subsection. <strong>Overlap:</strong> none with the existing early-admission or entry-state listings; avoid repeating general per-CPU-map prose already present.</p>
+
+<h3>Candidate B: sparse effect-level namespace event</h3>
+<p><strong>Location and symbol:</strong> <code>pkg/ebpf/c/project.bpf.c</code>, <code>trace_switch_task_namespaces</code>.</p>
+<pre><code>save_to_submit_buf(&amp;p.event-&gt;args_buf, &amp;pid, sizeof(pid_t), 0);
+if (old_mnt != new_mnt)
+    save_to_submit_buf(&amp;p.event-&gt;args_buf, &amp;new_mnt, sizeof(u32), 1);
+...
+if (old_cgroup != new_cgroup)
+    save_to_submit_buf(&amp;p.event-&gt;args_buf, &amp;new_cgroup, sizeof(u32), 6);
+if (p.event-&gt;args_buf.argnum &lt;= 1)
+    return 0;</code></pre>
+<p><strong>Reason:</strong> shows the difference between request/result syscall events and an effect-level, sparse semantic event. <strong>Prose replaced:</strong> the current paragraph beginning “Namespace monitoring separates requested operations...”. <strong>Overlap:</strong> uses the common argument buffer already introduced, but does not duplicate either existing listing.</p>
+
+<h3>Candidate C: compact eBPF mediation payload</h3>
+<p><strong>Location and symbol:</strong> <code>pkg/ebpf/c/project.bpf.c</code>, <code>trace_security_bpf</code>.</p>
+<pre><code>program_data_t p = {};
+if (!init_program_data(&amp;p, ctx, SECURITY_BPF))
+    return 0;
+save_to_submit_buf(&amp;p.event-&gt;args_buf, &amp;cmd, sizeof(int), 0);
+save_to_submit_buf(&amp;p.event-&gt;args_buf, &amp;size, sizeof(unsigned int), 1);
+return events_perf_submit(&amp;p);</code></pre>
+<p><strong>Reason:</strong> demonstrates the common direct-submission pattern and the deliberate decision not to parse command-dependent <code>union bpf_attr</code>. <strong>Prose replaced:</strong> the first paragraph of the current kernel-integrity subsection. <strong>Overlap:</strong> partially repeats shared initialisation already discussed; retain only if the text explicitly contrasts compact mediation with full attribute parsing.</p>
+
+<h2>8. Redundancy Ledger Against Chapters 2 and 3</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Topic</th><th>Already established</th><th>Chapter 4 contribution</th><th>Avoid</th></tr></thead>
+<tbody>
+<tr><td>Hook kinds and return semantics</td><td>Chapter 2 explains tracepoints, kprobes, kretprobes and entry-side LSM limitations; Chapter 3 defines hook-selection semantics.</td><td>Name the concrete physical programs and show why a specific event is direct or paired.</td><td>Re-teaching eBPF attachment theory or repeating generic “entry versus return” definitions.</td></tr>
+<tr><td>Kernel/user-space split</td><td>Chapter 3 defines responsibilities and the end-to-end lifecycle.</td><td>Explain per-CPU workspaces, bounded serialisation and retained entry state used by these hooks.</td><td>Repeating the full architecture diagram or decoder pipeline.</td></tr>
+<tr><td>Logical events</td><td>Chapter 3 explains many-to-one physical probe selection.</td><td>Use open/chmod/chown as the concrete implementation of variant unification.</td><td>Listing every event twice in narrative form after the matrices.</td></tr>
+<tr><td>Object identity</td><td>Chapter 3 establishes event context and local identifiers.</td><td>Explain how resolved file, dentry, VMA, namespace, cgroup and module objects are read and bounded.</td><td>Claiming graph reconstruction, cluster identity or persistent ancestry.</td></tr>
+<tr><td>Compatibility</td><td>Chapter 2 defines BTF/CO-RE limits; Chapter 3 states Rocky target assumptions.</td><td>Document the actual RHEL kernfs branch, inode ctime layouts, typed tracepoints and register fallback.</td><td>Repeating generic CO-RE benefits or claiming distribution-independent portability.</td></tr>
+<tr><td>Security interpretation</td><td>Chapter 2 gives the observation/detection model.</td><td>State exactly what each hook observes and whether a result exists.</td><td>Policy internals, MITRE mapping, output examples or effectiveness claims in this hook section.</td></tr>
+</tbody></table></div>
+
+<h2>9. Concise Appendix Candidates</h2>
+<ul class="compact">
+  <li>Complete public logical-event to physical-program registry, including attachment type and number of probes.</li>
+  <li>Event-specific argument schema table generated from <code>pkg/events/spec.go</code>.</li>
+  <li>Verifier and representation constants: argument slots, path components, string/array bounds and event-buffer size.</li>
+  <li>Rocky Linux compatibility branch catalogue for kernfs IDs, inode ctime, task registers and 32-bit syscall translation.</li>
+  <li>Manual host-hook validation recipes and expected semantic checkpoints, clearly separated from automated registry/decoder tests.</li>
+</ul>
+
+<h2>10. Recommended Chapter 4 Correction Set</h2>
+<ol>
+  <li>Split the current combined filesystem/memory/namespace subsection into the hook families defined by the restructuring workflow, while retaining one short pattern-based explanation per family.</li>
+  <li>Keep the request-path versus resolved-object distinction explicit and attach outcome claims only to paired syscall/function events.</li>
+  <li>Remove or qualify the current Chapter 4 statement that associates the bounded RB-tree VMA helper with these memory hooks; it is present in the source but unused by them.</li>
+  <li>Do not repeat the existing generic paired-state listing for every family. Refer back to it for open, chmod/chown, memory syscalls, setns/unshare, do_init_module, register_kprobe and kallsyms lookup.</li>
+  <li>Use tables or an appendix for exhaustive event fields; keep the thesis body focused on reusable construction patterns and security semantics.</li>
+</ol>
+
+<p class="small">Audit completed against the repository state recorded above. Source paths and symbols are preferred over unstable line numbers.</p>
+</body>
+</html>
