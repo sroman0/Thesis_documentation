@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 4 Operational Integration Audit</title>
+  <style>
+    :root { color-scheme: light; --ink: #202428; --muted: #5d6872; --line: #cfd6dc; --panel: #f5f7f8; --warn: #fff5df; --risk: #fff0f0; --ok: #edf8f1; }
+    body { max-width: 1120px; margin: 2rem auto; padding: 0 1.25rem 4rem; color: var(--ink); font: 16px/1.55 system-ui, sans-serif; }
+    h1, h2, h3 { line-height: 1.2; }
+    h2 { margin-top: 2.2rem; border-bottom: 1px solid var(--line); padding-bottom: .35rem; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    th, td { border: 1px solid var(--line); padding: .55rem .65rem; text-align: left; vertical-align: top; }
+    th { background: var(--panel); }
+    code { background: var(--panel); padding: .08rem .25rem; overflow-wrap: anywhere; }
+    pre { background: var(--panel); border: 1px solid var(--line); padding: .8rem; overflow-x: auto; }
+    .note, .warning, .risk, .verified { padding: .75rem 1rem; margin: 1rem 0; border-left: 4px solid #6a7885; }
+    .warning { background: var(--warn); border-color: #b17600; }
+    .risk { background: var(--risk); border-color: #ae3333; }
+    .verified { background: var(--ok); border-color: #287b46; }
+    .small { color: var(--muted); font-size: .92rem; }
+    .status { white-space: nowrap; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Operational Integration Audit for Chapter 4</h1>
+    <p><strong>Owned sections:</strong> 4.1 Build Toolchain and Project Organization; 4.8 Output and Structured Logging; 4.9 Containerization and Deployment Considerations.</p>
+    <p>This report is an implementation-evidence dossier, not proposed thesis prose. It deliberately excludes the complete runtime lifecycle, decoder internals, policy evaluation, detector correlation, hook families and performance results.</p>
+  </header>
+
+  <section>
+    <h2>1. Audited Baseline</h2>
+    <table>
+      <tbody>
+        <tr><th>Repository</th><td><code>/home/simone/project/demo_project</code></td></tr>
+        <tr><th>Branch</th><td><code>feature/composite-collective-correlation</code></td></tr>
+        <tr><th>Commit</th><td><code>ae653447d006b5952abfe9f57cbf0f67d94af673</code></td></tr>
+        <tr><th>Commit date and subject</th><td><code>2026-07-30T03:39:13+02:00</code> — Merge pull request #15 from the network-policy-detector feature branch</td></tr>
+        <tr><th>Bundled bindings</th><td><code>3rdparty/libbpfgo</code> at <code>4e9cabc...</code>, containing libbpf at <code>b4fa3e3...</code> (reported tags <code>v0.10.0-libbpf-1.5.1</code> and <code>v1.5.1</code>).</td></tr>
+      </tbody>
+    </table>
+
+    <p>The working tree was not clean. The following paths were modified or untracked at audit time:</p>
+    <pre> M Makefile
+ M README.md
+ M pkg/cmd/project.go
+ M pkg/cmd/project_test.go
+ M pkg/ebpf/probes/probes.go
+ M pkg/ebpf/project.go
+ M pkg/policy/loader.go
+ M pkg/policy/loader_test.go
+ M pkg/policy/policy.go
+?? pkg/policy/detector_selector.go
+?? pkg/policy/detector_selector_test.go
+?? rules/policies/mitre-privilege-collective.yaml</pre>
+
+    <div class="warning">
+      <strong>Uncommitted behaviour.</strong> Policy-driven detector catalogue selection and related runtime logging are present locally but are outside this agent's sections and must be covered by Section 4.7. Within this audit's direct scope, the only source change is the uncommitted <code>benchmark-all-events</code> Make target and its README description. That material belongs to Chapter 5 and should not be presented as a Section 4.1 implementation contribution.
+    </div>
+
+    <div class="verified">
+      <strong>Verification performed.</strong> The current tree passed tests for <code>pkg/output</code>, <code>pkg/logging</code>, <code>pkg/config</code>, <code>pkg/cmd/...</code>, <code>cmd/...</code> and <code>pkg/ebpf/...</code>. The CGO-dependent tests used the locally built libbpf artefacts. No Docker image build or privileged container execution was performed during this audit.
+    </div>
+
+    <div class="verified">
+      <strong>Post-audit container update.</strong> The project owner subsequently confirmed that the Docker runtime integration and rule packaging concerns recorded in the original audit have been resolved. The current Chapter 4 description should therefore treat the runtime rule catalogue and the required host filesystem integration as implemented packaging behaviour. This update post-dates the commit snapshot above and should be supported with the corresponding newer Dockerfile and Makefile revision during final thesis traceability checks.
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Section 4.1 — Build Toolchain and Project Organization</h2>
+
+    <h3>2.1 Implemented build graph</h3>
+    <pre>libbpf source submodule
+  -> static libbpf archive, headers and pkg-config metadata under dist/libbpf
+
+project.bpf.c + local headers + libbpf headers
+  -> clang -O2 -g -target bpf -D__TARGET_ARCH_x86
+  -> dist/project.bpf.o
+
+dist/project.bpf.o
+  -> Go //go:embed input
+  -> CGO build of cmd/project with local libbpfgo bindings
+  -> dist/project</pre>
+
+    <p><code>make all</code> is the canonical aggregate target. The Makefile first builds a static libbpf archive from the checked-out third-party source, installs its headers and rewrites the generated pkg-config metadata to point at the local build directories. Clang then compiles the single eBPF translation unit for x86-64, with every header under <code>pkg/ebpf/c</code> registered as a prerequisite. Finally, the Go entry point is built with CGO, the locally generated libbpf flags and the local libbpfgo replacement declared in <code>go.mod</code>.</p>
+
+    <p>The build ordering is functionally important: <code>embedded-ebpf.go</code> embeds <code>dist/project.bpf.o</code>, so the object must exist before the Go compiler processes the package. The resulting executable is therefore self-contained with respect to the eBPF object, although it remains a dynamically linked Linux executable because the Go runtime uses CGO and libbpf depends on system libraries.</p>
+
+    <p>The current module declares Go 1.22. The container builder enforces this through <code>golang:1.22-bookworm</code>. A locally inspected <code>dist/project</code> had instead been produced by the host's Go 1.26 toolchain and was marked dirty; it is evidence about that local artefact, not about the Docker build and not a version requirement to state in the thesis.</p>
+
+    <h3>2.2 Organisation relevant to ownership</h3>
+    <table>
+      <thead><tr><th>Area</th><th>Build or runtime ownership</th><th>Chapter 4 boundary</th></tr></thead>
+      <tbody>
+        <tr><td><code>pkg/ebpf/c</code></td><td>eBPF source and shared C headers compiled into one object.</td><td>Only its role as build input belongs in 4.1; hook implementation belongs in 4.2.</td></tr>
+        <tr><td><code>embedded-ebpf.go</code></td><td>Turns the compiled object into a Go embedded filesystem asset.</td><td>The embedding mechanism belongs in 4.1; module loading belongs in 4.3.</td></tr>
+        <tr><td><code>cmd/project</code> and <code>pkg/cmd</code></td><td>CLI entry point, configuration bootstrap and top-level Go runner.</td><td>4.1 may identify ownership, but must not repeat the lifecycle designed in Chapter 3 or implemented in 4.3.</td></tr>
+        <tr><td><code>pkg/output</code></td><td>Presentation contracts for monitored events and detector alerts.</td><td>Implemented formatting belongs in 4.8.</td></tr>
+        <tr><td><code>pkg/logging</code></td><td>Zap construction for operational diagnostics.</td><td>Implemented diagnostic sink and encoding belong in 4.8.</td></tr>
+        <tr><td><code>pkg/config</code> and <code>pkg/cmd/cobra</code></td><td>Defaults, validation and CLI exposure of output and logging choices.</td><td>Only flags that configure 4.8 and 4.9 mechanisms should be discussed here.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>2.3 Embedded and external object handling</h3>
+    <p>The common path uses the object embedded at build time. At startup, object resolution follows an explicit precedence order: the <code>PROJECT_BPF_OBJECT</code> environment variable, the CLI/configuration path normally supplied through <code>--bpf-object</code>, and finally the embedded <code>dist/project.bpf.o</code>. External paths are converted to absolute paths and read into memory. Relative names are also searched under <code>pkg/ebpf/c</code>. In both cases the loader receives object bytes, while a real or synthetic path supplies a stable object name for libbpf diagnostics.</p>
+
+    <p>BTF resolution is separate: <code>PROJECT_BTF_FILE</code> takes precedence over the CLI/configuration value, whose default is <code>/sys/kernel/btf/vmlinux</code>. Embedding the eBPF object does not embed the running kernel's BTF and does not remove the requirement for a compatible host kernel.</p>
+
+    <div class="note">
+      <strong>Safe thesis claim.</strong> The executable embeds its default eBPF object while retaining an explicit override for development and compatibility testing. Do not call the executable fully static or independent of the host: loading still requires BTF, kernel capabilities, privileges and dynamic user-space libraries.
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Section 4.8 — Output and Structured Logging</h2>
+
+    <h3>3.1 Three separate result classes</h3>
+    <p>The implementation preserves three independent concerns:</p>
+    <table>
+      <thead><tr><th>Class</th><th>Implementation</th><th>Destination</th><th>Configuration</th></tr></thead>
+      <tbody>
+        <tr><td>Monitored events</td><td><code>pkg/output</code> printer selected for decoded events.</td><td><code>stdout</code></td><td><code>--output json|table</code></td></tr>
+        <tr><td>Detector alerts</td><td>A separately constructed <code>pkg/output</code> printer receives completed alerts.</td><td><code>stdout</code></td><td><code>--alerts</code>, <code>--alerts-only</code>, <code>--alerts-output json|table</code></td></tr>
+        <tr><td>Operational diagnostics</td><td>Zap logger plus mapped libbpf callbacks.</td><td><code>stderr</code></td><td><code>--log-level</code> and <code>--log-format console|json</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>The same printer interface supports events and alerts, but the runtime creates independent printer instances so their formats can differ. <code>--alerts-only</code> suppresses only raw event presentation; it does not remove admitted events from detector evaluation. Zap does not serialise either monitored events or alerts.</p>
+
+    <h3>3.2 Event presentation</h3>
+    <p>The JSON printer emits one object per line. Before serialisation, it adapts the decoder model into an output-specific record that groups process, host and kernel metadata, converts fixed-size C strings, retains typed argument values and can attach symbolic labels. This is a <em>presentation model</em>; it must not be described as a second normalisation stage consumed by policies and detectors, because those components receive the decoded event directly.</p>
+
+    <p>The table printer emits one compact line containing event identity, process identifiers, user identity, command name and formatted arguments. Its semantic formatting resolves selected capabilities, signals, operations, bit masks, return values and error numbers while preserving underlying numeric meaning. JSON remains the machine-oriented form; table output is intended for interactive inspection.</p>
+
+    <p>The current committed networking integration adds a JSON-specific enrichment adapter. Network packet records can be replaced with decoded protocol fields and DNS-derived labels before normal JSON rendering, while socket address arguments can be expanded into filterable address fields. This should be mentioned only briefly in 4.8 because the networking implementation is outside the process/security focus and should not displace the general output architecture.</p>
+
+    <h3>3.3 Alert presentation</h3>
+    <p>The alert output record contains detector identity, title, severity, creation time, policy names, retained event evidence, metadata and an optional structured threat block. Evidence events use the same output-facing event representation as ordinary JSON events. MITRE ATT&amp;CK data remain structured in JSON, whereas table output uses a compact identifier summary.</p>
+
+    <p>For a point alert, table output adds a concise source-event summary. For a collective alert, it emits the ordered evidence sequence and avoids duplicating the first event in separate source fields. The sequence string is bounded to 1,024 characters plus an ellipsis. Deduplication and correlation do not belong to the printer and must remain in Section 4.7.</p>
+
+    <h3>3.4 Zap and libbpf diagnostics</h3>
+    <p><code>pkg/logging</code> creates a production-style Zap logger with console or JSON encoding and debug, info, warn or error thresholds. It writes to <code>stderr</code>, disables caller and stack-trace fields, uses ISO-8601 timestamps and lower-case levels, and is reserved for runtime diagnostics. Startup state, selected runtime extensions, attachment diagnostics, transport loss, decoding failures, detector failures, output errors and cleanup conditions use this path.</p>
+
+    <p>Libbpf supplies its own message and numeric level through callbacks. The integration attaches a <code>source=libbpf</code> field, maps libbpf warnings to Zap warnings and maps the remaining admitted messages to Zap debug records. Callback filtering and the Zap threshold together keep CO-RE relocation detail available at debug level while normal operation remains readable.</p>
+
+    <p>Some configuration and bootstrap errors occur before the managed Zap logger exists. Cobra returns these errors to the process entry point, which writes a concise error to <code>stderr</code> and exits non-zero. This is an outer error boundary, not a fourth monitoring stream.</p>
+  </section>
+
+  <section>
+    <h2>4. Section 4.9 — Containerization and Deployment Considerations</h2>
+
+    <h3>4.1 Implemented image build</h3>
+    <p>The Dockerfile has two stages:</p>
+    <ol>
+      <li>The <code>builder</code> stage uses Go 1.22 on Debian Bookworm, installs Clang, LLVM, GCC, libelf and zlib development packages, copies the complete source tree and initialised third-party sources, downloads Go modules and executes <code>make all</code>.</li>
+      <li>The <code>runtime</code> stage uses Debian Bookworm slim, installs runtime libelf and zlib packages, copies the compiled executable to <code>/usr/local/bin/project</code>, and includes the default policy and detector rule catalogue required by the YAML-driven runtime.</li>
+    </ol>
+
+    <p>The eBPF object is not copied as a separate runtime artefact because it is embedded in the executable. The build context excludes local <code>dist</code> and <code>*.bpf.o</code> files, forcing the image build to regenerate them. The local <code>replace</code> directive for libbpfgo means the third-party submodules must already be initialised before Docker receives the context.</p>
+
+    <div class="verified">
+      <strong>Rule packaging resolved.</strong> The runtime packaging now makes the policy and detector rule catalogue available to the running container. YAML-driven monitoring can therefore be configured from the packaged rule directories without requiring a derivative image. External mounts may still be used to replace or extend those definitions operationally, but they are no longer required merely to access the default catalogue.
+    </div>
+
+    <h3>4.2 Host integration requirements</h3>
+    <p>The container shares the host kernel. The resolved <code>docker-run</code> workflow starts it with <code>--privileged</code>, host PID and cgroup namespaces, and the host BTF, tracing/debug and bpffs resources required by the selected probes. These are operational requirements of the current demonstration workflow, not proof that least-privilege deployment has been established.</p>
+
+    <div class="verified">
+      <strong>Runtime mount integration resolved.</strong> The container launch workflow has been aligned with the declared runtime mount set. Host BTF, tracefs or debugfs as required by the host layout, and bpffs are now exposed consistently to the monitoring process. Chapter 4 may describe this as the implemented Docker integration, while still noting that the container operates against the host kernel and requires privileged access in the current deployment model.
+    </div>
+
+    <div class="verified">
+      <strong>Docker documentation aligned.</strong> The obsolete development-stage description identified by the initial audit has been removed or reconciled with the supported builder/runtime workflow. Chapter 4 should document only the current image build and runtime commands, without reintroducing superseded <code>dev</code>-stage assumptions.
+    </div>
+
+    <h3>4.3 Containerization versus Kubernetes</h3>
+    <p>The implemented contribution is a multi-stage container image and a privileged host-integrated demonstration command. There are no audited Kubernetes manifests, DaemonSet definitions, security contexts, volume declarations, rollout controls or cluster-level validation in the requested implementation scope. A future platform may run one monitoring agent per selected node and aggregate its output, but that is an intended integration direction rather than an implemented or evaluated thesis result.</p>
+
+    <p>Recommended boundary wording: <em>“The prototype is packaged as a container image that executes against the host kernel. Integration with a Kubernetes deployment and a cluster-wide analysis platform remains outside the implemented and evaluated scope.”</em></p>
+  </section>
+
+  <section>
+    <h2>5. Claim-to-Code-and-Test Matrix</h2>
+    <table>
+      <thead><tr><th>Claim</th><th>Primary code evidence</th><th>Test or verification evidence</th><th>Qualification</th></tr></thead>
+      <tbody>
+        <tr><td>The build compiles local static libbpf, the eBPF object and the Go executable in dependency order.</td><td><code>Makefile</code> targets <code>libbpf</code>, <code>bpf</code>, <code>build</code>, <code>all</code>.</td><td>Source inspection; existing artefacts observed.</td><td>No automated clean-build test was found or run.</td></tr>
+        <tr><td>The default eBPF object is embedded in the executable.</td><td><code>embedded-ebpf.go</code>; build dependency on <code>dist/project.bpf.o</code>.</td><td>Source inspection; local binary contains build metadata.</td><td>No direct unit test verifies embedded-file presence.</td></tr>
+        <tr><td>An external object and BTF path can override defaults.</td><td><code>pkg/cmd/initialize/bpfobject.go</code>; CLI flags in <code>pkg/cmd/cobra/cobra.go</code>.</td><td>Package compiled during tests.</td><td>No direct resolver test covers precedence, missing files or environment variables.</td></tr>
+        <tr><td>Event and alert output support JSON and table formats.</td><td><code>pkg/output/printer.go</code>, <code>json.go</code>, <code>table.go</code>.</td><td><code>TestJSONPrinterWritesValidJSONLine</code>, <code>TestJSONPrinterWritesValidAlertLine</code>, <code>TestTablePrinterWritesCompactEventLine</code>, <code>TestTablePrinterWritesCompactAlertLine</code>.</td><td>Both streams currently write to stdout; separation is logical/configurational rather than separate file descriptors.</td></tr>
+        <tr><td>Output records preserve typed values and add human-readable labels.</td><td><code>pkg/output/event.go</code>.</td><td>JSON and table tests cover capabilities, signals, file operations, errno values, memory flags, credentials and string arrays.</td><td>The output record is a presentation adapter, not the detector input model.</td></tr>
+        <tr><td>Alerts preserve event evidence and ATT&amp;CK metadata.</td><td><code>pkg/output/alert.go</code>.</td><td><code>TestNewAlertRecordNormalizesDetectorAlert</code>, <code>TestFormatAlertWritesCompactLine</code>, <code>TestFormatAlertSequenceIsBounded</code>.</td><td>Alert production and deduplication belong to Section 4.7.</td></tr>
+        <tr><td><code>--alerts-only</code> suppresses raw presentation while retaining detection.</td><td><code>pkg/config/config.go</code>; event handling and detector dispatch in <code>pkg/ebpf/project.go</code>.</td><td><code>TestNormalizeAlertsOnlyEnablesAlerts</code>; runtime source inspection.</td><td>No end-to-end stream test was found.</td></tr>
+        <tr><td>Zap handles diagnostics independently from events and alerts.</td><td><code>pkg/logging/logger.go</code>; logger injection and printer use in <code>pkg/cmd/project.go</code> and <code>pkg/ebpf/project.go</code>.</td><td>Logger tests cover defaults, levels, JSON format and invalid values; config tests also validate log format.</td><td>No test captures stdout and stderr together to prove stream isolation end to end.</td></tr>
+        <tr><td>Libbpf messages are integrated into the diagnostic logger.</td><td><code>configureLibbpfLogging</code> in <code>pkg/ebpf/project.go</code>.</td><td>Source inspection and successful package compilation.</td><td>No callback-level unit test was found.</td></tr>
+        <tr><td>The runtime image contains the executable, its embedded eBPF object, and the default policy and detector catalogue.</td><td><code>Dockerfile</code>, <code>embedded-ebpf.go</code> and the packaged <code>rules</code> tree.</td><td>Post-audit resolution confirmed by the project owner.</td><td>Re-link this claim to the newer packaging commit before final submission.</td></tr>
+        <tr><td>The container executes against the host kernel with the required host filesystem integration.</td><td><code>Makefile</code> <code>docker-run</code> privileges, namespaces and shared runtime mount set.</td><td>Post-audit resolution confirmed by the project owner.</td><td>This remains privileged host integration, not evidence of a least-privilege deployment.</td></tr>
+        <tr><td>Kubernetes deployment is future work.</td><td>Absence of audited manifests plus explicit thesis/documentation boundary.</td><td>Repository scope inspection.</td><td>Do not convert a possible DaemonSet architecture into an implemented claim.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>6. Redundancy Ledger</h2>
+    <table>
+      <thead><tr><th>Topic</th><th>Existing owner</th><th>What these Chapter 4 sections should add</th><th>What to avoid</th></tr></thead>
+      <tbody>
+        <tr><td>eBPF, BTF, CO-RE and libbpf concepts</td><td>Chapter 2</td><td>The concrete compiler flags, local libbpf build and embedding chain.</td><td>Reintroducing the eBPF execution model or generic portability claims.</td></tr>
+        <tr><td>Kernel/user-space responsibility split</td><td>Chapter 3</td><td>Which source directories and build artefacts implement the already-designed split.</td><td>Repeating the full architecture or end-to-end event flow.</td></tr>
+        <tr><td>Object loading and attachment lifecycle</td><td>Sections 4.3 and 4.6</td><td>Only object production, embedding and override ownership.</td><td>Autoload, attachment ordering, map setup and probe dependency details.</td></tr>
+        <tr><td>Binary contract, transport and decoding</td><td>Sections 4.4 and 4.5</td><td>The output model begins after successful decoding.</td><td>Record layout, perf-buffer reading and malformed-record handling.</td></tr>
+        <tr><td>Policies, detectors, correlation and deduplication</td><td>Section 4.7</td><td>How already-produced alerts are represented and printed.</td><td>YAML schemas, match algorithms, correlation keys and detector state.</td></tr>
+        <tr><td>Three output classes</td><td>Chapter 3 establishes the architecture; 4.8 owns implementation.</td><td>Printer instances, concrete schemas, stdout/stderr separation, Zap construction and libbpf mapping.</td><td>Repeating the rationale at length; one short backward reference is sufficient.</td></tr>
+        <tr><td>Container deployment boundary</td><td>Chapter 3 states future platform scope; 4.9 owns packaging.</td><td>Actual stages, copied artefacts, libraries, privileges and mounts.</td><td>DaemonSet design, cluster aggregation or validated Kubernetes operation.</td></tr>
+        <tr><td>Performance</td><td>Chapter 5</td><td>Nothing beyond noting that output choices are configurable.</td><td>Benchmark commands, CPU percentages, memory results or threshold conclusions.</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Adjacent-section hand-off:</strong> Section 4.1 should end once the executable and embedded object exist. Section 4.8 should begin with already-decoded events and already-produced alerts. Section 4.9 should stop at the container boundary. This division prevents the chapter from retelling the Chapter 3 lifecycle in implementation vocabulary.</p>
+  </section>
+
+  <section>
+    <h2>7. Recommended Section Structure and Claim Discipline</h2>
+    <h3>4.1 Build Toolchain and Project Organization</h3>
+    <ol>
+      <li>Describe the three-artifact chain: local libbpf, eBPF object, Go executable.</li>
+      <li>Explain why the build order is coupled to <code>go:embed</code>.</li>
+      <li>Describe embedded default and external override without entering loader lifecycle.</li>
+      <li>Use one short paragraph on directory ownership; avoid a repository catalogue.</li>
+    </ol>
+
+    <h3>4.8 Output and Structured Logging</h3>
+    <ol>
+      <li>Refer back to Chapter 3's three-stream architecture in one sentence.</li>
+      <li>Explain printer abstraction, independent event/alert formats and output-facing records.</li>
+      <li>Explain table versus line-oriented JSON and evidence preservation.</li>
+      <li>Explain Zap configuration, stderr destination and libbpf callback mapping.</li>
+      <li>State explicitly that Zap does not serialise security data.</li>
+    </ol>
+
+    <h3>4.9 Containerization and Deployment Considerations</h3>
+    <ol>
+      <li>Describe the two current Docker stages and the runtime image containing the executable together with its default rule catalogue.</li>
+      <li>Explain why the separate eBPF object is absent from the final image.</li>
+      <li>State dynamic library, host-kernel, BTF, privilege and filesystem requirements.</li>
+      <li>Describe how the default YAML rule catalogue is packaged and how external mounts can override or extend it.</li>
+      <li>Close with the explicit future Kubernetes boundary.</li>
+    </ol>
+
+    <div class="note">
+      <strong>Terminology.</strong> Thesis prose should use “the proposed tool”, “the prototype” or “the monitoring agent”. The internal project name exposed by the current CLI help text must not appear in the thesis.
+    </div>
+  </section>
+
+  <footer>
+    <p class="small">Audit completed against the repository state recorded above. Source code and tests were treated as authoritative; documentation conflicts and uncommitted behaviour were labelled explicitly.</p>
+  </footer>
+</body>
+</html>

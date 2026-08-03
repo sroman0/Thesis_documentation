@@ -1,0 +1,74 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title>Chapter 4 Editorial Synthesis</title>
+  <style type="text/css">
+    body { margin: 2rem auto; max-width: 74rem; padding: 0 1.5rem; font-family: Arial, sans-serif; line-height: 1.5; color: #20252b; }
+    h1, h2 { color: #172b4d; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    th, td { border: 1px solid #aeb8c4; padding: 0.55rem; text-align: left; vertical-align: top; }
+    th { background: #edf2f7; }
+    code { background: #f2f4f7; padding: 0.08rem 0.25rem; }
+    .warning { border-left: 4px solid #b35c00; background: #fff7ed; padding: 0.8rem 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Chapter 4 Editorial Synthesis</h1>
+  <p><strong>Prepared:</strong> 3 August 2026</p>
+  <p><strong>Implementation baseline:</strong> commit
+  <code>ae653447d006b5952abfe9f57cbf0f67d94af673</code> plus the explicitly
+  identified dirty working tree.</p>
+  <div class="warning">
+    <strong>Approval status:</strong> awaiting explicit thesis-owner approval.
+    Current-tree behaviour may be described only when labelled until it is
+    committed and retested.
+  </div>
+
+  <h2>Evidence Reconciliation</h2>
+  <ul>
+    <li>Current source and tests take precedence over audit prose and historical documentation.</li>
+    <li>The active kernel transport is exclusively perf-event based. No retained BPF ring-buffer implementation is present.</li>
+    <li>The Docker runtime image currently contains the executable with its embedded eBPF object, but not the policy and detector catalogues.</li>
+    <li>The supplied <code>docker-run</code> target mounts host BTF and bpffs but does not use its declared tracefs/debugfs mount set.</li>
+    <li>Policy-driven detector selection and the latest network support-probe classifications are current-tree behaviour, not part of the recorded commit.</li>
+    <li>The C and Go common contexts share an explicit 136-byte layout. Event/probe registry consistency is tested in Go, but C and Go event constants are not compared automatically.</li>
+    <li>The 32,000-byte argument buffer uses explicit bounds handling; commit <code>163ad724</code> corrected the former non-power-of-two mask defect.</li>
+  </ul>
+
+  <h2>Section Ownership</h2>
+  <table>
+    <thead><tr><th>Section</th><th>Primary implementation mechanism</th><th>Material excluded</th></tr></thead>
+    <tbody>
+      <tr><td>4.1</td><td>Build ordering, local libbpf archive, embedded eBPF object and package ownership.</td><td>General eBPF build theory and benchmark results.</td></tr>
+      <tr><td>4.2</td><td>Common context, per-CPU workspaces, argument serialisation, direct and paired hook patterns, representative families.</td><td>Exhaustive hook catalogue and hook-selection rationale from Chapter 3.</td></tr>
+      <tr><td>4.3</td><td>Object resolution, probe specifications, dependency expansion, selective autoload, attachment ownership and cleanup.</td><td>End-to-end architecture and networking features outside the thesis scope.</td></tr>
+      <tr><td>4.4</td><td>136-byte context, indexed arguments, bounded writes, perf submission and loss channel.</td><td>Background comparison of perf and BPF ring buffers.</td></tr>
+      <tr><td>4.5</td><td>Schema-directed decoding, malformed-record boundaries and cross-registry consistency tests.</td><td>Repeated definitions of the normalised event and registry responsibilities.</td></tr>
+      <tr><td>4.6</td><td>Concrete producer selection, exact UID guard, user-space admission, output suppression and map offsets.</td><td>General filtering architecture and measured performance impact.</td></tr>
+      <tr><td>4.7</td><td>YAML conversion, compiled conditions, detector dispatch, bounded correlation, deduplication and ATT&amp;CK propagation.</td><td>Anomaly-taxonomy background and detector case-study results.</td></tr>
+      <tr><td>4.8</td><td>Event and alert printers, presentation adapters and Zap configuration/callback integration.</td><td>Repetition of the three-stream design.</td></tr>
+      <tr><td>4.9</td><td>Two-stage image, embedded asset, missing rule packaging and concrete host integration.</td><td>Unimplemented Kubernetes deployment design.</td></tr>
+      <tr><td>4.10</td><td>Actual CO-RE branches, RHEL-specific layouts, x86-64 fallback assumptions and verifier-driven bounds.</td><td>General portability theory from Chapter 2.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Binding Editorial Decisions</h2>
+  <ul>
+    <li>Use British English and the canonical “user space”/“user-space” forms.</li>
+    <li>Explain each mechanism once; use cross-references for design rationale already owned by Chapters 2 and 3.</li>
+    <li>Use representative process and host-security hook families; move the complete catalogue to Appendix A.</li>
+    <li>State implementation limits numerically where verified, but reserve adequacy and performance conclusions for Chapter 5.</li>
+    <li>Do not describe the system as enforcement, general anomaly discovery, persistent graph correlation or cluster-wide analysis.</li>
+    <li>Do not use the internal product name.</li>
+  </ul>
+
+  <h2>Open Baseline Conditions</h2>
+  <ul>
+    <li>Commit or remove the local detector-selection behaviour before the final thesis baseline is frozen.</li>
+    <li>Decide whether to package rule catalogues and mount tracefs/debugfs in the supported Docker workflow; until then, retain the documented limitations.</li>
+    <li>Run the complete LaTeX, bibliography and glossary toolchain in an environment containing all required packages.</li>
+    <li>Create Appendices A-C from the final event registry, rule catalogue and reproducibility commands.</li>
+  </ul>
+</body>
+</html>

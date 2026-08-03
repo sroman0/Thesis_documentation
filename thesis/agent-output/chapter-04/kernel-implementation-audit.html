@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chapter 4 Kernel Implementation and Compatibility Audit</title>
+  <style>
+    body { max-width: 1100px; margin: 2rem auto; padding: 0 1.25rem; color: #202124; font: 16px/1.55 system-ui, sans-serif; }
+    h1, h2, h3 { line-height: 1.2; color: #111827; }
+    h1 { border-bottom: 2px solid #374151; padding-bottom: 0.5rem; }
+    h2 { margin-top: 2.2rem; border-bottom: 1px solid #d1d5db; padding-bottom: 0.3rem; }
+    h3 { margin-top: 1.6rem; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; }
+    th, td { border: 1px solid #cbd5e1; padding: 0.55rem; text-align: left; vertical-align: top; }
+    th { background: #f1f5f9; }
+    code { background: #f3f4f6; padding: 0.1rem 0.25rem; border-radius: 3px; }
+    .status { border-left: 4px solid #2563eb; background: #eff6ff; padding: 0.8rem 1rem; }
+    .warning { border-left: 4px solid #b45309; background: #fffbeb; padding: 0.8rem 1rem; }
+    .scope { border-left: 4px solid #047857; background: #ecfdf5; padding: 0.8rem 1rem; }
+    .small { font-size: 0.92rem; color: #4b5563; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Chapter 4 Kernel Implementation and Compatibility Audit</h1>
+    <p><strong>Owned thesis sections:</strong> 4.2, eBPF Program Implementation; and 4.10, Compatibility and Verifier Challenges.</p>
+    <p class="scope">This audit explains recurring implementation patterns through representative hook families. It deliberately excludes general eBPF theory, the architectural kernel/user-space split, the Go loader and decoder, policies and detectors, output handling, and benchmark results.</p>
+  </header>
+
+  <section>
+    <h2>Audit Baseline</h2>
+    <table>
+      <thead><tr><th>Item</th><th>Verified state</th></tr></thead>
+      <tbody>
+        <tr><td>Repository</td><td><code>demo_project</code></td></tr>
+        <tr><td>Inspected commit</td><td><code>ae653447d006b5952abfe9f57cbf0f67d94af673</code>, <em>Merge pull request #15 from V3suv1us/feature/network-policy-detector</em>, dated 30 July 2026</td></tr>
+        <tr><td>Target environment</td><td>Rocky Linux 8.10, x86-64, kernel <code>4.18.0-553.109.1.el8_10.x86_64</code></td></tr>
+        <tr><td>Relevant tests executed</td><td><code>go test ./pkg/ebpf/probes</code> and <code>go test ./pkg/events ./pkg/ebpf/probes ./pkg/bufferdecoder</code>; both passed</td></tr>
+        <tr><td>Build verification</td><td>The BPF object was not rebuilt because the task prohibited modifications to <code>demo_project</code>; the Makefile and existing test evidence were inspected instead.</td></tr>
+      </tbody>
+    </table>
+    <div class="warning">
+      <strong>Dirty working tree.</strong> The inspected tree contains local changes to the Makefile, command/runtime files, probe registry, and policy subsystem, plus untracked policy-selection files. The C implementation itself is unchanged. Of direct relevance here, the uncommitted probe-registry change marks six network plumbing programs as internal support probes: <code>sock_alloc_file</code>, <code>sock_alloc_file_ret</code>, <code>security_sk_clone</code>, <code>security_socket_recvmsg</code>, <code>security_socket_sendmsg</code>, and <code>__cgroup_bpf_run_filter_skb</code>. This classification is current local behaviour, not behaviour recorded by the audited commit.
+    </div>
+  </section>
+
+  <section>
+    <h2>4.2 eBPF Program Implementation</h2>
+
+    <h3>Common Implementation Framework</h3>
+    <p>The programs share one event-construction framework rather than defining a separate wire format for each hook. A fixed event context carries the timestamp, process and namespace identifiers, effective UID, command name, UTS name, event and syscall identifiers, CPU, stack identifier, and policy metadata. This context is followed by a compact argument area. Arguments are indexed and serialised according to the schema associated with the logical event; variable-length values additionally carry their encoded size.</p>
+    <p>The event context, argument buffer, task state and temporary path data are intentionally allocated in maps. The principal event object is held in a single-entry per-CPU array, while a second per-CPU scratch map provides two reusable work areas. This avoids placing large structures on the restricted BPF stack and removes cross-CPU contention during event construction. LRU hash maps retain bounded task and process state, and a separate hash map stores arguments that must survive from an entry probe to a corresponding return probe.</p>
+    <p>Every normal event follows the same preparation sequence. The common initialiser obtains the per-CPU event object and global configuration, applies the optional exact effective-UID filter, clears the previous argument state, records minimal event metadata, and obtains the cached task and process state. Full task-context enrichment is deferred until an event is actually submitted. This ordering allows a rejected UID to return before path resolution, argument copying, context enrichment, and transport submission.</p>
+    <p>The active submission path uses a perf-event array. Immediately before submission, it refreshes the task context, optionally captures a user stack, calculates the exact record length from the fixed context and the used argument bytes, constrains that length for the verifier, and emits the record on the current CPU. Ring-buffer helper structures remain in the source tree for portability, but they are not the active event transport and should not be described as such in Chapter 4.</p>
+
+    <h3>Argument Buffer and Bounded Serialisation</h3>
+    <p>The argument area has a capacity of 32,000 bytes and accepts at most 32 indexed arguments. Fixed-width values are written directly after their index. Strings and other variable-length values contain an index, an explicit length, and their payload. Per-argument offsets are retained so that selected string values can also be consulted by in-kernel filtering logic. String arrays are traversed with a compile-time bound, accept at most 38 elements, and append a truncation marker when the source array exceeds that limit.</p>
+    <p>All write helpers check both the current offset and the requested write size. This is particularly important because the argument-buffer capacity is not a power of two. Commit <code>163ad724a65ec8c701dc816fe87f174eeec51275</code> replaced an invalid bit-mask normalisation with an explicit bounds check. The former mask could fold offsets once a record exceeded 256 bytes and corrupt argument positions. A decoder regression test now exercises a <code>security_bprm_check</code> record whose later arguments lie beyond that boundary.</p>
+
+    <h3>4.2.1 Process Lifecycle and Execution Hooks</h3>
+    <p>Process execution is represented through complementary stages rather than a single all-purpose probe. The <code>execve</code> and <code>execveat</code> syscall-entry programs record execution attempts and copy the pathname and bounded argument vector while user memory is still available. The <code>security_bprm_check</code> and <code>security_bprm_creds_for_exec</code> probes observe later security checkpoints and can report the resolved executable and credential-related data. The scheduler execution tracepoint reports the successful replacement of the process image. A paired entry/return implementation emits <code>process_execute_failed</code> only when the syscall return value is negative.</p>
+    <p>This division preserves distinct semantics: an attempted path, a security decision point, a successful image transition, and a failed transition are not collapsed into one event. Fork, exit and task-renaming tracepoints use the same common context and submission machinery but require no entry/return state.</p>
+
+    <h3>4.2.2 Credentials and Privilege Hooks</h3>
+    <p>The credential hooks use two recurring patterns. First, <code>security_task_fix_setuid</code> observes the LSM mediation stage and compares the old and proposed credentials. It emits real, effective, saved and filesystem user identifiers together with the operation flag, and suppresses requests that produce no relevant change. This is an entry-only observation: it describes the proposed transition and does not assert the final syscall result.</p>
+    <p>Second, the <code>commit_creds</code> probe compares the current real credential object with the replacement credential object. When a change is present, it serialises a compact, layout-stable credential snapshot containing user and group identifiers and capability sets. Dedicated syscall entry/return pairs complement these hooks by retaining the requested identifiers and appending the syscall result. The two views therefore distinguish security mediation, committed kernel credential state, and user-visible syscall completion.</p>
+
+    <h3>4.2.3 Filesystem, Memory and Namespace Hooks</h3>
+    <p><code>security_file_open</code> demonstrates filesystem enrichment at a security hook. It reconstructs the resolved kernel path and reports file flags, device, inode and change time, while also retaining the original pathname obtained from the active syscall registers. Path reconstruction uses a per-CPU buffer, follows mount transitions, recognises disconnected dentries, and stops after 20 components. The dedicated <code>open</code> event, by contrast, correlates the <code>open</code> and <code>openat</code> syscall entry and return tracepoints so that the requested pathname, flags, mode and resulting file descriptor or error remain in one logical record.</p>
+    <p>The same entry/return design is reused for permission and ownership changes. Multiple syscall variants, such as <code>chmod</code>, <code>fchmod</code> and <code>fchmodat</code>, produce one logical <code>chmod</code> event, while their operation field preserves the originating variant. Memory operations use typed syscall tracepoints suited to the target kernel. Their exit programs append the return value, while process-to-process memory events intentionally retain vector metadata rather than copying arbitrary transferred payloads.</p>
+    <p>Namespace monitoring combines request-level and state-level observations. The <code>setns</code> and <code>unshare</code> events retain syscall arguments until completion and include the result. The <code>switch_task_namespaces</code> probe compares the old and new namespace identifiers and emits only when a relevant identifier changes. This avoids representing a no-op namespace assignment as a transition.</p>
+
+    <h3>4.2.4 Kernel Integrity and eBPF Activity Hooks</h3>
+    <p>Kernel-integrity coverage combines high-signal entry probes with paired functions whose outcome is important. The security mediation hooks for BPF commands, maps and programs report compact command or object metadata without attempting to duplicate every attribute passed to the syscall. Module tracepoints report module identity, while the paired <code>do_init_module</code> probes preserve the final initialisation result. The same temporary-state mechanism correlates entry and return for kprobe registration and kernel-symbol lookup, making the requested symbol and resulting status or address available in one event.</p>
+    <p>Additional entry-only probes observe creation of procfs interfaces and user-mode helper invocation. These are observations of security-relevant kernel activity, not hidden-module detection or active enforcement. The current implementation does not reconstruct arbitrary kernel tampering, detect every concealed module, or deny the observed operation.</p>
+
+    <h3>Entry-only and Entry/Return Construction</h3>
+    <table>
+      <thead><tr><th>Pattern</th><th>Representative events</th><th>State and semantics</th></tr></thead>
+      <tbody>
+        <tr><td>Single entry probe</td><td><code>security_task_fix_setuid</code>, <code>security_file_open</code>, <code>security_bpf</code>, <code>proc_create</code></td><td>Builds and submits the event during function entry. It represents the observed request or mediation stage and does not contain a final return value.</td></tr>
+        <tr><td>Syscall entry/return pair</td><td><code>open</code>, <code>chmod</code>, <code>chown</code>, <code>mmap</code>, <code>setns</code>, credential syscalls</td><td>The entry probe stores up to seven typed arguments under a key composed from the logical event ID and current TID. The exit probe loads and deletes that state, appends the syscall result, and submits one logical event.</td></tr>
+        <tr><td>Function entry/return pair</td><td><code>do_init_module</code>, <code>register_kprobe</code>, <code>kallsyms_lookup_name</code></td><td>Uses the same bounded temporary map to retain entry data that is unavailable at return. The resulting event joins the request with the function outcome.</td></tr>
+        <tr><td>Post-transition tracepoint</td><td><code>sched_process_exec</code>, <code>sched_process_fork</code>, <code>sched_process_exit</code></td><td>Reports a kernel transition that has already occurred and therefore needs no temporary entry state.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>4.10 Compatibility and Verifier Challenges</h2>
+
+    <h3>CO-RE Reads and Explicit Compatibility Branches</h3>
+    <p>CO-RE is used for kernel structure reads, but the implementation does not assume that relocation alone resolves semantic changes between kernel generations. It combines relocatable field access with explicit type, field and helper-existence branches. The resulting object remains tied to the hooks, helpers and verifier behaviour actually supplied by the target kernel.</p>
+    <table>
+      <thead><tr><th>Kernel variation</th><th>Implemented branch</th><th>Target relevance</th></tr></thead>
+      <tbody>
+        <tr><td>Task PID linkage</td><td>Selects the older <code>task_struct.pids</code> representation or the newer <code>thread_pid</code> representation through type existence.</td><td>Supports layouts on both sides of the Linux 5.0 change.</td></tr>
+        <tr><td>Task start time</td><td>Tests availability of the boot-time helper and <code>start_boottime</code>; otherwise uses <code>real_start_time</code> or <code>start_time</code>.</td><td>Avoids requiring fields and helpers absent from older kernels.</td></tr>
+        <tr><td>Current syscall registers</td><td>Uses BTF task-register helpers when available; otherwise derives the register frame from the task stack.</td><td>The fallback is explicitly x86-64 and assumes 4 KiB pages, a 16 KiB kernel stack and no KASAN stack expansion.</td></tr>
+        <tr><td>32-bit compatible tasks</td><td>Checks the compatibility status bit and translates 32-bit syscall numbers through a dedicated map.</td><td>Allows a 64-bit monitor to classify compatible syscall invocations correctly.</td></tr>
+        <tr><td>Cgroup identifier layout</td><td>Handles the older kernel-node identifier, a RHEL 8 hidden-layout variant, and the newer direct 64-bit identifier.</td><td>The RHEL-specific branch is a deliberate adaptation for the Rocky Linux 8 kernel family.</td></tr>
+        <tr><td>Capability representation</td><td>Reads either two 32-bit words or the newer 64-bit capability field according to field existence.</td><td>The target 4.18 kernel follows the older representation.</td></tr>
+        <tr><td>Inode change time</td><td>Selects among pre-6.6, 6.6-6.10 and 6.11-or-later inode layouts.</td><td>Keeps filesystem metadata collection relocatable across later kernels.</td></tr>
+        <tr><td>Virtual memory lookup</td><td>Uses the red-black VMA tree only when <code>mm_rb</code> exists; a bounded search is disabled on maple-tree kernels.</td><td>The implementation does not pretend to support the post-6.1 maple-tree layout through an unsafe approximation.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Verifier-driven Limits and Target Workarounds</h3>
+    <ul>
+      <li>Large event, path and scratch structures reside in maps rather than on the BPF stack.</li>
+      <li>Path walks, string arrays and other traversals have fixed upper bounds and use unrolled loops where required.</li>
+      <li>Buffer helpers repeat explicit bounds checks after helper calls and constrain scalar values before pointer arithmetic.</li>
+      <li>The perf-event record size is clamped with verifier-visible operations before submission.</li>
+      <li>The shared syscall-exit helper restricts the return-value argument index to less than 16 because the Rocky Linux 8.10 verifier did not accept the broader bound used by the generic interface.</li>
+      <li>Memory-related syscall events use dedicated typed tracepoints on the target kernel instead of relying only on a more complex generic dispatcher.</li>
+      <li>Path reconstruction is limited to 20 components, VMA tree search to 35 levels, string arrays to 38 elements, event arguments to 32 entries, and temporary paired-probe arguments to seven values.</li>
+    </ul>
+    <p>The Makefile compiles the object with optimisation and debugging metadata for the BPF target and defines the x86 architecture macros. These settings agree with the compatibility branches and manual register fallback. They should be reported as concrete build assumptions rather than as architecture-independent portability.</p>
+  </section>
+
+  <section>
+    <h2>Claim-to-Code-and-Test Matrix</h2>
+    <table>
+      <thead><tr><th>Claim suitable for Chapter 4</th><th>Primary code evidence</th><th>Test or history evidence</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>All emitted events share one context and indexed argument-buffer contract.</td><td><code>pkg/ebpf/c/common/types.h</code>, <code>event_data.h</code>, <code>buffer.h</code></td><td><code>pkg/bufferdecoder</code> tests; C and Go context size is 136 bytes</td><td>Verified</td></tr>
+        <tr><td>Large per-event state is allocated per CPU rather than on the BPF stack.</td><td><code>pkg/ebpf/c/maps.h</code>, <code>event_data.h</code></td><td>Structural code inspection</td><td>Verified</td></tr>
+        <tr><td>The exact effective-UID filter executes before expensive event enrichment.</td><td>Common initialisation path in <code>event_data.h</code>; global configuration in <code>types.h</code></td><td>Configuration/runtime tests outside this agent's ownership</td><td>Verified in code; runtime effect belongs in Chapter 5</td></tr>
+        <tr><td>The active transport is a perf-event array with variable record length.</td><td><code>maps.h</code> and the common submission helper</td><td>Decoder tests and runtime documentation</td><td>Verified</td></tr>
+        <tr><td>Entry/return events correlate temporary arguments by event ID and TID and delete them after use.</td><td><code>args.h</code>, syscall and kprobe pairing macros in <code>project.bpf.c</code></td><td>Probe-family cardinality tests in <code>pkg/ebpf/probes</code></td><td>Verified</td></tr>
+        <tr><td>Execution attempts, security checkpoints, successful execution and failures remain distinct events.</td><td>Execution programs in <code>project.bpf.c</code></td><td>Event specifications and public-probe consistency tests</td><td>Verified</td></tr>
+        <tr><td>Filesystem paths are reconstructed in bounded per-CPU storage and retain resolved and requested names where available.</td><td><code>common/filesystem.h</code> and <code>security_file_open</code></td><td>Event schema tests; manual target output documented in <code>hooks.md</code></td><td>Verified</td></tr>
+        <tr><td>Credential monitoring distinguishes proposed, committed and syscall-completion views.</td><td><code>security_task_fix_setuid</code>, <code>commit_creds</code>, credential syscall pairs</td><td>Probe registry and event-schema consistency tests</td><td>Verified</td></tr>
+        <tr><td>CO-RE branches cover task, cgroup, capability and inode layout changes.</td><td><code>common/task.h</code>, <code>common/cgroup.h</code>, <code>common/capabilities.h</code>, <code>common/filesystem.h</code></td><td>Compile-time relocation design; target validation is documented but not reproduced in this audit</td><td>Verified in implementation</td></tr>
+        <tr><td>Long argument records no longer fold offsets after 256 bytes.</td><td>Bounds logic in <code>common/buffer.h</code></td><td>Commit <code>163ad724</code>; <code>TestDecodeSecurityBprmCheckWithArgumentsBeyond256Bytes</code></td><td>Verified regression fix</td></tr>
+        <tr><td>Every public logical probe has a decoder event specification and internal probes are hidden.</td><td><code>pkg/ebpf/probes/probes.go</code>, <code>pkg/events/spec.go</code></td><td>Probe registry consistency tests</td><td>Verified; six network classifications are uncommitted</td></tr>
+        <tr><td>The implementation detects hidden modules.</td><td>No implementation present</td><td>No supporting test</td><td>Unsupported claim; exclude</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Appendix A Candidate: Complete Hook Catalogue</h2>
+    <p>The body of Section 4.2 should use the representative families above. A complete catalogue can be moved to an appendix and organised by logical event rather than by every physical probe:</p>
+    <ul>
+      <li><strong>Process lifecycle and execution:</strong> <code>sched_process_fork</code>, <code>sched_process_exec</code>, <code>sched_process_exit</code>, <code>task_rename</code>, <code>execve</code>, <code>execveat</code>, <code>process_execute_failed</code>, <code>clone</code>, <code>fork</code>, <code>vfork</code>, <code>do_sigaction</code>, <code>security_task_kill</code>, <code>ptrace</code>, and <code>call_usermodehelper</code>.</li>
+      <li><strong>Credentials and process control:</strong> <code>cap_capable</code>, <code>security_task_setrlimit</code>, <code>security_settime64</code>, <code>security_task_prctl</code>, <code>security_task_fix_setuid</code>, <code>commit_creds</code>, the set-user and set-group syscall families, <code>prlimit64</code>, <code>security_bprm_check</code>, and <code>security_bprm_creds_for_exec</code>.</li>
+      <li><strong>Filesystem activity:</strong> <code>security_file_open</code>, <code>open</code>, <code>chmod</code>, <code>chown</code>, <code>security_file_ioctl</code>, <code>security_file_permission</code>, kernel file-read hooks, mount and unmount hooks, unlink, rename, symlink, node creation, and <code>memfd_create</code>.</li>
+      <li><strong>Memory and namespaces:</strong> <code>mmap</code>, <code>mprotect</code>, <code>pkey_mprotect</code>, process-to-process memory reads and writes, LSM memory hooks, <code>setns</code>, <code>unshare</code>, namespace switching, and cgroup task or directory operations.</li>
+      <li><strong>Kernel integrity and eBPF activity:</strong> BPF command, map and program mediation, module load and free, module initialisation, procfs creation, kprobe registration, and kernel-symbol lookup.</li>
+      <li><strong>Socket and network activity:</strong> socket creation, bind, listen, connect, accept and option changes, plus cgroup ingress and egress selectors. The current local registry reclassifies receive/send and related socket programs as internal dependencies; this uncommitted distinction must be rechecked before finalising the appendix.</li>
+    </ul>
+    <p>The appendix table should eventually contain the logical event name, physical attachment points, attachment type, entry/return model, principal fields, and target-kernel validation status. It should be generated from or mechanically checked against the authoritative probe and event registries to avoid future drift.</p>
+  </section>
+
+  <section>
+    <h2>Redundancy and Ownership Ledger</h2>
+    <table>
+      <thead><tr><th>Material</th><th>Existing owner</th><th>Chapter 4 treatment</th></tr></thead>
+      <tbody>
+        <tr><td>eBPF execution model, verifier, maps, helpers, BTF and CO-RE theory</td><td>Chapter 2</td><td>Do not repeat. Discuss only the concrete map allocation, CO-RE branches and verifier workarounds used by this implementation.</td></tr>
+        <tr><td>Observability sources and semantic differences among tracepoints, kprobes and security hooks</td><td>Chapter 2</td><td>Use the terminology without redefining it. Explain why representative events use entry-only or paired construction.</td></tr>
+        <tr><td>Kernel/user-space boundary, lifecycle and high-level event flow</td><td>Chapter 3</td><td>Do not redraw the architecture. Begin at the implementation of the shared kernel event framework.</td></tr>
+        <tr><td>Logical event model, early event selection and binary-contract design</td><td>Chapter 3</td><td>Describe concrete field layout and construction only; avoid another conceptual rationale.</td></tr>
+        <tr><td>Probe registry, object loading, attachment lifecycle, decoder and schema normalisation</td><td>Chapter 4 Agent 2, Sections 4.3-4.6</td><td>Reference only where needed as test evidence. Do not explain Go loader or decoder behaviour.</td></tr>
+        <tr><td>Policy loading, detector evaluation, correlation and MITRE ATT&amp;CK metadata</td><td>Chapter 4 Agent 3, Section 4.7</td><td>Do not describe the policy engine. Limit kernel discussion to the context and metadata fields it emits.</td></tr>
+        <tr><td>CLI, output modes, Zap logging, build and container packaging</td><td>Chapter 4 Agent 4, Sections 4.1, 4.8 and 4.9</td><td>Do not duplicate. Mention Makefile architecture flags only as evidence for compatibility assumptions.</td></tr>
+        <tr><td>CPU, memory, event-loss and filtering measurements</td><td>Chapter 5</td><td>State implementation mechanisms, not performance conclusions.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Editorial Corrections and Qualifications</h2>
+    <ul>
+      <li>A comment beside <code>security_file_open</code> still states that an entry/return <code>open</code> event could be added later. That event is already implemented. The comment is stale and must not guide the thesis description.</li>
+      <li>The existence of versioned policy and filter maps does not prove that every rich policy predicate is active in kernel space. The exact UID prefilter is directly present in the common initialisation path; broader policy behaviour belongs to the userspace/policy audit.</li>
+      <li>CO-RE must not be presented as supplying absent hooks, helpers, attachment mechanisms or verifier features. The source contains explicit target-specific fallbacks precisely because relocatable field access is insufficient on its own.</li>
+      <li>Entry-only security hooks report an observed request or mediation point. They must not be described as proof that the operation ultimately succeeded.</li>
+      <li>The active transport is perf-event based. Ring-buffer declarations are retained for flexibility but are not evidence of current ring-buffer operation.</li>
+      <li>Some source comments retain names inherited from the reference project. They are implementation provenance artefacts and should not appear as the name of the thesis prototype.</li>
+      <li>The current system monitors module and kernel-integrity activity but does not implement hidden-module detection or comprehensive kernel-tampering detection.</li>
+    </ul>
+  </section>
+
+  <footer>
+    <p class="small">Prepared from the current workspace on 3 August 2026. Current source was treated as authoritative; uncommitted behaviour has been labelled explicitly.</p>
+  </footer>
+</body>
+</html>

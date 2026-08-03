@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 4 Runtime Event Pipeline Audit</title>
+  <style>
+    body { max-width: 1100px; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; line-height: 1.55; color: #202124; }
+    h1, h2, h3 { line-height: 1.2; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0 2rem; }
+    th, td { border: 1px solid #b8bcc2; padding: .55rem; text-align: left; vertical-align: top; }
+    th { background: #f2f4f7; }
+    code { background: #f2f4f7; padding: .1rem .25rem; }
+    .warning { border-left: 4px solid #a05a00; padding: .75rem 1rem; background: #fff7e8; }
+    .scope { border-left: 4px solid #315d8a; padding: .75rem 1rem; background: #eef6ff; }
+    .ok { color: #176b34; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Loader, Binary Contract and Event Pipeline Audit</h1>
+    <p>Evidence dossier for Chapter 4, Sections 4.3-4.6.</p>
+  </header>
+
+  <section>
+    <h2>Audit baseline</h2>
+    <p>The implementation was inspected at commit <code>ae653447d006b5952abfe9f57cbf0f67d94af673</code> (<code>Merge pull request #15 from V3suv1us/feature/network-policy-detector</code>, 30 July 2026). The working tree was not clean. Relevant uncommitted changes affected <code>pkg/cmd/project.go</code>, <code>pkg/cmd/project_test.go</code>, <code>pkg/ebpf/project.go</code>, and <code>pkg/ebpf/probes/probes.go</code>; policy files and other documentation-facing files were also modified or untracked.</p>
+    <div class="warning">
+      <strong>Current-tree qualification.</strong> This audit treats the current working tree as authoritative, as requested. In particular, the uncommitted version of <code>pkg/ebpf/project.go</code> corrects inconsistent <code>proj</code> references present at the inspected commit and restores coherent option application during construction. The current relevant Go packages compile and their tests pass. The uncommitted probe-registry changes also mark five networking support probes as internal. These behaviours must be described as working-tree behaviour until committed.
+    </div>
+    <p>Verification command: <code>go test ./pkg/bufferdecoder ./pkg/events ./pkg/ebpf/probes ./pkg/config ./pkg/cmd</code>, with the repository's libbpf CGO flags. Result: <span class="ok">all selected packages passed</span>.</p>
+  </section>
+
+  <section>
+    <h2>4.3 Loader, probe registry and attachment lifecycle</h2>
+    <h3>Concrete lifecycle</h3>
+    <ol>
+      <li>Cobra writes command-line values into one central configuration object. Normalisation derives detector and alert toggles, and validation checks output and logging formats.</li>
+      <li>The bootstrap resolves the eBPF object from an environment override, an explicit path, or the embedded <code>dist/project.bpf.o</code>. BTF is resolved from an environment override, the configuration, or <code>/sys/kernel/btf/vmlinux</code>.</li>
+      <li>Policies are loaded before runtime construction. When their event selectors form a finite allowlist, that allowlist is intersected with the operator's requested events and becomes the effective event selection. Open-ended policy scope does not narrow attachment.</li>
+      <li>The probe registry translates logical event names into one or more attachable program specifications and adds internal dependencies implied by selected public events.</li>
+      <li>The runtime opens the object through libbpf, disables autoload for registered but unselected programs, and invokes object loading. CO-RE relocation and verifier checks therefore apply only to registered programs that remain enabled, subject to the limitation below.</li>
+      <li>After loading, userspace writes the optional UID filter into <code>config_map</code>, creates and starts the <code>events</code> perf reader, initialises the event gate map used by current networking work, and attaches each selected program with the API dictated by its probe kind.</li>
+      <li>The run loop consumes perf records until cancellation. Shutdown destroys links in reverse order, releases any runtime-managed cgroup-v2 mount, closes the perf reader, and finally closes the module.</li>
+    </ol>
+    <p>Selective autoload is registry-bounded. It disables only programs represented by the probe registry. It is not evidence that every program present in the compiled object is covered. Registry completeness is therefore part of the loader's correctness boundary.</p>
+
+    <h3>Public producers and internal support probes</h3>
+    <p>A public probe specification belongs to the user-facing event API: its logical name can be selected through the CLI, appears in the event list, and normally has a decoder schema. An internal specification is attachable implementation support but is hidden from user selection because it does not define a stable standalone event payload. The <code>impliedBy</code> relation lets selection of a public event activate these support programs automatically.</p>
+    <p>The mapping is not one-to-one. Several programs can produce one logical event, as with entry/return syscall families such as <code>open</code>, <code>chmod</code>, <code>chown</code>, and <code>ptrace</code>. Conversely, the cgroup packet-direction selectors produce protocol-specific network records rather than records named after the attach direction. These are deliberate exceptions encoded in registry tests.</p>
+
+    <h3>Attachment strategies</h3>
+    <p>The registry selects among raw tracepoints, tracepoints, kprobes, kretprobes, and cgroup skb ingress or egress attachments. Tracepoint category and name are parsed from the registered hook string. Cgroup programs require a resolved cgroup-v2 mount; other probe kinds attach directly to the registered kernel hook.</p>
+  </section>
+
+  <section>
+    <h2>4.4 Binary event contract and kernel transport</h2>
+    <h3>Record structure</h3>
+    <p>All ordinary events use one variable-length record:</p>
+    <p><code>[event_context_t: 136 bytes][argument count: uint8][indexed argument records]</code></p>
+    <p>The common context carries the timestamp; process, thread and parent identities in namespace and host views; effective UID; cgroup and namespace identifiers; command and UTS names; process start-time identities; event ID; associated syscall; stack identifier; CPU identifier; and reserved policy metadata. The Go <code>EventContext</code> mirrors this order and fixes the decoder boundary at 136 bytes.</p>
+    <p>The kernel event object embeds the common context and an argument buffer. Each captured argument begins with a one-byte schema index. Scalar values then occupy their fixed-width payload; strings and byte arrays add a four-byte length; string arrays and compact argument arrays use their own bounded headers. The schema index, rather than emission order alone, allows userspace to restore the declaration order and tolerate arguments that a hook could not capture.</p>
+
+    <table>
+      <thead><tr><th>Contract element</th><th>Kernel representation</th><th>User-space interpretation</th><th>Qualification</th></tr></thead>
+      <tbody>
+        <tr><td>Common context</td><td><code>event_context_t</code></td><td><code>EventContext</code>, fixed at 136 bytes</td><td>No automated C <code>sizeof</code>-to-Go test was found; synchronisation is explicit and regression-tested indirectly.</td></tr>
+        <tr><td>Argument count</td><td><code>args_buffer_t.argnum</code></td><td>One byte immediately after the context</td><td>A count larger than the physically present number of complete records can be accepted if the byte slice ends exactly between records.</td></tr>
+        <tr><td>Argument identity</td><td>One-byte index written before each payload</td><td>Index selects name and expected type from the event registry</td><td>No independent wire type tag exists.</td></tr>
+        <tr><td>Argument storage</td><td>32,000-byte per-event buffer with tracked offset</td><td>Variable record stream</td><td>Kernel helpers enforce bounded writes; oversized data may be truncated by selected helpers or omitted on failure.</td></tr>
+        <tr><td>Transport</td><td><code>BPF_MAP_TYPE_PERF_EVENT_ARRAY</code> map named <code>events</code></td><td>One libbpfgo perf reader and channels for records and loss counts</td><td>The BPF ring buffer is not an active alternative in the current implementation.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Submission path</h3>
+    <p>Common event initialisation first obtains the per-CPU event workspace and the singleton configuration entry. The minimal UID guard runs before argument reset, context enrichment, and submission. A hook then captures only its event-specific arguments. At submission time the common helper enriches the task context, optionally records a user stack identifier, computes the exact record length from the fixed context, count byte and current argument offset, and calls <code>bpf_perf_event_output</code> for the current CPU.</p>
+
+    <h3>Long-record offset correction</h3>
+    <p>Commit <code>163ad724a65ec8c701dc816fe87f174eeec51275</code> corrected a kernel-side offset defect. The 32,000-byte argument buffer is not a power of two, so applying <code>offset &amp; (ARGS_BUF_SIZE - 1)</code> did not merely prove a verifier bound: it folded valid offsets onto earlier positions and could overwrite long records. The corrected helper preserves the checked offset and communicates its upper bound to older verifiers with an explicit bound operation. The write of the argument index now uses that preserved offset.</p>
+    <p>The regression test builds a <code>security_bprm_check</code> record whose argument region exceeds 256 bytes and verifies that both long strings and subsequent scalar arguments decode correctly. This demonstrates the userspace-visible symptom is fixed for the constructed record. It is not a full proof for every argument helper or maximum-size record.</p>
+  </section>
+
+  <section>
+    <h2>4.5 User-space decoder and event registry</h2>
+    <h3>Decoding sequence</h3>
+    <p>The decoder reads the 136-byte context field by field using little-endian scalar operations, reads the argument count, resolves the numeric event ID through the event registry, and processes the remaining bytes as indexed argument records. For a known event, the index selects the registered argument name and decoding type. Successfully decoded arguments are returned in schema order in a <code>bufferdecoder.Event</code> containing the common context, logical event name, and typed values. This is the structure consumed by the later policy and detector stages; presentation may adapt it further, but there is no second security-event normalisation object between decoding and those stages.</p>
+
+    <h3>Malformed-record boundary</h3>
+    <table>
+      <thead><tr><th>Condition</th><th>Current behaviour</th><th>Evidence level</th></tr></thead>
+      <tbody>
+        <tr><td>Context or count byte truncated</td><td>Rejected by bounded scalar reads.</td><td>Implemented; general decoder bounds are explicit.</td></tr>
+        <tr><td>Unknown event ID</td><td>Rejected even when it reports zero arguments.</td><td>Implemented; explicit unknown-ID error path.</td></tr>
+        <tr><td>Argument index outside schema</td><td>Rejected.</td><td>Implemented; no dedicated test was found.</td></tr>
+        <tr><td>Scalar or variable payload truncated after an index</td><td>Rejected by the selected payload decoder.</td><td>Implemented; tests cover truncated string-array and credential payloads.</td></tr>
+        <tr><td>String, byte or array size above decoder limit</td><td>Rejected before slicing or allocation.</td><td>Implemented; not every maximum has a dedicated regression test.</td></tr>
+        <tr><td>Invalid UTF-8 in textual payload</td><td>Rejected.</td><td>Implemented and tested for compact argument arrays.</td></tr>
+        <tr><td>Wire type differs from schema type</td><td>No independent type comparison is possible because the wire record contains no type tag. Incompatible length or structure may still fail while byte-compatible data is interpreted as the registered type.</td><td>Architectural limitation.</td></tr>
+        <tr><td>Duplicate argument index</td><td>Accepted; the later value replaces the earlier value in the temporary map.</td><td>Direct consequence of implementation; no dedicated test.</td></tr>
+        <tr><td>Missing arguments</td><td>Accepted. Only successfully present indexes are returned.</td><td>Intentional compatibility behaviour; no strict completeness check.</td></tr>
+        <tr><td>Argument count exceeds complete records but the stream ends between records</td><td>Accepted with the records decoded so far because the loop also stops at end of input.</td><td>Implementation behaviour; not covered by a dedicated test.</td></tr>
+        <tr><td>Trailing bytes after declared arguments</td><td>Ignored; full payload consumption is not required.</td><td>Implementation behaviour; not covered by a dedicated test.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Event and probe registries</h3>
+    <p>The event registry is authoritative for semantic decoding: it maps an ID to a public name and ordered argument schema, and provides reverse name lookup. The probe registry is authoritative for production and attachment: it maps public logical events and internal dependencies to compiled program names, hooks, and attachment kinds. Neither registry replaces the other.</p>
+    <p>Tests enforce sorted unique public names, ID/name round trips inside the Go event registry, decoder coverage for ordinary public probes, public exposure for ordinary decoder events, and exclusion of internal probes from CLI selection. They also exercise multi-probe logical events and implied dependencies. Two qualifications are necessary: network direction selectors are explicit exceptions to the one-public-probe/one-decoder-name rule, and no automated test was found that compares Go event ID constants directly against the C enum values. The C/Go numeric-ID contract therefore still depends on disciplined synchronized maintenance.</p>
+  </section>
+
+  <section>
+    <h2>4.6 Event selection and kernel-side filtering</h2>
+    <div class="scope">
+      <strong>Four distinct controls must not be conflated.</strong> Probe selection decides what can be produced; event admission decides whether a decoded record continues; output suppression decides whether that admitted record is printed; detector dispatch decides whether the admitted record is evaluated by the detector engine.
+    </div>
+    <table>
+      <thead><tr><th>Stage</th><th>Input</th><th>Location</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td>Probe planning and selective autoload</td><td><code>--events</code>, <code>--drop-events</code>, and finite policy-derived event scope</td><td>Bootstrap, before object load and attachment</td><td>Determines registered producer and support programs that are loaded and attached.</td></tr>
+        <tr><td>Minimal UID guard</td><td><code>--kernel-filter-uid-enabled</code> and <code>--kernel-filter-uid</code></td><td>eBPF common initialisation, before full event construction</td><td>Drops events whose current effective UID differs from the configured exact value, reducing kernel work and transport traffic.</td></tr>
+        <tr><td>Decoded event-name and command admission</td><td>Effective event set and <code>--comms</code></td><td>User space, after decoding</td><td>Stops non-admitted records before raw output and detector dispatch.</td></tr>
+        <tr><td>Policy admission</td><td>Residual policy predicates not compiled into attachment selection</td><td>User space, after event/command admission</td><td>Stops non-matching decoded records before raw output and detector dispatch.</td></tr>
+        <tr><td>Raw output suppression</td><td><code>--alerts-only</code></td><td>User space, after all admission checks</td><td>Suppresses raw presentation only; the same admitted event still reaches detectors.</td></tr>
+        <tr><td>Detector dispatch</td><td>Presence of an initialised detector engine</td><td>End of admitted-event path</td><td>Evaluates the decoded event independently of whether raw output was suppressed.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>UID configuration-map contract</h3>
+    <p>The singleton array map <code>config_map</code> stores <code>config_entry_t</code> at key zero. Userspace reads the existing value, checks that it is large enough, and patches little-endian fields at byte offset 12 for the 16-bit enable flag and byte offset 16 for the 32-bit UID. These offsets correspond to three initial 32-bit fields, followed by the enable flag, the 16-bit policy version, and the UID. The whole C structure is deliberately not mirrored in Go because most of it belongs to broader policy configuration.</p>
+    <p>The kernel compares the low 32 bits returned by <code>bpf_get_current_uid_gid</code>, i.e. the current effective UID, with the configured exact UID. A null configuration or disabled flag admits the event. This is a single-value equality filter, not a UID range, exclusion set, namespace-aware identity rule, or general policy compiler.</p>
+    <p>At present there is no dedicated Go unit test for the raw byte offsets or an integration test that reads the map back from a loaded object. The offsets are supported by direct C-layout inspection and runtime documentation, so Chapter 4 should present them as an implemented ABI obligation rather than as a self-verifying contract.</p>
+  </section>
+
+  <section>
+    <h2>Claim-to-code-and-test matrix</h2>
+    <table>
+      <thead><tr><th>Claim suitable for Chapter 4</th><th>Primary implementation evidence</th><th>Test evidence</th><th>Required wording</th></tr></thead>
+      <tbody>
+        <tr><td>The embedded or explicit eBPF object is resolved before runtime construction.</td><td><code>pkg/cmd/initialize/bpfobject.go</code>; root command bootstrap</td><td>Initialiser tests in the command package</td><td>State as implemented.</td></tr>
+        <tr><td>Finite policy event scope can reduce loaded and attached probes.</td><td><code>pkg/cmd/project.go</code>; policy manager effective selection; probe selection</td><td><code>TestNewProjectRunnerAppliesExactPolicyEventSelection</code></td><td>Qualify that open-ended selectors cannot narrow autoload.</td></tr>
+        <tr><td>Unselected registered programs have autoload disabled before object loading.</td><td><code>ConfigureAutoload</code> called before <code>BPFLoadObject</code></td><td>Selection tests; no libbpf autoload mock test found</td><td>Say “registered programs”, not all object programs.</td></tr>
+        <tr><td>Internal dependencies are selected without becoming public events.</td><td><code>Spec.internal</code>, <code>Spec.impliedBy</code>, <code>Select</code></td><td>Internal hiding and implied-probe tests</td><td>State as implemented; networking internal flags are currently uncommitted.</td></tr>
+        <tr><td>Several probes may implement one logical event.</td><td>Repeated logical names in the probe registry</td><td>Family tests for ptrace, open, chmod, chown, memory and identity syscalls</td><td>Use representative families rather than listing all hooks.</td></tr>
+        <tr><td>The active transport is one perf-event array.</td><td><code>events</code> map; <code>InitPerfBuf</code>; perf-only run loop</td><td>Runtime package compilation; operational checks in documentation</td><td>Do not claim an active BPF ring-buffer fallback.</td></tr>
+        <tr><td>The common event context is 136 bytes.</td><td>C <code>event_context_t</code>; Go <code>EventContext</code>; <code>eventContextSize</code></td><td>Decoder tests construct records at this boundary</td><td>Note absence of an automated cross-language size assertion.</td></tr>
+        <tr><td>Arguments are indexed and schema-typed.</td><td>Kernel save helpers; <code>decodeArguments</code>; event registry</td><td>End-to-end decoder argument test and typed payload tests</td><td>Clarify that type is supplied by the schema, not transmitted as a tag.</td></tr>
+        <tr><td>Unknown event IDs fail decoding.</td><td>Unknown-ID branch in argument decoding</td><td>No dedicated unknown-ID decoder test found</td><td>State implementation behaviour, not exhaustive validation proof.</td></tr>
+        <tr><td>Decoder bounds variable-size payloads.</td><td>String, bytes, array and credential decoders</td><td>Truncation, UTF-8 and credential tests</td><td>Avoid claiming every malformed class is tested.</td></tr>
+        <tr><td>The event and probe registries are checked for public consistency.</td><td><code>pkg/events/spec.go</code>; <code>pkg/ebpf/probes/probes.go</code></td><td>Registry consistency suites</td><td>Exclude the explicit network selector exception and note no C-ID comparison.</td></tr>
+        <tr><td>The UID guard filters before expensive construction and submission.</td><td><code>configureKernelFilters</code>; common <code>init_program_data</code></td><td>Configuration validation only; no map-offset unit/integration test found</td><td>Describe as exact effective-UID equality filtering.</td></tr>
+        <tr><td>Alerts-only suppresses raw output without suppressing detector input.</td><td>Ordering in the raw-event handler</td><td>Runtime behaviour documented; adjacent component tests</td><td>Keep output format details for Section 4.9.</td></tr>
+        <tr><td>The long-record offset corruption was corrected.</td><td>Commit <code>163ad72</code>; bounded offset in <code>buffer.h</code></td><td>Long <code>security_bprm_check</code> regression</td><td>Limit the claim to preserved offsets and demonstrated decoding.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Redundancy ledger</h2>
+    <table>
+      <thead><tr><th>Material</th><th>Already owned by</th><th>Chapter 4 treatment</th></tr></thead>
+      <tbody>
+        <tr><td>Why the system separates kernel collection from user-space interpretation</td><td>Chapter 3, system architecture</td><td>Do not re-argue the split; begin from the concrete loader and data path.</td></tr>
+        <tr><td>General eBPF execution, verifier, BTF and CO-RE concepts</td><td>Chapter 2</td><td>Mention only where they determine object loading or contract-compatible implementation.</td></tr>
+        <tr><td>Logical-event, producer-probe and internal-probe concepts</td><td>Chapter 3</td><td>Show their concrete registry representation, dependency resolution and tests.</td></tr>
+        <tr><td>Conceptual event lifecycle and failure boundaries</td><td>Chapter 3</td><td>Give exact method ordering, buffer layout and observed decoder boundaries.</td></tr>
+        <tr><td>Policy language and detector implementation</td><td>Sections 4.7 and 4.8</td><td>Only explain policy-derived event narrowing and the point at which admitted events are dispatched.</td></tr>
+        <tr><td>Event/alert formatting and zap logging</td><td>Section 4.9</td><td>Only distinguish raw output suppression from event admission and detector dispatch.</td></tr>
+        <tr><td>Hook implementation families and kernel compatibility branches</td><td>Sections 4.2 and 4.10</td><td>Refer to producer specifications and contract helpers without cataloguing hook bodies.</td></tr>
+        <tr><td>Container packaging and benchmark results</td><td>Sections 4.11 and Chapter 5</td><td>Exclude from Sections 4.3-4.6.</td></tr>
+        <tr><td>Networking event gating introduced in the current dirty tree</td><td>Adjacent networking work and future synthesis</td><td>Mention only as an uncommitted additional map initialisation after load; do not let it obscure the stable process/security path.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Recommended body-prose boundaries</h2>
+    <p>Section 4.3 should narrate the concrete bootstrap sequence and then use one syscall family plus one internal networking dependency as evidence that logical events do not map one-to-one to programs. Section 4.4 should centre on the 136-byte context, indexed payloads, exact-size perf submission, and the offset defect. Section 4.5 should explain schema-driven decoding and give a candid malformed-record table. Section 4.6 should use the four-control distinction above and close with the exact effective-UID map contract.</p>
+    <p>A complete hook catalogue belongs in an appendix, not in these sections. A useful appendix table would contain logical event name, numeric ID, public producer programs, internal dependencies, attach kind, kernel hook, entry-only or entry/return construction, argument schema, and target-kernel test status.</p>
+  </section>
+</body>
+</html>

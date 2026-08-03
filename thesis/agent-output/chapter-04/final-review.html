@@ -1,0 +1,245 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title>Chapter 4 Final Technical and Redundancy Review</title>
+  <style type="text/css">
+    body { margin: 2rem auto; max-width: 76rem; padding: 0 1.5rem; color: #20252b; font-family: Arial, sans-serif; line-height: 1.5; }
+    h1, h2, h3 { color: #172b4d; }
+    h1 { border-bottom: 2px solid #172b4d; padding-bottom: 0.4rem; }
+    h2 { margin-top: 2rem; border-bottom: 1px solid #c8d0da; padding-bottom: 0.25rem; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.93rem; }
+    th, td { border: 1px solid #aeb8c4; padding: 0.55rem; text-align: left; vertical-align: top; }
+    th { background: #edf2f7; }
+    code { background: #f2f4f7; padding: 0.08rem 0.25rem; }
+    .critical { color: #9b1c1c; font-weight: bold; }
+    .high { color: #a54400; font-weight: bold; }
+    .medium { color: #755b00; font-weight: bold; }
+    .low { color: #245b34; font-weight: bold; }
+    .note { border-left: 4px solid #4078a8; background: #f2f7fb; padding: 0.8rem 1rem; }
+    .warning { border-left: 4px solid #b35c00; background: #fff7ed; padding: 0.8rem 1rem; }
+    .pass { color: #1f6b35; }
+    .fail { color: #9b1c1c; }
+    ul, ol { padding-left: 1.5rem; }
+  </style>
+</head>
+<body>
+  <h1>Chapter 4 Final Technical and Redundancy Review</h1>
+
+  <p><strong>Review date:</strong> 3 August 2026</p>
+  <p><strong>Implementation baseline:</strong> <code>demo_project</code> commit
+  <code>ae653447d006b5952abfe9f57cbf0f67d94af673</code>, inspected together with the
+  dirty working tree. The current tree contains modified runtime, probe-registry,
+  policy and benchmark files, and untracked detector-selection files and one
+  policy preset. Claims that depend on those changes are identified below.</p>
+  <p><strong>Thesis baseline:</strong> <code>Thesis</code> commit
+  <code>f8febb2186799d1269ea52ce9fcf4b9c54948887</code>, with an untracked
+  <code>chapter4.tex</code> and a modified chapter include file.</p>
+
+  <div class="warning">
+    <strong>Editorial traceability gap.</strong> The workflow requires an approved
+    <code>editorial-synthesis.html</code>, but that file is absent from
+    <code>documentation/thesis/agent-output/chapter-04</code>. The four technical
+    audits and the Chapter 4 dossier were reviewed directly. Final acceptance
+    should remain conditional until a synthesis is created or the workflow is
+    amended to record that the final draft itself supersedes it.
+  </div>
+
+  <div class="note">
+    <strong>Remediation update.</strong> A subsequent editorial pass corrected
+    the perf-transport statement, removed the isolated cgroup-packet attachment
+    detail, adopted British-English headings, clarified the build terminology,
+    removed performance implications and compressed the principal repetitions
+    against Chapter 3. An editorial synthesis has also been reconstructed from
+    the four audits and awaits explicit thesis-owner approval. The findings
+    below are retained as the audit trail that motivated those edits.
+    Line numbers in the findings refer to the pre-remediation draft.
+  </div>
+
+  <h2>1. Factual Errors and Unsupported Claims</h2>
+  <table>
+    <thead>
+      <tr><th>Severity</th><th>Location</th><th>Finding</th><th>Required correction</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="critical">Critical</td>
+        <td>4.4, lines 256-261</td>
+        <td>The sentence stating that retained ring-buffer declarations are outside the active path is false for the current source tree. No ring-buffer map, reader or submission helper is retained; the only occurrence is a generated kernel enumeration.</td>
+        <td>State that the current implementation uses a perf-event array and one libbpfgo perf reader. Discuss the BPF ring buffer only as background or a possible future alternative.</td>
+      </tr>
+      <tr>
+        <td class="high">High</td>
+        <td>4.7.1 and 4.7.4, lines 372-381 and 451-454</td>
+        <td>Policy-driven detector selection by metadata is described as current behaviour, but it exists only in the dirty working tree. The qualification is accurate, yet provisional repository state should not remain in the final thesis.</td>
+        <td>Commit and retest the selector implementation, then remove the working-tree disclaimer; otherwise remove these behaviours from the final implementation narrative.</td>
+      </tr>
+      <tr>
+        <td class="high">High</td>
+        <td>4.3, lines 217-222</td>
+        <td>Cgroup packet attachment is introduced although Chapters 1 and 3 define the thesis focus as process and host-security monitoring and do not design a networking pipeline. The implementation supports this path, but it is architecturally orphaned in the thesis.</td>
+        <td>Either remove this implementation detail from Chapter 4, or add a tightly bounded statement in Chapter 3 that networking support is adjacent implementation work and not part of the evaluated thesis scope.</td>
+      </tr>
+      <tr>
+        <td class="medium">Medium</td>
+        <td>4.1, line 18</td>
+        <td>“x86 BPF target” conflates the Clang BPF target with architecture-specific compilation macros. The Makefile uses <code>-target bpf</code> and defines x86-64 target macros.</td>
+        <td>Use “an eBPF object with x86-64 target definitions”.</td>
+      </tr>
+      <tr>
+        <td class="medium">Medium</td>
+        <td>4.1, lines 29-31</td>
+        <td>“dynamic libraries used through CGO” is imprecise. libbpf is built as a local static archive, while the resulting executable retains runtime dependencies such as libelf, zlib and libc.</td>
+        <td>Refer to “runtime libraries required by the CGO-linked dependency chain”.</td>
+      </tr>
+      <tr>
+        <td class="medium">Medium</td>
+        <td>4.2, lines 65-67</td>
+        <td>The wording implies a demonstrated performance result. The code does return before full enrichment and submission, but the exact cost reduction belongs to evaluation.</td>
+        <td>Use mechanism-only wording: “Rejected events return before full enrichment and transport.” Quantify the benefit only in Chapter 5.</td>
+      </tr>
+      <tr>
+        <td class="medium">Medium</td>
+        <td>4.9, lines 517-523</td>
+        <td>The chapter correctly reports the current Docker limitation, while the operational audit incorrectly claims that rule packaging and tracefs/debugfs integration were resolved. Current code confirms the chapter: the image copies only the executable and <code>docker-run</code> does not use the declared tracefs/debugfs mount set.</td>
+        <td>Retain the chapter's limitation. Do not import the post-audit “resolved” claim unless the Dockerfile and target are actually changed and committed.</td>
+      </tr>
+      <tr>
+        <td class="low">Low</td>
+        <td>4.9, lines 519-520</td>
+        <td>“Sufficient to express the current demonstration intent” is vague and sounds evaluative.</td>
+        <td>State the exact privileges, namespaces and mounts supplied by the target, then say that least-privilege validation is outside the current implementation.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Claims Verified Against Current Code and Tests</h3>
+  <ul>
+    <li>The common C and Go event context is 136 bytes.</li>
+    <li>The active transport is a perf-event array consumed by one libbpfgo perf reader.</li>
+    <li>The argument workspace is 32,000 bytes and is kept outside the eBPF stack in per-CPU storage.</li>
+    <li>Paired operations retain up to seven entry arguments using event identity and thread identity.</li>
+    <li>The decoder is schema-directed but not canonical: missing arguments and duplicate indexes are accepted, duplicate indexes use the latest value, and trailing bytes are not required to be consumed.</li>
+    <li>Commit <code>163ad724a65ec8c701dc816fe87f174eeec51275</code> replaced invalid mask-based offset handling for the non-power-of-two argument buffer and added long-record regression evidence.</li>
+    <li>The exact kernel UID filter uses a singleton configuration map, an enable field at byte offset 12 and a UID field at byte offset 16.</li>
+    <li>Collective detector state is detector-local, limited to 4,096 incomplete keys, and bounded by a short window; runtime flush is available but not periodically scheduled by the main loop.</li>
+  </ul>
+
+  <h2>2. Mechanisms Missing from the Chapter</h2>
+  <p>The canonical Sections 4.1-4.10 are all present. The following implementation mechanisms are nevertheless absent or insufficiently explicit.</p>
+  <table>
+    <thead><tr><th>Priority</th><th>Missing mechanism</th><th>Recommended placement</th></tr></thead>
+    <tbody>
+      <tr><td class="high">High</td><td>The baseline status is unresolved: the chapter mixes committed behaviour with detector selection and probe classifications that exist only locally.</td><td>Add no permanent prose. Stabilise and commit the implementation baseline before finalising 4.3 and 4.7.</td></tr>
+      <tr><td class="medium">Medium</td><td>The loader discussion does not state that the current uncommitted constructor repairs inconsistent option application present at HEAD. This should not become thesis prose, but it must be resolved before claiming a reproducible lifecycle.</td><td>Implementation action before acceptance, followed by tests; no bug history is required in the body.</td></tr>
+      <tr><td class="medium">Medium</td><td>The consistency boundary has tests between Go event and probe registries, but no automated comparison of C event constants with Go IDs. The chapter records this correctly; the missing mechanism should also be carried into the implementation limitations or future-work list.</td><td>4.5 and Chapter 6; optionally implement generated/shared IDs.</td></tr>
+      <tr><td class="medium">Medium</td><td>The kernel UID map contract has no loaded-object read-back test. The chapter identifies this, but the final implementation checklist should require either a test or an explicit accepted limitation.</td><td>4.6 plus Appendix C or Chapter 5 validation.</td></tr>
+      <tr><td class="low">Low</td><td>The body intentionally omits an exhaustive hook catalogue. This follows the outline, but Appendix A must eventually provide the complete public event, producer, support-probe and attachment mapping.</td><td>Appendix A.</td></tr>
+      <tr><td class="low">Low</td><td>The policy and detector catalogue examples are not shown in full, which is correct for the chapter, but the promised examples appendix does not yet supply the reader-facing companion material.</td><td>Appendix B.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Redundancy Against Chapters 2 and 3</h2>
+  <table>
+    <thead><tr><th>Chapter 4 paragraph</th><th>Existing owner</th><th>Assessment</th><th>Edit</th></tr></thead>
+    <tbody>
+      <tr><td>4.2, lines 69-76</td><td>3.3.1 and 3.4</td><td>The distinction between entry-only and paired events is already designed there. Chapter 4 adds the seven-argument limit and concrete key, so only part is redundant.</td><td>Keep the key and limit; reduce the conceptual distinction to one transition sentence.</td></tr>
+      <tr><td>4.2.1, lines 81-96</td><td>3.3.1</td><td>The semantic distinction among execution stages is already justified in the hook-selection design.</td><td>Keep pointer-capture, bounded argv and return-side construction; replace the rationale paragraph with a cross-reference.</td></tr>
+      <tr><td>4.2.4, lines 180-184</td><td>3.7 and Chapter 1 scope</td><td>This repeats that the prototype observes rather than enforces and is not general tamper detection.</td><td>Compress to one boundary sentence.</td></tr>
+      <tr><td>4.3, lines 196-215</td><td>3.3.1, 3.3.2 and 3.5.1</td><td>Finite policy allow-lists, public versus internal probes and selective autoload are already explained as design.</td><td>Retain registry fields, dependency expansion and the exact autoload operation; cross-reference the design rationale.</td></tr>
+      <tr><td>4.3, lines 224-229</td><td>3.5.1</td><td>Lifecycle ordering and fatal versus record-local failures largely restate the runtime design.</td><td>Keep concrete reverse-order cleanup ownership; remove the repeated failure taxonomy.</td></tr>
+      <tr><td>4.4, lines 234-246</td><td>3.4.1</td><td>The stable contract and indexed arguments are already designed, but Chapter 4 adds exact byte widths and the absence of wire type tags.</td><td>Keep widths and decoding implications; remove general contract motivation.</td></tr>
+      <tr><td>4.4, lines 263-267</td><td>2.2.3 and 3.4.2</td><td>Finite capacity, cross-CPU ordering and transport-versus-decoding failure are already covered.</td><td>Keep only the concrete loss-channel handling and refer to 3.4.2 for semantics.</td></tr>
+      <tr><td>4.5, lines 272-280</td><td>3.5.2</td><td>The normalised event boundary is already defined almost identically.</td><td>Keep decoding order and clarify that no second security normalisation exists; shorten the DTO description.</td></tr>
+      <tr><td>4.5, lines 298-306</td><td>3.3.1 and 3.5.2</td><td>The two-registry responsibility split is repeated. The specific consistency tests and missing C/Go constant check are new.</td><td>Delete the general registry definitions; retain only enforced invariants and the remaining gap.</td></tr>
+      <tr><td>4.6, lines 311-331</td><td>3.3.2 and 3.5</td><td>The reduction stages and <code>alerts-only</code> distinction are already architectural material.</td><td>Use one compact implementation pipeline, retaining the exact filter comparison and where it returns.</td></tr>
+      <tr><td>4.7.2, lines 399-405</td><td>2.3.1 and 3.6.2</td><td>Point versus collective semantics are repeated, although the non-stateful multi-step behaviour is new.</td><td>Keep the concrete state transition and the non-stateful alternative-step rule; remove taxonomy definitions.</td></tr>
+      <tr><td>4.7.3, lines 410-418</td><td>3.6.3</td><td>Correlation dimensions are repeated in similar wording.</td><td>Replace design descriptions with implementation facts: compiled key extractors, rejection on unavailable dimensions and exact key composition.</td></tr>
+      <tr><td>4.7.4, lines 445-449</td><td>2.3.3 and 3.6.4</td><td>The role and limits of ATT&amp;CK are already established.</td><td>Keep only syntactic validation and metadata copy/selection paths.</td></tr>
+      <tr><td>4.8, lines 464-468</td><td>3.5.3</td><td>The three output streams and their semantic separation are already designed.</td><td>Retain one transition sentence and proceed directly to concrete printers and logger settings.</td></tr>
+      <tr><td>4.9, lines 525-529</td><td>1.1 and 3.7</td><td>The Kubernetes and cluster-wide boundary is repeated but useful to prevent overclaiming.</td><td>Retain as a short closing sentence, not a full paragraph.</td></tr>
+      <tr><td>4.10, lines 567-572</td><td>2.2.4 and 3.2.1</td><td>The limits of CO-RE and target-specific compatibility are already explained.</td><td>End with one cross-reference and the exact unsupported capabilities; avoid re-teaching portability.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. Internal Redundancy Within Chapter 4</h2>
+  <table>
+    <thead><tr><th>Repeated mechanism</th><th>Locations</th><th>Resolution</th></tr></thead>
+    <tbody>
+      <tr><td>Embedded object and external override</td><td>4.1 lines 24-31; 4.3 lines 189-194; 4.9 lines 510-511</td><td>Own embedding in 4.1, precedence in 4.3, and use only a short packaging reference in 4.9.</td></tr>
+      <tr><td>Deferred context enrichment and UID filtering</td><td>4.2 lines 60-67; 4.6 lines 317-323</td><td>Own event-construction ordering in 4.2; own filter configuration and exact comparison in 4.6.</td></tr>
+      <tr><td>Entry/return temporary state</td><td>4.2 lines 69-76; repeated in 4.2.1-4.2.4</td><td>Explain the common mechanism once, then identify hook families that reuse it without restating map semantics.</td></tr>
+      <tr><td>Public/internal probe distinction</td><td>4.3 lines 196-215; 4.5 lines 298-303</td><td>Own production and dependency semantics in 4.3; in 4.5 mention only tested cross-registry invariants.</td></tr>
+      <tr><td>Normalised event versus presentation model</td><td>4.5 lines 272-280; 4.8 lines 470-472</td><td>Define the normalised event once in 4.5; 4.8 should call its structure an output adapter without reasserting the distinction.</td></tr>
+      <tr><td>ATT&amp;CK propagation</td><td>4.7.1 lines 362-380; 4.7.4 lines 445-459; 4.8 lines 477-483</td><td>Own validation and propagation in 4.7.4. Other sections should mention only fields required for their local mechanism.</td></tr>
+      <tr><td>Perf transport and reader</td><td>4.2 lines 63-67; 4.3 lines 217-226; 4.4 lines 256-267</td><td>Own wire submission and loss semantics in 4.4; elsewhere refer only to lifecycle ownership.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. Material That Belongs in Chapter 5</h2>
+  <ul>
+    <li>Do not quantify or imply the performance improvement of deferred enrichment or the UID filter in 4.2 or 4.6. Chapter 4 may state only which operations are skipped.</li>
+    <li>Do not infer efficiency from selective autoload. Chapter 4 may state that unrelated registered programs are not loaded; verifier-time and CPU effects require measurement.</li>
+    <li>Do not promote the operational audit's unexecuted Docker claims into validated deployment results. Image build, privileged execution and hook coverage inside the container belong to functional evaluation.</li>
+    <li>The 4,096-state and five-second deduplication values are implementation parameters and belong in Chapter 4. Their adequacy, memory impact, false-positive effect and saturation behaviour belong in Chapter 5.</li>
+    <li>The long-record regression is valid implementation evidence. Broader claims about decoder robustness require the Chapter 5 functional test matrix.</li>
+  </ul>
+
+  <h2>6. Terminology, Citation, Glossary and LaTeX Review</h2>
+  <table>
+    <thead><tr><th>Area</th><th>Finding</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td>British English</td><td>“Project Organization” and “Containerization” use American spelling.</td><td>Use “Project Organisation” and “Containerisation”. Existing labels may remain unchanged.</td></tr>
+      <tr><td>User-space terminology</td><td>The heading “Userspace Decoder” conflicts with the style guide.</td><td>Use “User-Space Decoder and Event Registry”; use “user space” as a noun.</td></tr>
+      <tr><td>Canonical anomaly terms</td><td>Chapter 4 uses “point detector” and “collective detector”, which is acceptable for implementation, but should not silently replace the canonical “point anomaly” and “collective anomaly” when discussing outputs.</td><td>Use detector terms for mechanisms and anomaly terms for interpreted findings.</td></tr>
+      <tr><td>Acronyms</td><td>Chapter 4 contains plain CPU, UID, UTS, LRU, BTF, CGO, UTF-8, PID, JSON, YAML, VMA and KASAN. Only CPU and BTF currently have glossary entries among these.</td><td>Do not create entries mechanically. Add frequently reused thesis-wide acronyms such as PID and UID if the glossary is intended to be comprehensive; otherwise spell out specialised one-off terms at first Chapter 4 use. Use existing <code>\gls{cpu}</code>, <code>\gls{btf}</code> and <code>\gls{core}</code> consistently where expansion state is desired.</td></tr>
+      <tr><td>Citations</td><td>Chapter 4 cites only Zap. Most implementation claims are code-grounded and do not require external citations, but broad claims about CO-RE and transport should not be reintroduced here without the sources already used in Chapter 2.</td><td>Prefer cross-references to Chapter 2. Keep <code>uber_zap</code>; no missing or duplicate bibliography key was detected statically.</td></tr>
+      <tr><td>Labels and references</td><td>No duplicate labels were found across Chapters 1-4. Chapter 4 contains one internal cross-reference to its output section and no unresolved key detectable by static inspection.</td><td>Retain labels; run a full multi-pass build after dependencies are installed.</td></tr>
+      <tr><td>Build validation</td><td>A PDF build could not be completed because the installed TeX environment lacks <code>biblatex.sty</code>. The failure occurs before Chapter 4 is parsed.</td><td>Compile in the approved thesis environment and inspect undefined references, glossary warnings, overfull boxes and bibliography output.</td></tr>
+      <tr><td>Repository naming</td><td>No internal product name appears in Chapter 4.</td><td>No change required.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>7. Severity-Ordered Edit List</h2>
+  <ol>
+    <li><strong>Remove the false retained ring-buffer declaration claim</strong> and state that perf-event transport is the sole current implementation.</li>
+    <li><strong>Stabilise the repository baseline</strong>: commit or remove policy-driven detector selection and the current probe-registry/runtime fixes before treating Chapter 4 as final.</li>
+    <li><strong>Resolve the missing editorial synthesis</strong> or update the workflow to document its deliberate replacement.</li>
+    <li><strong>Decide the networking boundary</strong>: remove the isolated cgroup packet attachment sentence or add a bounded design statement in Chapter 3 without changing the thesis focus.</li>
+    <li><strong>Compress repeated Chapter 3 material</strong> in 4.3, 4.5, 4.6 and 4.7, retaining exact fields, limits, compilation steps, key construction and failure handling.</li>
+    <li><strong>Consolidate mechanisms explained multiple times</strong>, especially embedding, entry/return state, registry roles, normalisation and ATT&amp;CK propagation.</li>
+    <li><strong>Correct terminology</strong>: Organisation, Containerisation, User-Space, eBPF target with x86-64 definitions, and precise CGO runtime dependencies.</li>
+    <li><strong>Remove performance implications</strong> from implementation prose and leave measured effects to Chapter 5.</li>
+    <li><strong>Complete appendices</strong> for the hook catalogue, rule examples and reproducibility commands.</li>
+    <li><strong>Run the full thesis toolchain</strong> and resolve references, glossary state, bibliography output and layout warnings.</li>
+  </ol>
+
+  <h2>8. Final Acceptance Checklist</h2>
+  <ul>
+    <li class="fail">[~] <code>editorial-synthesis.html</code> now exists, but still requires explicit thesis-owner approval.</li>
+    <li class="pass">[x] Chapter 4 no longer claims retained ring-buffer declarations.</li>
+    <li class="fail">[ ] All implementation behaviour described as current is committed and tagged, or explicitly removed from the final text.</li>
+    <li class="pass">[x] The isolated networking attachment sentence has been removed from the process and host-security implementation narrative.</li>
+    <li class="pass">[x] The principal repeated design paragraphs are replaced by implementation mechanisms or concise cross-references.</li>
+    <li class="pass">[x] Chapter 4 headings and user-space terminology follow the British-English style guide.</li>
+    <li class="pass">[x] The canonical Section 4.1-4.10 structure matches the definitive outline.</li>
+    <li class="pass">[x] No exhaustive hook enumeration appears in the body.</li>
+    <li class="pass">[x] No benchmark result is currently presented as a completed Chapter 4 result.</li>
+    <li class="pass">[x] The 136-byte context, indexed arguments, perf transport, decoder tolerance and long-record correction are accurately represented apart from the ring-buffer sentence.</li>
+    <li class="pass">[x] The chapter distinguishes decoded events, output adapters, alerts and operational diagnostics.</li>
+    <li class="pass">[x] The chapter does not claim enforcement, general anomaly discovery, cluster-wide correlation or unconditional Linux portability.</li>
+    <li class="pass">[x] Relevant Go tests pass in the current working tree when a writable Go build cache is used.</li>
+    <li class="fail">[ ] A complete LaTeX, bibliography and glossary build passes in the approved environment with no unresolved references or material layout warnings.</li>
+    <li class="fail">[ ] Appendix A documents public events, producer probes, internal dependencies and attachment types against the final committed registry.</li>
+  </ul>
+
+  <div class="note">
+    <strong>Updated acceptance decision:</strong> the fixable factual and
+    editorial blockers identified by this review have been addressed. Final
+    acceptance still depends on freezing the implementation baseline, approving
+    the reconstructed synthesis, completing the appendices and running the full
+    LaTeX, bibliography and glossary toolchain. No wholesale rewrite is
+    required.
+  </div>
+</body>
+</html>

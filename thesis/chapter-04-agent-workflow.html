@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Workflow agenti - Capitolo 4</title>
+  <style>
+    body { max-width: 1080px; margin: 2rem auto; padding: 0 1rem; font: 16px/1.5 system-ui, sans-serif; color: #202124; }
+    h1, h2, h3 { line-height: 1.2; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 1rem; background: #f4f5f7; border: 1px solid #d5d8dc; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .rule { border-left: 4px solid #a33; padding: .75rem 1rem; background: #fff5f5; }
+  </style>
+</head>
+<body>
+  <h1>Workflow agenti - Capitolo 4</h1>
+
+  <h2>Strategia</h2>
+  <p>Il lavoro segue tre ondate:</p>
+  <ol>
+    <li>quattro agenti svolgono audit tecnici indipendenti e scrivono file HTML separati;</li>
+    <li>dopo una sintesi editoriale approvata, un solo agente integra il capitolo in LaTeX;</li>
+    <li>un revisore indipendente verifica accuratezza, completezza e ridondanza.</li>
+  </ol>
+  <div class="rule">
+    <strong>Regola vincolante:</strong> Chapter 4 explains how the design is
+    implemented. It must not repeat why the architecture was chosen, redefine
+    background concepts, or anticipate evaluation results. Each implementation
+    mechanism must have one primary location in the chapter.
+  </div>
+
+  <h2>Ondata 1 - Quattro agenti in parallelo</h2>
+
+  <h3>Agente 1 - Kernel Implementation and Compatibility Auditor</h3>
+  <p>Output: <code>documentation/thesis/agent-output/chapter-04/kernel-implementation-audit.html</code></p>
+  <pre><code>You are the kernel implementation and compatibility auditor for Chapter 4 of
+an MSc thesis about an eBPF-based runtime security monitoring system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapters/chapter-04-system-implementation.html
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/documentation/implementation/hooks.md
+- /home/simone/project/documentation/implementation/overview.md
+
+Inspect the latest implementation and tests under:
+- /home/simone/project/demo_project/pkg/ebpf/c
+- /home/simone/project/demo_project/pkg/ebpf/probes
+- /home/simone/project/demo_project/Makefile
+
+Record the inspected git commit and working-tree status. Treat current code as
+authoritative, but label uncommitted behaviour explicitly.
+
+You own Sections 4.2 and 4.10. Produce:
+1. the common eBPF implementation framework: shared context, argument buffer,
+   maps, helpers and submission path;
+2. representative implementation patterns for process execution, credential
+   changes, filesystem/memory/namespace activity, and kernel-integrity/eBPF
+   activity;
+3. entry-only versus entry/return event construction and temporary state;
+4. CO-RE reads and compatibility branches actually used by the code;
+5. verifier-driven limits and target-kernel workarounds supported by evidence;
+6. a claim-to-code-and-test matrix;
+7. an appendix candidate list for the complete hook catalogue;
+8. a redundancy ledger identifying material already explained in Chapters 2
+   and 3 and material owned by the other Chapter 4 agents.
+
+Do not enumerate every hook in proposed body prose. Do not explain general
+eBPF theory, the architectural kernel/user-space split, the Go loader, decoder,
+policy engine, output system, or benchmark results. Use representative hook
+families to explain recurring implementation patterns.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-04/kernel-implementation-audit.html
+Do not modify Thesis or demo_project.</code></pre>
+
+  <h3>Agente 2 - Loader, Contract and Event Pipeline Auditor</h3>
+  <p>Output: <code>documentation/thesis/agent-output/chapter-04/runtime-event-pipeline-audit.html</code></p>
+  <pre><code>You are the loader, binary-contract and event-pipeline auditor for Chapter 4 of
+an MSc thesis about an eBPF-based runtime security monitoring system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapters/chapter-04-system-implementation.html
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/documentation/implementation/overview.md
+- /home/simone/project/documentation/implementation/output.md
+- /home/simone/project/documentation/debugging/commands.md
+
+Inspect the latest implementation and tests under:
+- /home/simone/project/demo_project/pkg/cmd
+- /home/simone/project/demo_project/pkg/config
+- /home/simone/project/demo_project/pkg/ebpf
+- /home/simone/project/demo_project/pkg/ebpf/probes
+- /home/simone/project/demo_project/pkg/bufferdecoder
+- /home/simone/project/demo_project/pkg/events
+
+Record the inspected git commit and working-tree status. Treat current code as
+authoritative, but label uncommitted behaviour explicitly.
+
+You own Sections 4.3-4.6. Produce:
+1. the concrete loader and attachment lifecycle, including selective autoload;
+2. public producer probes, internal support probes and dependency resolution;
+3. the C/Go binary contract, common context, indexed typed arguments and perf
+   transport;
+4. decoder behaviour, event-schema lookup and malformed-record boundaries;
+5. the relationship and consistency checks between event and probe registries;
+6. CLI, policy-derived and kernel-side event reduction, clearly separated;
+7. the implemented UID filter and any relevant configuration-map contract;
+8. the long-record offset correction and its regression evidence;
+9. a claim-to-code-and-test matrix;
+10. a redundancy ledger for Chapters 2, 3 and adjacent Chapter 4 sections.
+
+Distinguish probe selection, event admission, output suppression and detector
+dispatch. Do not redefine the architecture from Chapter 3. Do not describe
+policy or detector internals, output formatting, logging, Docker, or evaluation
+results. Do not claim strict rejection of malformed cases that tests do not
+prove.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-04/runtime-event-pipeline-audit.html
+Do not modify Thesis or demo_project.</code></pre>
+
+  <h3>Agente 3 - Policy and Detector Implementation Auditor</h3>
+  <p>Output: <code>documentation/thesis/agent-output/chapter-04/policy-detector-implementation-audit.html</code></p>
+  <pre><code>You are the policy and detector implementation auditor for Chapter 4 of an MSc
+thesis about an eBPF-based runtime security monitoring system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapters/chapter-04-system-implementation.html
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/documentation/implementation/correlation.md
+- /home/simone/project/documentation/implementation/output.md
+
+Inspect the latest implementation, definitions and tests under:
+- /home/simone/project/demo_project/pkg/policy
+- /home/simone/project/demo_project/pkg/detectors
+- /home/simone/project/demo_project/pkg/events
+- /home/simone/project/demo_project/rules/policies
+- /home/simone/project/demo_project/rules/detectors
+- /home/simone/project/demo_project/pkg/cmd/project.go
+
+Record the inspected git commit and working-tree status. Current code is
+authoritative. This is especially important because policy-driven detector
+selection may be present in uncommitted files; report its status precisely.
+
+You own Section 4.7. Produce:
+1. YAML loading, schema conversion, normalisation and validation boundaries;
+2. event admission and bootstrap-time detector catalogue selection;
+3. registry, event-indexed dispatch, engine lifecycle and error isolation;
+4. point detector condition compilation and evaluation;
+5. collective sequence state transitions and retained evidence;
+6. exact process, process_tree, resource, cgroup and composite correlation;
+7. time, capacity, pruning, replacement and flush behaviour;
+8. alert deduplication and its position after detector evaluation;
+9. MITRE ATT&amp;CK metadata validation, policy selection and alert propagation;
+10. a claim-to-code-and-test matrix and a redundancy ledger.
+
+Verify limits and unsupported behaviours against tests. Do not repeat the
+conceptual definitions from Chapter 2 or the architectural rationale from
+Chapter 3. Do not claim machine learning, arbitrary ancestry, user-session,
+cluster-wide correlation, enforcement, semantic ATT&amp;CK validation, or policy
+provenance in alerts unless the current code proves them.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-04/policy-detector-implementation-audit.html
+Do not modify Thesis or demo_project.</code></pre>
+
+  <h3>Agente 4 - Toolchain, Output and Packaging Auditor</h3>
+  <p>Output: <code>documentation/thesis/agent-output/chapter-04/operational-integration-audit.html</code></p>
+  <pre><code>You are the toolchain, output and packaging auditor for Chapter 4 of an MSc
+thesis about an eBPF-based runtime security monitoring system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapters/chapter-04-system-implementation.html
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/demo_project/README.md
+- /home/simone/project/documentation/implementation/output.md
+- /home/simone/project/documentation/implementation/overview.md
+
+Inspect the latest implementation and tests under:
+- /home/simone/project/demo_project/Makefile
+- /home/simone/project/demo_project/Dockerfile
+- /home/simone/project/demo_project/go.mod
+- /home/simone/project/demo_project/embedded-ebpf.go
+- /home/simone/project/demo_project/cmd
+- /home/simone/project/demo_project/pkg/output
+- /home/simone/project/demo_project/pkg/logging
+- /home/simone/project/demo_project/pkg/config
+
+Record the inspected git commit and working-tree status. Treat current code as
+authoritative, but label uncommitted behaviour explicitly.
+
+You own Sections 4.1, 4.8 and 4.9. Produce:
+1. the build chain from eBPF C source to compiled object and Go executable;
+2. project organisation only where it explains build or runtime ownership;
+3. embedded versus external eBPF object handling;
+4. raw event, alert and operational diagnostic output implementations;
+5. Zap configuration and libbpf diagnostic integration;
+6. container build stages, packaged artefacts and runtime requirements;
+7. an accurate boundary between containerisation and future Kubernetes use;
+8. a claim-to-code-and-test matrix;
+9. a redundancy ledger for Chapters 2, 3 and adjacent Chapter 4 sections.
+
+Do not explain the complete runtime lifecycle, decoder, policy internals,
+detector correlation, eBPF hook families, or performance results. Do not imply
+that Zap serialises monitored events or alerts. Do not claim a validated
+Kubernetes deployment.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-04/operational-integration-audit.html
+Do not modify Thesis or demo_project.</code></pre>
+
+  <h2>Passaggio intermedio - Audit e sintesi editoriale</h2>
+  <p>Dopo la prima ondata, creare <code>editorial-synthesis.html</code> soltanto dopo aver:</p>
+  <ol>
+    <li>verificato commit e working tree analizzati da ciascun agente;</li>
+    <li>risolto i conflitti a favore del codice e dei test correnti;</li>
+    <li>costruito una matrice sezione-meccanismo con una sola collocazione primaria;</li>
+    <li>rimosso definizioni gia' presenti nei Capitoli 2 e 3;</li>
+    <li>spostato cataloghi completi, comandi e tabelle estese nelle appendici;</li>
+    <li>separato i risultati sperimentali riservati al Capitolo 5;</li>
+    <li>stabilito quali modifiche non committed possono essere descritte.</li>
+  </ol>
+
+  <h2>Ondata 2 - Chapter Writer and LaTeX Integrator</h2>
+  <pre><code>You are the sole Chapter 4 writer and LaTeX integrator for an MSc thesis about
+an eBPF-based runtime security monitoring system.
+
+Precondition:
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/editorial-synthesis.html
+  must exist and be explicitly approved.
+
+If it is missing, inconsistent, or contains unresolved blockers, stop without
+modifying Thesis.
+
+Read completely the approved synthesis, all four Chapter 4 audit HTML files,
+the canonical outline and terminology guide, and Chapters 1-3 in Thesis.
+Inspect implementation files only to resolve ambiguities recorded by the
+synthesis.
+
+Write /home/simone/project/Thesis/content/chapters/chapter4.tex using exactly
+the canonical Section 4.1-4.10 structure in chapter-04-system-implementation.html.
+Update chapter inclusion, bibliography and glossary only when required.
+
+Binding anti-redundancy rules:
+- do not reintroduce background definitions from Chapter 2;
+- do not restate requirements, responsibility boundaries or the end-to-end
+  architecture from Chapter 3;
+- begin each section from the concrete mechanism it owns;
+- explain each data structure, registry, lifecycle stage or limit in one
+  primary location and use cross-references elsewhere;
+- use representative hook families rather than an exhaustive body catalogue;
+- keep tests, benchmark results and coverage conclusions for Chapter 5;
+- avoid file-by-file and function-by-function narration;
+- include no long source-code listings;
+- never use the internal project name.
+
+Use British English and preserve every scope boundary approved in the
+editorial synthesis. Compile the Thesis and report unresolved warnings. Do not
+modify demo_project or documentation agent outputs.</code></pre>
+
+  <h2>Ondata 3 - Independent Technical and Redundancy Reviewer</h2>
+  <pre><code>You are the independent technical and redundancy reviewer for Chapter 4 of an
+MSc thesis about an eBPF-based runtime security monitoring system.
+
+Read the final Chapter 4 draft, Chapters 1-3, the approved Chapter 4 editorial
+synthesis, all four audit outputs, and the current implementation and tests.
+
+Produce:
+1. factual errors or claims unsupported by current code;
+2. implementation mechanisms promised by the outline but missing from the
+   chapter;
+3. a paragraph-level redundancy audit against Chapters 2 and 3;
+4. an internal redundancy audit identifying mechanisms explained more than
+   once in Chapter 4;
+5. misplaced evaluation material that belongs in Chapter 5;
+6. terminology, citation, glossary and LaTeX issues;
+7. a concise edit list ordered by severity;
+8. a final acceptance checklist.
+
+Treat repetition as justified only when a short transition or cross-reference
+is necessary. Flag any paragraph that merely restates design without adding an
+implementation mechanism. Do not modify Thesis or demo_project.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-04/final-review.html</code></pre>
+</body>
+</html>
