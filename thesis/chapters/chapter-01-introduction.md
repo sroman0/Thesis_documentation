@@ -48,14 +48,14 @@ richiede queste correzioni:
   replicata integralmente;
 - chiarire il perimetro della componente networking sviluppata in
   collaborazione;
-- mantenere la struttura finale a sei capitoli.
+- mantenere la struttura finale a sette capitoli.
 
 ## Fatti del progetto gia' verificabili
 
 ### Target e vincoli
 
 - Target principale: Rocky Linux 8.10.
-- Kernel: `4.18.0-553.109.1.el8_10.x86_64` su `x86_64`.
+- Kernel: `4.18.0-553.137.1.el8_10.x86_64` su `x86_64`.
 - Il kernel include backport RHEL, quindi il numero di versione da solo non
   descrive tutte le feature eBPF disponibili.
 - Il runtime usa Go, CGO e `libbpfgo`; i programmi eBPF sono scritti in C.
@@ -130,7 +130,8 @@ Il tool osserva famiglie di eventi relative a:
 - cgroup e selected networking activity.
 
 Il Capitolo 1 deve citare queste famiglie, non elencare ogni hook. Il catalogo
-completo appartiene al Capitolo 4 o all'Appendice A.
+completo appartiene al Capitolo 4 o all'Appendice A; runtime Go, policy e
+detector appartengono al Capitolo 5.
 
 Fonte interna principale:
 
@@ -238,7 +239,7 @@ documentazione interna del progetto.
 
 - struttura conforme all'indice canonico;
 - nessun TODO o placeholder;
-- obiettivo generale e descrizione dei Capitoli 2-6 coerenti;
+- obiettivo generale e descrizione dei Capitoli 2-7 coerenti;
 - ogni affermazione generale supportata da una citazione;
 - nessuna novelty presentata come dimostrata senza confronto;
 - nessun dettaglio implementativo che appartenga ai Capitoli 3 o 4;

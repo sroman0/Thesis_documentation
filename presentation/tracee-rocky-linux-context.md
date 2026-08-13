@@ -25,7 +25,7 @@ Il nostro tool invece e' progettato intorno a un target preciso:
 
 ```text
 Rocky Linux / Red Hat Enterprise Linux 8
-Kernel 4.18.0-553.109.1.el8_10.x86_64
+Kernel 4.18.0-553.137.1.el8_10.x86_64
 ```
 
 Questa scelta influenza l'implementazione:

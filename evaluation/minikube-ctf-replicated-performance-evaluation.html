@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Valutazione prestazionale replicata del laboratorio AES-beta</title>
+<style>
+:root{--ink:#172033;--muted:#5f6b7d;--line:#d8dee8;--panel:#f7f9fc;--blue:#2457a6;--green:#176b43;--amber:#8a5a00;--code:#111827}
+*{box-sizing:border-box}body{margin:0;color:var(--ink);font-family:system-ui,sans-serif;line-height:1.62}main{max-width:1080px;margin:auto;padding:42px 28px 72px}
+h1{max-width:900px;line-height:1.15}h2{margin-top:42px;border-bottom:1px solid var(--line);padding-bottom:7px}p,li{max-width:100ch}code{font-family:Consolas,monospace}pre{overflow:auto;padding:15px 17px;color:#edf2f7;background:var(--code)}
+table{width:100%;border-collapse:collapse;margin:18px 0 28px;font-size:.93rem}th,td{padding:10px 11px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:#eef2f7}.box{padding:14px 17px;margin:17px 0;border-left:4px solid var(--blue);background:#f3f7fc}.ok{border-left-color:var(--green);background:#f0f8f4}.warn{border-left-color:var(--amber);background:#fff9ed}.muted{color:var(--muted)}
+</style>
+</head>
+<body><main>
+<h1>Valutazione prestazionale replicata del laboratorio AES-beta</h1>
+<p class="muted">Cinque repliche alternate per ciascun profilo, eseguite il 12 agosto 2026 sul commit base <code>497da90f564c97fb9ffc38b264398150467173f5</code>.</p>
+
+<h2>Obiettivo</h2>
+<p>
+  Questa fase verifica se il profilo operativo del monitor rimane sotto il gate
+  del 5% di un singolo core durante l'exploit AES-beta. Il confronto separa il
+  monitor con filtro UID, lo stesso monitor senza filtro e il workload senza
+  monitor. Il test conserva invariati target, trigger, detector e scenario.
+</p>
+
+<h2>Protocollo</h2>
+<p>
+  Sono state eseguite cinque repliche per i profili <code>filtered</code>,
+  <code>unfiltered</code> e <code>no-monitor</code>. L'ordine ruota a ogni tornata:
+  filtered/unfiltered/no-monitor, poi unfiltered/no-monitor/filtered, quindi
+  no-monitor/filtered/unfiltered. Ogni run ricrea il Pod e il relativo cgroup,
+  attende dieci secondi di warm-up e misura soltanto la finestra dell'exploit.
+</p>
+<p>
+  Un sampler eseguito sul nodo legge simultaneamente i contatori cgroup v1 del
+  container primario, quelli del target quando presente e <code>/proc/stat</code>
+  per il nodo. La CPU dei container è espressa come percentuale di un singolo
+  core; la CPU del nodo è la percentuale della capacità complessiva del nodo a
+  due CPU. Per ogni run vengono inoltre conservati memoria cgroup, RSS, PID,
+  durata, alert e diagnostiche di perdita.
+</p>
+
+<h2>Risultati aggregati</h2>
+<table>
+<thead><tr><th>Profilo</th><th>CPU primaria media</th><th>Deviazione</th><th>Intervallo delle medie</th><th>P95 medio dei run</th><th>CPU nodo media</th><th>Durata media</th><th>Alert</th></tr></thead>
+<tbody>
+<tr><td>Filtered</td><td><strong>0,39%</strong></td><td>0,02</td><td>0,36-0,41%</td><td>0,92%</td><td>94,70%</td><td>54,85 s</td><td>5/5</td></tr>
+<tr><td>Unfiltered</td><td>4,87%</td><td>0,11</td><td>4,73-4,98%</td><td>7,72%</td><td>95,11%</td><td>61,33 s</td><td>5/5</td></tr>
+<tr><td>No monitor</td><td>34,80% target</td><td>3,57</td><td>28,66-37,74%</td><td>67,72% target</td><td>94,89%</td><td>56,27 s</td><td>Non applicabile</td></tr>
+</tbody>
+</table>
+
+<div class="box ok">
+  <strong>Gate operativo superato.</strong> La CPU user-space del container
+  monitor nel profilo filtered è rimasta sotto il 5% in tutte le cinque
+  repliche. Anche il P95 medio dei run, pari allo 0,92%, resta sotto la soglia.
+</div>
+
+<p>
+  Il profilo unfiltered rimane appena sotto il 5% nelle medie dei singoli run,
+  ma non conserva un margine operativo: il massimo è 4,98% e il P95 medio sale
+  al 7,72%. Il filtro UID è associato a una riduzione del 91,99% della CPU media
+  user-space del monitor rispetto allo stesso scenario senza filtro.
+</p>
+
+<h2>Memoria, durata e correttezza funzionale</h2>
+<table>
+<thead><tr><th>Profilo</th><th>Memoria cgroup massima</th><th>RSS massima</th><th>Durata mediana</th><th>Perdite diagnosticate</th></tr></thead>
+<tbody>
+<tr><td>Filtered</td><td>100,51 MiB</td><td>39,36 MiB</td><td>52,79 s</td><td>0</td></tr>
+<tr><td>Unfiltered</td><td>112,16 MiB</td><td>46,02 MiB</td><td>61,87 s</td><td>0</td></tr>
+<tr><td>No monitor</td><td>19,02 MiB target</td><td>6,88 MiB target</td><td>52,93 s</td><td>Non applicabile</td></tr>
+</tbody>
+</table>
+<p>
+  Tutti i dieci run monitorati hanno prodotto l'unico alert collective atteso.
+  Non sono comparse diagnostiche di perdita perf. Il profilo filtered non mostra
+  un aumento della durata rispetto alla baseline nelle medie osservate; tuttavia
+  l'exploit è variabile e cinque repliche su un solo nodo non giustificano una
+  conclusione generale sulla latenza o sull'overhead end-to-end.
+</p>
+
+<h2>Interpretazione corretta</h2>
+<div class="box warn">
+  <strong>Confine della conclusione.</strong> Il risultato sotto il 5% riguarda
+  la CPU user-space del container <code>project-monitor</code>. I programmi eBPF
+  vengono eseguiti nel contesto dei task osservati e il loro costo non è
+  necessariamente addebitato allo stesso cgroup. Il nodo era inoltre quasi
+  saturo dalla challenge e dal trigger in tutti i profili. Non si afferma quindi
+  che l'overhead totale del sistema sia pari allo 0,39%.
+</div>
+<p>
+  Le medie di CPU del nodo sono molto simili tra i profili e rimangono tra
+  94,70% e 95,11%. Questa misura conferma che il workload domina il nodo, ma non
+  ha risoluzione sufficiente per attribuire differenze inferiori al punto
+  percentuale al monitor. Il risultato più solido del test è l'effetto del
+  filtro sul processo user-space a funzionalità invariata.
+</p>
+
+<h2>Riproducibilità</h2>
+<pre><code>KUBECTL='sudo /usr/local/bin/minikube kubectl --' \
+MINIKUBE='sudo /usr/local/bin/minikube' \
+REPETITIONS=5 DURATION_SECONDS=90 WARMUP_SECONDS=10 \
+CPU_THRESHOLD=5.0 \
+  ./k8s/minikube-ctf/scripts/run-replicated-performance.sh</code></pre>
+<p>
+  I dati grezzi, le serie TSV, gli output degli exploit e i riepiloghi si trovano
+  in <code>demo_project/k8s/minikube-ctf/evidence/step10-replicated-performance-20260812T072832Z/</code>.
+  Il riepilogo può essere rigenerato senza ripetere gli exploit tramite
+  <code>summarize-replicated-performance.sh</code>.
+</p>
+
+<h2>Conclusione</h2>
+<p>
+  Nel profilo operativo valutato, il monitor soddisfa il gate definito per la
+  propria CPU user-space e mantiene la detection in tutti i run. Il filtraggio
+  UID anticipato è quindi una misura prestazionale determinante per questo
+  scenario. La conclusione deve rimanere legata al laboratorio, al kernel, alla
+  selezione di eventi e al detector impiegati.
+</p>
+</main></body>
+</html>

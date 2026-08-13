@@ -16,7 +16,7 @@
 | Tool della tesi | `the proposed tool`, `the prototype`, `the monitoring agent` o `the proposed system` |
 | Tecnologia | `eBPF`, non `EBPF` o `Ebpf` |
 | Sistema operativo target | `Rocky Linux 8.10` |
-| Kernel target | `4.18.0-553.109.1.el8_10.x86_64` |
+| Kernel target | `4.18.0-553.137.1.el8_10.x86_64` |
 | Spazio kernel | `kernel space` |
 | Spazio utente | `user space` come sostantivo, `user-space` come aggettivo |
 | Runtime security | `runtime security monitoring` |

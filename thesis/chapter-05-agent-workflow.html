@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 5 Agentic Writing Workflow</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #18202a;
+      --muted: #5b6572;
+      --line: #cbd2d9;
+      --paper: #ffffff;
+      --panel: #f5f7f9;
+      --accent: #0f5e75;
+      --accent-soft: #e8f3f6;
+      --warning: #8a4b08;
+      --warning-soft: #fff4df;
+      --success: #23633d;
+      --success-soft: #eaf6ee;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 16px/1.58 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(210px, 270px) minmax(0, 980px);
+      gap: 2rem;
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 5rem;
+    }
+    nav {
+      position: sticky;
+      top: 1rem;
+      align-self: start;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 1rem;
+    }
+    nav strong { display: block; margin-bottom: .6rem; }
+    nav a {
+      display: block;
+      color: var(--accent);
+      padding: .28rem 0;
+      text-decoration: none;
+    }
+    nav a:hover { text-decoration: underline; }
+    main { min-width: 0; }
+    h1, h2, h3 { line-height: 1.2; letter-spacing: 0; }
+    h1 { margin-top: 0; font-size: 2rem; }
+    h2 { margin-top: 2.5rem; border-bottom: 2px solid var(--line); padding-bottom: .35rem; }
+    h3 { margin-top: 1.7rem; }
+    p, li { max-width: 82ch; }
+    code {
+      background: #edf0f3;
+      padding: .08rem .28rem;
+      overflow-wrap: anywhere;
+    }
+    pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      margin: 0;
+      padding: 1rem;
+      background: #f2f4f6;
+      border-top: 1px solid var(--line);
+      font: 13px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    th, td { border: 1px solid var(--line); padding: .65rem; text-align: left; vertical-align: top; }
+    th { background: var(--panel); }
+    .callout {
+      border-left: 5px solid var(--accent);
+      background: var(--accent-soft);
+      padding: .85rem 1rem;
+      margin: 1rem 0;
+    }
+    .warning { border-left-color: var(--warning); background: var(--warning-soft); }
+    .success { border-left-color: var(--success); background: var(--success-soft); }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(130px, 1fr));
+      gap: .55rem;
+      margin: 1rem 0;
+    }
+    .flow div {
+      border: 1px solid var(--line);
+      padding: .75rem;
+      background: var(--panel);
+    }
+    .flow b { display: block; color: var(--accent); }
+    .prompt {
+      border: 1px solid var(--line);
+      margin: 1rem 0;
+      background: var(--paper);
+    }
+    .prompt summary {
+      cursor: pointer;
+      padding: .85rem 1rem;
+      font-weight: 700;
+      background: var(--panel);
+    }
+    .prompt .meta { padding: .7rem 1rem; color: var(--muted); }
+    .pill {
+      display: inline-block;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: .12rem .55rem;
+      margin-right: .3rem;
+      font-size: .88rem;
+      background: var(--paper);
+    }
+    .gate { color: var(--success); font-weight: 700; }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      nav { position: static; }
+      .flow { grid-template-columns: 1fr; }
+    }
+    @media print {
+      nav { display: none; }
+      .layout { display: block; max-width: none; padding: 0; }
+      details { break-inside: avoid; }
+      details > * { display: block; }
+      .prompt { break-before: page; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav aria-label="Workflow navigation">
+    <strong>Chapter 5 workflow</strong>
+    <a href="#decision">Editorial decision</a>
+    <a href="#boundaries">Ownership boundaries</a>
+    <a href="#pipeline">Agent pipeline</a>
+    <a href="#wave1">Wave 1: audits</a>
+    <a href="#wave2">Wave 2: synthesis</a>
+    <a href="#wave3">Wave 3: writing</a>
+    <a href="#wave4">Wave 4: review</a>
+    <a href="#acceptance">Acceptance gates</a>
+    <a href="#state">Current state</a>
+  </nav>
+
+  <main>
+    <h1>Chapter 5 Agentic Writing Workflow</h1>
+    <p>
+      This document is the operational roadmap for rebuilding
+      <strong>User-Space Runtime and Detection Implementation</strong>. Agent
+      communication is HTML-first: every audit, synthesis and review must be a
+      valid standalone HTML document that can be inspected in a browser,
+      printed, and compared with the other handoffs.
+    </p>
+
+    <section id="decision">
+      <h2>Editorial Decision</h2>
+      <div class="callout">
+        <strong>The previous prose is not the new baseline.</strong>
+        <code>chapter5.tex</code> has been reset to headings and stable labels.
+        The committed draft remains recoverable from Git, but agents must
+        rebuild claims from current code, tests and authoritative documentation.
+      </div>
+      <p>
+        Chapter 5 begins where Chapter 4 ends: a binary record has crossed the
+        perf-buffer boundary. It explains how the Go runtime loads and owns the
+        monitoring session, converts records into typed events, applies event
+        scope, evaluates policies and detectors, and separates security output
+        from operational logging. It does not repeat general eBPF theory,
+        kernel hook implementations, system-design rationale or experimental
+        results.
+      </p>
+      <p>
+        The current section plan is provisional. The synthesis agent may merge,
+        rename or reorder sections when this removes repetition, but it must
+        preserve the ownership boundaries below and provide a migration table
+        for every changed heading or label.
+      </p>
+    </section>
+
+    <section id="boundaries">
+      <h2>Ownership Boundaries</h2>
+      <table>
+        <thead>
+          <tr><th>Material</th><th>Primary owner</th><th>Chapter 5 rule</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>General eBPF loading, maps, verifier, BTF and transport theory</td>
+            <td>Chapter 2</td>
+            <td>Refer to it; explain only the concrete Go implementation.</td>
+          </tr>
+          <tr>
+            <td>Requirements, architecture, policy semantics and bounded-correlation design</td>
+            <td>Chapter 3</td>
+            <td>Explain how those decisions are implemented, not why they were chosen again.</td>
+          </tr>
+          <tr>
+            <td>eBPF producers, hook families, binary writer and kernel compatibility</td>
+            <td>Chapter 4</td>
+            <td>Start from the delivered record and avoid repeating C-side mechanics.</td>
+          </tr>
+          <tr>
+            <td>Go bootstrap, registry planning, decoding, admission, policy, detector, output and logging</td>
+            <td>Chapter 5</td>
+            <td>Describe verified implementation mechanisms and their limits.</td>
+          </tr>
+          <tr>
+            <td>Functional tests, alert examples, CPU, memory, loss and detector quality</td>
+            <td>Chapter 6</td>
+            <td>Cite tests only as implementation evidence; do not report evaluation conclusions.</td>
+          </tr>
+          <tr>
+            <td>Networking implementation and network detector rules</td>
+            <td>Outside the authored contribution</td>
+            <td>Exclude from the chapter and from coverage claims.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout warning">
+        <strong>Non-negotiable constraints.</strong> Never use the internal tool
+        name. Use British English. Describe deterministic rules, not machine
+        learning or general anomaly discovery. Do not claim enforcement,
+        cluster-wide correlation, Kubernetes integration, production readiness
+        or a universal CPU result below five per cent.
+      </div>
+    </section>
+
+    <section id="pipeline">
+      <h2>Agent Pipeline</h2>
+      <div class="flow" aria-label="Five-stage workflow">
+        <div><b>Wave 1</b>Four independent technical audits</div>
+        <div><b>Gate A</b>Human check of evidence and conflicts</div>
+        <div><b>Wave 2</b>One editorial synthesis</div>
+        <div><b>Wave 3</b>One LaTeX writer plus HTML report</div>
+        <div><b>Wave 4</b>Independent technical and editorial review</div>
+      </div>
+      <p>
+        Agents in Wave 1 run in parallel and write different files. Wave 2 may
+        start only after all four outputs exist. Wave 3 may start only after the
+        synthesis has been reviewed. Wave 4 must inspect the implementation
+        independently rather than trusting the synthesis or writer.
+      </p>
+
+      <table>
+        <thead><tr><th>Wave</th><th>Writes Thesis?</th><th>HTML handoff</th></tr></thead>
+        <tbody>
+          <tr><td>1: technical audits</td><td>No</td><td>Four evidence reports</td></tr>
+          <tr><td>2: editorial synthesis</td><td>No</td><td><code>editorial-synthesis.html</code></td></tr>
+          <tr><td>3: chapter writer</td><td>Only <code>chapter5.tex</code></td><td><code>writing-report.html</code></td></tr>
+          <tr><td>4: independent review</td><td>No</td><td><code>final-review.html</code></td></tr>
+          <tr><td>5: approved corrections</td><td>Only after user approval</td><td>Update review status and change ledger</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="wave1">
+      <h2>Wave 1: Four Parallel Audits</h2>
+      <p>
+        Launch these four prompts in parallel. Each agent records the inspected
+        commit and dirty working tree, distinguishes committed from uncommitted
+        behaviour, and treats current code and tests as authoritative.
+      </p>
+
+      <details class="prompt">
+        <summary>Agent 1: Runtime Bootstrap, Probe Planning and Lifecycle</summary>
+        <div class="meta">
+          Output: <code>documentation/thesis/agent-output/chapter-05/runtime-lifecycle-audit.html</code>
+        </div>
+        <pre>You are the runtime bootstrap, probe-planning and lifecycle auditor for Chapter 5
+of an MSc thesis about an eBPF-based runtime security monitoring system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-05-agent-workflow.html
+- /home/simone/project/documentation/thesis/chapters/chapter-05-userspace-detection-implementation.html
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+
+Inspect current implementation and tests under:
+- /home/simone/project/demo_project/cmd/project
+- /home/simone/project/demo_project/pkg/cmd
+- /home/simone/project/demo_project/pkg/config
+- /home/simone/project/demo_project/pkg/ebpf/project.go
+- /home/simone/project/demo_project/pkg/ebpf/probes
+- /home/simone/project/demo_project/pkg/cmd/initialize
+
+Record the demo_project commit and working-tree status. Prefer committed code and
+label every uncommitted behaviour.
+
+Audit:
+1. CLI/config validation and construction of the runtime configuration;
+2. embedded versus external eBPF object and BTF resolution;
+3. logical-event selection, policy-derived scope and dependency expansion;
+4. public producer probes versus internal support probes;
+5. selective autoload before object loading;
+6. configuration-map updates and perf-reader creation;
+7. attach routing for every implemented probe kind;
+8. resource ownership, partial-initialisation cleanup, cancellation and shutdown;
+9. tests that establish registry and lifecycle invariants;
+10. limitations that belong in implementation prose rather than evaluation.
+
+Produce:
+- an end-to-end bootstrap sequence;
+- a component and ownership table;
+- a claim-to-code-and-test matrix;
+- a list of stale or unsupported claims from prior documentation;
+- a paragraph plan for the Chapter 5 runtime section;
+- at most two body-listing candidates, each 8-18 lines, with a reason why the
+  listing replaces prose;
+- a redundancy ledger against Chapters 2, 3 and 4;
+- unresolved questions.
+
+Do not analyse detector algorithms, output rendering, networking or benchmark
+results. Do not modify Thesis, demo_project or any other file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-05/runtime-lifecycle-audit.html</pre>
+      </details>
+
+      <details class="prompt">
+        <summary>Agent 2: Event Decoder, Registry and Admission Path</summary>
+        <div class="meta">
+          Output: <code>documentation/thesis/agent-output/chapter-05/event-decoder-admission-audit.html</code>
+        </div>
+        <pre>You are the event-decoder, registry and admission-path auditor for Chapter 5 of
+an MSc thesis about an eBPF-based runtime security monitoring system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-05-agent-workflow.html
+- /home/simone/project/documentation/thesis/chapters/chapter-05-userspace-detection-implementation.html
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+
+Inspect current implementation and tests under:
+- /home/simone/project/demo_project/pkg/bufferdecoder
+- /home/simone/project/demo_project/pkg/events
+- /home/simone/project/demo_project/pkg/ebpf/probes
+- /home/simone/project/demo_project/pkg/ebpf/project.go
+- /home/simone/project/demo_project/pkg/policy
+
+Record the demo_project commit and dirty working tree. Verify all claims against
+current code and tests.
+
+Audit:
+1. perf-record consumption and the exact point at which decoding begins;
+2. the Go representation of the fixed event context;
+3. schema-directed indexed argument decoding and supported payload families;
+4. missing, duplicate, unknown, truncated and oversized argument behaviour;
+5. the authoritative relationship between event and probe registries;
+6. public events, multi-probe logical events and internal probes;
+7. whether decoding itself is the normalisation boundary;
+8. post-decode event, comm and policy admission;
+9. where rejected events stop and how alerts-only changes presentation;
+10. errors, lost records and malformed records as distinct paths.
+
+Produce:
+- a record-to-admitted-event pipeline;
+- a malformed-input behaviour matrix;
+- a registry invariant matrix with exact tests;
+- a precise answer to what normalisation means in this codebase;
+- a paragraph plan for decoder and admission material;
+- at most two source-listing candidates;
+- a redundancy ledger against Chapters 3 and 4;
+- unresolved contract risks, including cross-language ID maintenance.
+
+Do not repeat the C serializer, write evaluation results, or inspect networking
+decoders. Do not modify Thesis, demo_project or any other file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-05/event-decoder-admission-audit.html</pre>
+      </details>
+
+      <details class="prompt">
+        <summary>Agent 3: Policy, Detector and Correlation Engine</summary>
+        <div class="meta">
+          Output: <code>documentation/thesis/agent-output/chapter-05/policy-detector-engine-audit.html</code>
+        </div>
+        <pre>You are the policy, detector and local-correlation implementation auditor for
+Chapter 5 of an MSc thesis about an eBPF-based runtime security monitoring
+system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-05-agent-workflow.html
+- /home/simone/project/documentation/thesis/chapters/chapter-05-userspace-detection-implementation.html
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+- /home/simone/project/documentation/next-steps/detectors-and-correlations.md
+
+Inspect current implementation, tests and non-network rule examples under:
+- /home/simone/project/demo_project/pkg/policy
+- /home/simone/project/demo_project/pkg/detectors
+- /home/simone/project/demo_project/rules/policies
+- /home/simone/project/demo_project/rules/detectors
+- /home/simone/project/demo_project/pkg/ebpf/project.go
+
+Exclude net_detector.yaml, test_net.yaml and all networking implementation from
+the authored contribution. Record the demo_project commit and dirty working tree.
+
+Audit:
+1. YAML loading, deterministic directory ordering, schema conversion and validation;
+2. policy defaults, scope, event rules, suppression and detector selection;
+3. bootstrap compilation versus event-time policy work;
+4. detector registry, event-indexed dispatch and failure isolation;
+5. point-detector matching and alert evidence;
+6. collective sequence state and transition semantics;
+7. process, immediate-parent, resource, cgroup and composite correlation;
+8. unsupported user-session correlation and every missing-data rule;
+9. time windows, state capacity, expiry, eviction, flush and deduplication;
+10. ATT&amp;CK validation, policy selection and alert propagation;
+11. exact numerical limits and their single source of truth;
+12. tests and benchmarks that establish implementation behaviour without
+    turning Chapter 5 into an evaluation chapter.
+
+Produce:
+- a bootstrap-versus-event-time pipeline;
+- a policy/detector responsibility matrix;
+- a state-machine description for collective detectors;
+- a correlation-strategy matrix;
+- a numerical-limit ownership table;
+- a claim-to-code-and-test matrix;
+- a paragraph plan with one primary owner for each mechanism;
+- at most two source-listing candidates;
+- a redundancy audit against Chapter 3;
+- factual corrections to the provisional Chapter 5 outline;
+- unresolved questions.
+
+Describe deterministic rule matching, not machine learning or general anomaly
+discovery. Do not claim contextual or cluster-wide correlation. Do not modify
+Thesis, demo_project or any other file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-05/policy-detector-engine-audit.html</pre>
+      </details>
+
+      <details class="prompt">
+        <summary>Agent 4: Output, Logging, Packaging and Redundancy Curator</summary>
+        <div class="meta">
+          Output: <code>documentation/thesis/agent-output/chapter-05/output-logging-packaging-audit.html</code>
+        </div>
+        <pre>You are the output, structured-logging, packaging and editorial-boundary auditor
+for Chapter 5 of an MSc thesis about an eBPF-based runtime security monitoring
+system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-05-agent-workflow.html
+- /home/simone/project/documentation/thesis/chapters/chapter-05-userspace-detection-implementation.html
+- /home/simone/project/Thesis/content/chapters/chapter1.tex
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+
+Inspect current implementation and tests under:
+- /home/simone/project/demo_project/pkg/output
+- /home/simone/project/demo_project/pkg/logging
+- /home/simone/project/demo_project/pkg/cmd
+- /home/simone/project/demo_project/pkg/config
+- /home/simone/project/demo_project/Dockerfile
+- /home/simone/project/demo_project/Makefile
+- /home/simone/project/demo_project/README.md
+
+Record the demo_project commit and dirty working tree. Exclude networking output
+and network detectors from the authored contribution.
+
+Audit:
+1. raw-event versus alert data models;
+2. table and JSON output ownership and human-readable value adaptation;
+3. point versus collective alert evidence presentation;
+4. stdout security data versus stderr operational diagnostics;
+5. Zap construction, levels, encodings and libbpf callback routing;
+6. pre-logger and post-logger error boundaries;
+7. container build stages, embedded object and runtime dependencies;
+8. policy/detector catalogue packaging and required external mounts;
+9. privileges, host resources and unsupported Kubernetes claims;
+10. redundancy across Chapters 1-4 and the provisional Chapter 5 structure.
+
+Produce:
+- an output-channel contract matrix;
+- an error and logging path map;
+- a packaging claim-to-source matrix;
+- a concise paragraph plan;
+- at most one source-listing candidate;
+- a chapter-wide listing budget recommendation of no more than six body
+  listings in total;
+- material to move to Chapter 6 or an appendix;
+- terminology and British-English corrections;
+- unresolved questions.
+
+Do not report benchmark results, claim production readiness, or describe
+networking contributions. Do not modify Thesis, demo_project or any other file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-05/output-logging-packaging-audit.html</pre>
+      </details>
+    </section>
+
+    <section id="wave2">
+      <h2>Wave 2: Editorial Synthesis</h2>
+      <p class="gate">Gate A: start only when all four Wave 1 files exist and have been inspected.</p>
+      <details class="prompt">
+        <summary>Agent 5: Technical Editorial Synthesiser</summary>
+        <div class="meta">
+          Output: <code>documentation/thesis/agent-output/chapter-05/editorial-synthesis.html</code>
+        </div>
+        <pre>You are the technical editorial synthesiser for Chapter 5 of an MSc thesis about
+an eBPF-based runtime security monitoring system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-05-agent-workflow.html
+- /home/simone/project/documentation/thesis/chapters/chapter-05-userspace-detection-implementation.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-05/runtime-lifecycle-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-05/event-decoder-admission-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-05/policy-detector-engine-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-05/output-logging-packaging-audit.html
+- /home/simone/project/Thesis/content/chapters/chapter1.tex
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+- /home/simone/project/Thesis/content/chapters/chapter5.tex
+
+Inspect current demo_project code and tests wherever the four reports conflict.
+Record the verified commit and dirty working tree. Audit reports are evidence
+collections, not authority.
+
+Produce one binding editorial specification containing:
+1. resolved factual conflicts and rejected claims;
+2. the final Chapter 5 section/subsection structure and label migration table;
+3. a paragraph-level narrative plan with one owner for every mechanism;
+4. explicit bridges from Chapter 4 and towards Chapter 6;
+5. a no-repetition matrix against Chapters 2, 3 and 4;
+6. a source-listing budget of at most six listings, normally 8-18 lines each;
+7. a figure/table budget and the exact question answered by each visual;
+8. numerical limits with one primary location;
+9. claim-to-code, test and citation evidence;
+10. material excluded as networking, evaluation, appendix or future work;
+11. British-English and terminology rules specific to this chapter;
+12. an ordered writing checklist and acceptance checklist.
+
+Prefer architectural explanation of implementation over package-by-package or
+function-by-function narration. Avoid exhaustive flag, event and YAML catalogues.
+Do not modify Thesis, demo_project or any other file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-05/editorial-synthesis.html</pre>
+      </details>
+    </section>
+
+    <section id="wave3">
+      <h2>Wave 3: Controlled LaTeX Writing</h2>
+      <p class="gate">Gate B: start only after the editorial synthesis is approved.</p>
+      <details class="prompt">
+        <summary>Agent 6: Chapter Writer</summary>
+        <div class="meta">
+          Writes: <code>Thesis/content/chapters/chapter5.tex</code><br>
+          Reports: <code>documentation/thesis/agent-output/chapter-05/writing-report.html</code>
+        </div>
+        <pre>You are the sole LaTeX writer for Chapter 5 of an MSc thesis about an eBPF-based
+runtime security monitoring system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-05-agent-workflow.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-05/editorial-synthesis.html
+- /home/simone/project/Thesis/content/chapters/chapter1.tex
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+- /home/simone/project/Thesis/content/chapters/chapter5.tex
+- /home/simone/project/Thesis/bibliography.bib
+- /home/simone/project/Thesis/glossaries.tex
+
+Inspect the current demo_project implementation and tests for every technical
+claim selected by the synthesis. Record the commit and dirty state in the HTML
+report, not in the thesis prose.
+
+Rewrite Chapter 5 according to the approved synthesis. Requirements:
+- clear academic British English;
+- implementation-focused narrative, not a repository walkthrough;
+- no repeated eBPF theory, architecture rationale or kernel-hook catalogue;
+- policies and detectors remain distinct;
+- point and collective detection are deterministic;
+- local correlation limits are stated once;
+- ATT&amp;CK is classification metadata, not proof of correctness or coverage;
+- networking, cluster-wide context, enforcement and evaluation results are excluded;
+- no more than the approved listing and visual budgets;
+- every listing is faithful, abridged transparently and explained architecturally;
+- preserve or migrate labels exactly as specified by the synthesis;
+- do not modify the abstract or any other chapter.
+
+Run static label, citation and diff checks. Run the full LaTeX build if the local
+environment permits it; report missing dependencies honestly.
+
+Modify only:
+/home/simone/project/Thesis/content/chapters/chapter5.tex
+
+Write a valid standalone HTML change report only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-05/writing-report.html
+
+The report must contain the inspected commit, changed structure, listing and
+visual inventory, validation results, unresolved warnings and a claim ledger.</pre>
+      </details>
+    </section>
+
+    <section id="wave4">
+      <h2>Wave 4: Independent Review</h2>
+      <p class="gate">Gate C: the reviewer must not be the synthesis or writing agent.</p>
+      <details class="prompt">
+        <summary>Agent 7: Independent Technical and Editorial Reviewer</summary>
+        <div class="meta">
+          Output: <code>documentation/thesis/agent-output/chapter-05/final-review.html</code>
+        </div>
+        <pre>You are the independent technical and editorial reviewer for Chapter 5 of an
+MSc thesis about an eBPF-based runtime security monitoring system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-05-agent-workflow.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-05/editorial-synthesis.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-05/writing-report.html
+- /home/simone/project/Thesis/content/chapters/chapter1.tex
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+- /home/simone/project/Thesis/content/chapters/chapter5.tex
+
+Inspect current implementation and relevant tests under:
+- /home/simone/project/demo_project/pkg/cmd
+- /home/simone/project/demo_project/pkg/config
+- /home/simone/project/demo_project/pkg/ebpf
+- /home/simone/project/demo_project/pkg/bufferdecoder
+- /home/simone/project/demo_project/pkg/events
+- /home/simone/project/demo_project/pkg/policy
+- /home/simone/project/demo_project/pkg/detectors
+- /home/simone/project/demo_project/pkg/output
+- /home/simone/project/demo_project/pkg/logging
+- /home/simone/project/demo_project/Dockerfile
+
+Record the commit and dirty tree. Verify independently rather than assuming the
+synthesis or writing report is correct.
+
+Produce:
+1. factual errors, stale claims and implementation omissions;
+2. confusion between probes, events, records, policies, detectors and alerts;
+3. incorrect normalisation, admission or output boundaries;
+4. inaccurate state, correlation, expiry, deduplication or ATT&amp;CK claims;
+5. unsupported packaging, portability, Kubernetes or performance claims;
+6. paragraph-level repetition against Chapters 2, 3 and 4;
+7. internal repetition within Chapter 5;
+8. inaccurate, overlong, redundant or unexplained listings and visuals;
+9. numerical-limit ownership conflicts;
+10. networking or evaluation material that violates scope;
+11. terminology, British English, citation, glossary, label and LaTeX issues;
+12. an edit list ordered by severity and a final acceptance checklist.
+
+Run static checks and a full thesis build if available. Report blockers. Do not
+modify Thesis, demo_project or any other file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-05/final-review.html</pre>
+      </details>
+    </section>
+
+    <section id="acceptance">
+      <h2>Acceptance Gates</h2>
+      <table>
+        <thead><tr><th>Gate</th><th>Required evidence</th></tr></thead>
+        <tbody>
+          <tr><td>A: audits complete</td><td>Four standalone HTML files, commit/status recorded, conflict lists present.</td></tr>
+          <tr><td>B: synthesis approved</td><td>Final structure, ownership matrix, listing budget and rejected claims agreed.</td></tr>
+          <tr><td>C: draft reviewable</td><td>LaTeX chapter plus HTML writing report, no unresolved static references.</td></tr>
+          <tr><td>D: chapter accepted</td><td>No critical review findings, build result recorded, remaining limitations assigned to Chapter 6 or future work.</td></tr>
+        </tbody>
+      </table>
+
+      <ul>
+        <li>No package-by-package catalogue and no repeated end-to-end pipeline in every section.</li>
+        <li>Every mechanism has one primary explanatory location.</li>
+        <li>Every numerical limit matches current code and appears in one primary paragraph.</li>
+        <li>Listings replace prose rather than duplicate it.</li>
+        <li>Tests support implementation claims; Chapter 6 owns measured outcomes.</li>
+        <li>All external technical background claims use verified bibliography entries.</li>
+        <li>The final chapter contains no internal project name or networking contribution.</li>
+      </ul>
+    </section>
+
+    <section id="state">
+      <h2>Current State</h2>
+      <div class="callout success">
+        <span class="pill">Reset complete</span>
+        <span class="pill">HTML-first</span>
+        <span class="pill">Wave 1 ready</span>
+        <p>
+          The LaTeX file currently contains only the provisional headings and
+          stable labels. The next action is to launch the four Wave 1 agents in
+          parallel. No synthesis or prose writing should begin before their
+          reports are available.
+        </p>
+      </div>
+    </section>
+  </main>
+</div>
+</body>
+</html>

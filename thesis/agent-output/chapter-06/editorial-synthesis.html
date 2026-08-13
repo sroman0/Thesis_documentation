@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chapter 6 Binding Editorial Synthesis</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17202a;
+      --muted: #56616c;
+      --line: #cbd3da;
+      --soft: #f4f6f7;
+      --blue: #174a7e;
+      --green: #17633b;
+      --amber: #815800;
+      --red: #8a2635;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #fff;
+      color: var(--ink);
+      font: 16px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { max-width: 1120px; margin: 0 auto; padding: 40px 28px 72px; }
+    h1, h2, h3 { line-height: 1.2; color: #0d2d4b; }
+    h1 { margin: 0 0 8px; font-size: 2rem; }
+    h2 { margin-top: 42px; padding-bottom: 7px; border-bottom: 2px solid var(--line); }
+    h3 { margin-top: 28px; }
+    p, li { max-width: 92ch; }
+    code { background: var(--soft); padding: 0.08em 0.3em; border-radius: 3px; }
+    table { width: 100%; border-collapse: collapse; margin: 18px 0 26px; font-size: 0.94rem; }
+    th, td { border: 1px solid var(--line); padding: 9px 11px; text-align: left; vertical-align: top; }
+    th { background: #eaf0f5; color: #153b60; }
+    caption { text-align: left; font-weight: 700; margin-bottom: 7px; color: #153b60; }
+    .meta, .callout { border-left: 5px solid var(--blue); background: var(--soft); padding: 14px 18px; margin: 18px 0; }
+    .accept { border-left-color: var(--green); }
+    .caution { border-left-color: var(--amber); }
+    .block { border-left-color: var(--red); }
+    .small { color: var(--muted); font-size: 0.92rem; }
+    .status { display: inline-block; padding: 2px 8px; border: 1px solid currentColor; border-radius: 3px; font-weight: 700; }
+    .yes { color: var(--green); }
+    .qualified { color: var(--amber); }
+    .no { color: var(--red); }
+    ul, ol { padding-left: 1.35rem; }
+    .tight li { margin: 4px 0; }
+    .toc a { color: var(--blue); text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Chapter 6: Binding Editorial Synthesis</h1>
+    <p class="small">Experimental Evaluation of the eBPF-based Runtime Security Monitor</p>
+  </header>
+
+  <div class="meta">
+    <strong>Status:</strong> approved evidence basis for the Chapter 6 writer.<br />
+    <strong>Verified repository:</strong> <code>demo_project</code> at
+    <code>497da90f564c97fb9ffc38b264398150467173f5</code>.<br />
+    <strong>Working tree:</strong> modified <code>.gitignore</code> and
+    <code>README.md</code>; untracked <code>k8s/</code> laboratory tree. The experimental artefacts are therefore
+    uncommitted at the inspected revision. This is ordinary provenance metadata,
+    not a technical validity blocker: no relevant monitor behaviour used in the
+    evaluation depends on a newer implementation change, and the same behaviour
+    is available in the implementation baseline used by the preceding chapters.
+  </div>
+
+  <nav class="toc" aria-label="Contents">
+    <ol>
+      <li><a href="#authority">Authority and editorial constraints</a></li>
+      <li><a href="#conflicts">Resolved conflicts and rejected claims</a></li>
+      <li><a href="#structure">Final structure and labels</a></li>
+      <li><a href="#narrative">Paragraph-level narrative</a></li>
+      <li><a href="#bridges">Chapter bridges</a></li>
+      <li><a href="#environment">Environment and protocol</a></li>
+      <li><a href="#functional">Functional results</a></li>
+      <li><a href="#performance">Performance verdict</a></li>
+      <li><a href="#visuals">Figure and table budget</a></li>
+      <li><a href="#citations">Citations and glossary</a></li>
+      <li><a href="#repetition">No-repetition matrix</a></li>
+      <li><a href="#validity">Threats to validity</a></li>
+      <li><a href="#exclusions">Excluded material</a></li>
+      <li><a href="#checklists">Writing and acceptance checklists</a></li>
+    </ol>
+  </nav>
+
+  <section id="authority">
+    <h2>1. Authority and Editorial Constraints</h2>
+    <p>This specification resolves the four audit reports against the applied
+    manifests, detector definition, scripts and raw evidence. Raw artefacts take
+    precedence over summaries; source files take precedence over design intent.
+    The chapter must be approximately 2,800-3,500 words and 12-14 pages. It may
+    contain at most three figures and three result tables, and no source-code
+    listings.</p>
+    <p>The chapter evaluates one integrated laboratory case study. It may claim
+    observation of cross-container host events, completion of one deterministic
+    collective detector sequence, behaviour in the repeated benign and exploit
+    runs, resource consumption attributed to the measured cgroups, and the
+    scenario-specific effect of exact UID filtering. It must not claim general
+    detection accuracy, total system overhead, statistical significance,
+    loss-free transport, cluster-wide correlation or Kubernetes deployment
+    readiness.</p>
+  </section>
+
+  <section id="conflicts">
+    <h2>2. Resolved Factual Conflicts and Rejected Claims</h2>
+    <table>
+      <caption>Binding conflict resolutions</caption>
+      <thead><tr><th>Issue</th><th>Resolution</th><th>Permitted wording</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Kernel build</td>
+          <td>The earlier design baseline names
+          <code>4.18.0-553.109.1.el8_10.x86_64</code>; the experiment ran on
+          Rocky Linux 8.10 kernel
+          <code>4.18.0-553.137.1.el8_10.x86_64</code>.</td>
+          <td>Present the former as the implementation target and the latter as
+          the exact experimental patch-level build. Both belong to the same Rocky
+          Linux 8.10 kernel stream; do not imply that a relevant tool feature
+          changed between them.</td>
+        </tr>
+        <tr>
+          <td>Step 6 record count</td>
+          <td>The complete file contains 7,289 records, not nine. Exactly nine
+          have UID 10001 and correspond to the directly invoked target-side
+          <code>cat</code> workflow.</td>
+          <td>“Nine UID-10001 records were isolated from the captured stream.”</td>
+        </tr>
+        <tr>
+          <td>Cross-container visibility</td>
+          <td>The monitor observed target-container activity using host
+          identifiers while <code>hostPID</code> and shared process namespaces
+          were disabled. This is same-node kernel visibility, not cluster-wide
+          visibility.</td>
+          <td>Claim node-local observation across container boundaries within
+          the Pod; do not claim Kubernetes-wide process visibility.</td>
+        </tr>
+        <tr>
+          <td>Exploit repetition</td>
+          <td>All four exploit windows produced one four-event alert. Three
+          returned the synthetic flag to the client; the third returned an empty
+          flag and exited with status 1 despite the observed shell, <code>cat</code>
+          and successful <code>open</code>.</td>
+          <td>Separate detector completion from application-output delivery. The
+          divergent run is evidence that these are different outcomes.</td>
+        </tr>
+        <tr>
+          <td>LSM evidence</td>
+          <td><code>security_file_open</code> records mediation-stage resolved
+          object evidence. Success is established only by the later
+          <code>open</code> event with a non-negative return value.</td>
+          <td>Describe the third event as mediation and the fourth as syscall
+          success evidence.</td>
+        </tr>
+        <tr>
+          <td>Collective correlation</td>
+          <td>All four evidence events in each live alert share one host PID. The
+          experiment exercises the same-process key accepted by
+          <code>process_tree</code>; it does not independently validate the
+          immediate parent-child branch.</td>
+          <td>Claim successful local same-process sequence correlation only.</td>
+        </tr>
+        <tr>
+          <td>Loss reporting</td>
+          <td>No matching perf-loss diagnostic appears in the selected windows or
+          the ten monitored performance runs. Diagnostic absence cannot prove
+          that no record was lost.</td>
+          <td>“No loss diagnostic was reported,” never “no events were lost.”</td>
+        </tr>
+        <tr>
+          <td>No-monitor profile</td>
+          <td>Its primary metric is the target cgroup, whereas the monitored
+          profiles use the monitor as primary. The columns are not directly
+          comparable as one generic “primary CPU” measure.</td>
+          <td>Use no-monitor only as workload context; do not subtract it to
+          estimate total monitor overhead.</td>
+        </tr>
+        <tr>
+          <td>Five per cent threshold</td>
+          <td>The threshold is a project-defined acceptance gate for mean CPU
+          charged to the monitor cgroup, expressed as a percentage of one core.
+          It is not a general security-monitoring standard.</td>
+          <td>State its local definition once in the protocol and report whether
+          each run met it.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout block">
+      <strong>Claims blocked unconditionally:</strong> “100% detection
+      accuracy”, false-positive or false-negative rates, “zero packet/event
+      loss”, “loss-free perf transport”, “less than 5% total overhead”, causal
+      improvement in workload duration, statistical generalisation beyond the
+      observed runs, and successful cluster-wide or enforcement behaviour.
+    </div>
+  </section>
+
+  <section id="structure">
+    <h2>3. Final Section Structure and Stable Label Plan</h2>
+    <table>
+      <caption>Binding Chapter 6 hierarchy</caption>
+      <thead><tr><th>Heading</th><th>Stable label</th><th>Target words</th></tr></thead>
+      <tbody>
+        <tr><td>Chapter: Experimental Evaluation</td><td><code>ch:experimental-evaluation</code></td><td>Opening bridge included below</td></tr>
+        <tr><td>6.1 Evaluation Objectives and Experimental Protocol</td><td><code>sec:evaluation-objectives-protocol</code></td><td>300-350</td></tr>
+        <tr><td>6.2 Minikube Environment and Three-Container Testbed</td><td><code>sec:evaluation-testbed</code></td><td>350-450</td></tr>
+        <tr><td>6.3 AES-beta Workload and Controlled Attack Scenario</td><td><code>sec:evaluation-workload</code></td><td>300-400</td></tr>
+        <tr><td>6.4 Functional Evaluation</td><td><code>sec:evaluation-functional</code></td><td>600-750</td></tr>
+        <tr><td>Cross-Container Event Visibility</td><td><code>subsec:evaluation-cross-container-visibility</code></td><td>150-200</td></tr>
+        <tr><td>Collective Detector Validation</td><td><code>subsec:evaluation-collective-detector</code></td><td>250-300</td></tr>
+        <tr><td>Benign Control and Repeated Runs</td><td><code>subsec:evaluation-functional-repetitions</code></td><td>200-250</td></tr>
+        <tr><td>6.5 Performance Evaluation</td><td><code>sec:evaluation-performance</code></td><td>800-950</td></tr>
+        <tr><td>Metrics, Sampling and Benchmark Profiles</td><td><code>subsec:evaluation-performance-method</code></td><td>250-300</td></tr>
+        <tr><td>Resource Consumption and Workload Duration</td><td><code>subsec:evaluation-resource-results</code></td><td>250-300</td></tr>
+        <tr><td>Effect of Kernel-Side UID Filtering</td><td><code>subsec:evaluation-uid-filter</code></td><td>250-300</td></tr>
+        <tr><td>6.6 Discussion</td><td><code>sec:evaluation-discussion</code></td><td>250-350</td></tr>
+        <tr><td>6.7 Threats to Validity and Current Limitations</td><td><code>sec:evaluation-threats-validity</code></td><td>350-450</td></tr>
+        <tr><td>6.8 Evaluation Summary</td><td><code>sec:evaluation-summary</code></td><td>100-150</td></tr>
+      </tbody>
+    </table>
+    <p>No additional subsection is required under threats to validity. Use four
+    compact paragraphs with bold lead-ins for internal, construct, external and
+    conclusion validity. This keeps the hierarchy proportionate to a 12-14 page
+    chapter.</p>
+  </section>
+
+  <section id="narrative">
+    <h2>4. Paragraph-Level Narrative and Ownership</h2>
+    <h3>Opening and Section 6.1</h3>
+    <ol>
+      <li>Bridge from Chapters 4-5: the collection and user-space pipeline are
+      now assessed as one integrated prototype; do not summarise their internals.</li>
+      <li>State three evaluation questions: whether target-container activity is
+      visible to the monitor; whether the configured four-stage sequence is
+      assembled under controlled benign/exploit workloads; and how filtered and
+      unfiltered monitoring profiles differ in measured monitor-cgroup resource use.</li>
+      <li>Define the two campaigns: seven functional windows (three benign, four
+      exploit) and fifteen performance runs (five for each of three profiles).
+      Identify run IDs, preserved per-window logs and scenario output as the
+      evidence boundary.</li>
+      <li>State the 5% gate precisely and qualify descriptive statistics. This is
+      the sole owner of evaluation criteria.</li>
+    </ol>
+
+    <h3>Section 6.2</h3>
+    <ol>
+      <li>Describe the host and Minikube node using Table 6.1. Distinguish the
+      actual experimental kernel from the earlier implementation-target patch level.</li>
+      <li>Explain the one-Pod, three-container topology with Figure 6.1. Emphasise
+      shared Pod networking but separate process namespaces.</li>
+      <li>State the security boundary: target and trigger are non-root with all
+      capabilities dropped; monitor is privileged root with host BTF, bpffs and
+      tracefs mounts. This is an experimental requirement, not a least-privilege result.</li>
+      <li>Close with reproducibility identifiers: pinned Kubernetes version,
+      challenge revision/checksums, image identities and configuration hashes are
+      archived. Keep complete digests and hashes outside the body.</li>
+    </ol>
+
+    <h3>Section 6.3</h3>
+    <ol>
+      <li>Introduce AES-beta as a pinned public CTF workload adapted into a
+      controlled laboratory. State that the flag is synthetic.</li>
+      <li>Describe the benign request and exploit outcome at behavioural level.
+      Do not explain exploit construction, ROP chains or commands.</li>
+      <li>Explain why the detector expects shell execution, <code>cat</code>
+      execution, resolved flag mediation and a successful caller-side open,
+      all for UID 10001 within five seconds and a local process relationship.</li>
+      <li>Use Figure 6.2 to establish what each evidence stage proves. This is the
+      sole owner of the applied detector sequence.</li>
+    </ol>
+
+    <h3>Section 6.4</h3>
+    <ol>
+      <li>Cross-container subsection: report the nine UID-10001 records within the
+      larger stream, including successful <code>/bin/cat</code> execution and flag
+      open, and relate container PID 327 to host PID 3016236.</li>
+      <li>Detector subsection: walk once through the four ordered event types from
+      a representative alert. Explain same host PID, sub-millisecond event-time
+      span and ATT&amp;CK metadata, but do not call the span alert latency.</li>
+      <li>Repeated-run subsection: present Table 6.2. Explain three benign windows
+      with no alert, four exploit windows with one alert each, and the divergent
+      third client outcome.</li>
+      <li>Conclude narrowly: the experiment validates the configured sequence on
+      these controlled runs, not general detection accuracy.</li>
+    </ol>
+
+    <h3>Section 6.5</h3>
+    <ol>
+      <li>Define three profiles: filtered monitor, otherwise equivalent unfiltered
+      monitor, and target-only no-monitor context. State the rotating cyclic order
+      and Pod recreation before each run.</li>
+      <li>Define metrics and scales: cgroup-v1 CPU charged over wall time as a
+      percentage of one core; node CPU over the two-core node; cgroup memory,
+      RSS and PID count; internal workload duration. Explain 10-second warm-up
+      and approximately one-second nominal sampling.</li>
+      <li>Present Table 6.3. Keep monitor metrics separate from target/context
+      metrics and report n=5 with mean and sample standard deviation across run means.</li>
+      <li>Use Figure 6.3 for all five monitor CPU run means. State that every
+      filtered run mean was 0.36-0.41%, while unfiltered was 4.73-4.98%.</li>
+      <li>Calculate and report the approximately 92.0% reduction between filtered
+      and unfiltered monitor-cgroup CPU means. Mention memory maxima only as
+      observed resource consumption, not causal improvement.</li>
+      <li>Close with the saturation qualification: node CPU averaged roughly 95%
+      in all profiles, so durations and target CPU cannot isolate total overhead.</li>
+    </ol>
+
+    <h3>Sections 6.6-6.8</h3>
+    <ol>
+      <li>Discussion integrates the three findings: visibility, deterministic
+      evidence assembly and a strong scenario-specific filtering effect.</li>
+      <li>Threats to validity owns every limitation; do not scatter defensive
+      qualifications through every result paragraph.</li>
+      <li>The summary answers the three evaluation questions in one paragraph
+      and hands the bounded findings to Chapter 7.</li>
+    </ol>
+  </section>
+
+  <section id="bridges">
+    <h2>5. Bridges from Chapter 5 and towards Chapter 7</h2>
+    <div class="callout accept">
+      <strong>Opening bridge:</strong> Chapter 5 ended at the user-space output
+      and detection boundaries. Chapter 6 should begin by saying that the
+      complete path is now exercised in a controlled node-local container
+      environment, from kernel observation to the emitted alert and measured
+      runtime resource consumption.
+    </div>
+    <p>The bridge must not repeat Cobra, probe planning, decoder structure,
+    policy semantics, detector algorithms, ATT&amp;CK propagation or output
+    channel ownership. Refer to Chapter 5 when those mechanisms are needed to
+    interpret a result.</p>
+    <div class="callout accept">
+      <strong>Closing bridge:</strong> Chapter 7 may conclude that the prototype
+      demonstrated the configured node-local monitoring workflow and a marked
+      reduction in monitor-cgroup CPU under exact UID filtering in this workload.
+      It must inherit the limits on generality, total overhead and detection
+      accuracy rather than strengthening the claims.
+    </div>
+  </section>
+
+  <section id="environment">
+    <h2>6. Exact Environment and Protocol Facts</h2>
+    <table>
+      <caption>Table 6.1 content: experimental environment and controlled configuration</caption>
+      <thead><tr><th>Dimension</th><th>Binding fact</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td>Host</td><td>Rocky Linux 8.10; kernel <code>4.18.0-553.137.1.el8_10.x86_64</code></td><td>Deployment record and evaluation documentation</td></tr>
+        <tr><td>Cluster</td><td>Minikube v1.38.1, Docker driver, one node; Kubernetes v1.30.0; requested 2 CPUs and 4096 MiB</td><td><code>start-minikube.sh</code>, archived version output</td></tr>
+        <tr><td>Pod topology</td><td>One Pod, three containers; <code>hostPID: false</code>, <code>hostNetwork: false</code>, <code>shareProcessNamespace: false</code></td><td>Applied <code>pod.yaml</code></td></tr>
+        <tr><td>Target</td><td>UID/GID 10001, non-root, no privilege escalation, read-only root filesystem, all capabilities dropped</td><td>Applied <code>pod.yaml</code></td></tr>
+        <tr><td>Trigger</td><td>UID/GID 10002 with the same restrictions; communicates with target through Pod-local <code>127.0.0.1:1337</code></td><td>Applied <code>pod.yaml</code></td></tr>
+        <tr><td>Monitor</td><td>Privileged UID/GID 0, unconfined seccomp, read-only root filesystem; host BTF read-only, bpffs and tracefs mounted read-write</td><td>Applied <code>pod.yaml</code></td></tr>
+        <tr><td>Inputs</td><td>Policy selects <code>sched_process_exec</code>, <code>security_file_open</code> and <code>open</code>; detector uses a 5-second <code>process_tree</code> sequence and exact UID 10001 kernel filter in the filtered profile</td><td>ConfigMap, detector YAML, Pod arguments</td></tr>
+        <tr><td>Provenance</td><td>openECSC revision <code>2602f22c664eb98398413e6a7dfe03ea88b2d296</code>; challenge binary, loader and libc checked against archived SHA-256 values; synthetic flag</td><td>Experiment design, <code>prepare-upstream.sh</code>, deployment script</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Functional protocol timeline</h3>
+    <ol>
+      <li>Start the pinned Minikube profile and deploy the namespace, policy,
+      detector, synthetic flag and three-container Pod.</li>
+      <li>Wait for Pod readiness and preserve the applied Pod, image identities,
+      Kubernetes version and configuration hashes.</li>
+      <li>Verify same-node workload telemetry with <code>hostPID: false</code> and
+      isolate UID-10001 target records from the wider monitor stream.</li>
+      <li>Execute three benign windows and four exploit windows with unique run
+      identifiers. Capture scenario output, stderr and time-bounded logs from all
+      containers.</li>
+      <li>Count only alerts and loss diagnostics inside each preserved window;
+      do not use the complete accumulated monitor log as a run total.</li>
+    </ol>
+
+    <h3>Performance protocol timeline</h3>
+    <ol>
+      <li>Run five rounds. Rotate profile order cyclically: filtered, unfiltered,
+      no-monitor; then shift the starting profile in subsequent rounds.</li>
+      <li>Recreate the Pod and wait for readiness before every profile run.</li>
+      <li>Start cgroup and node sampling, allow a 10-second warm-up, then execute
+      the exploit workload. The nominal run ceiling is 90 seconds, while the
+      workload determines the actual selected interval.</li>
+      <li>Select samples whose timestamps fall within the externally recorded
+      workload boundaries. Preserve per-run TSV, summary, scenario output and
+      monitor log where present.</li>
+      <li>Aggregate the five run means per profile and retain the individual
+      values for the paired visual. Treat ordering as rotated, not randomised.</li>
+    </ol>
+
+    <p class="small">The requested node capacity is recorded by the launch
+    command, but a realised capacity/allocatable snapshot is not archived. The
+    sampling path uses cgroup v1. Sampling intervals varied in practice because
+    each read was performed through the Minikube SSH path.</p>
+  </section>
+
+  <section id="functional">
+    <h2>7. Functional Result Tables Derived from Raw Evidence</h2>
+    <table>
+      <caption>Table 6.2 content: repeated functional windows</caption>
+      <thead>
+        <tr><th>Run</th><th>Scenario result</th><th>Internal / wall duration (ms)</th><th>Alerts</th><th>Evidence per alert</th><th>Loss diagnostics</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>B1</td><td>Pass</td><td>17 / 1,118</td><td>0</td><td>—</td><td>0</td></tr>
+        <tr><td>B2</td><td>Pass</td><td>11 / 1,024</td><td>0</td><td>—</td><td>0</td></tr>
+        <tr><td>B3</td><td>Pass</td><td>11 / 1,038</td><td>0</td><td>—</td><td>0</td></tr>
+        <tr><td>E1</td><td>Flag returned; pass</td><td>48,543 / 49,627</td><td>1</td><td>4</td><td>0</td></tr>
+        <tr><td>E2</td><td>Flag returned; pass</td><td>51,584 / 52,759</td><td>1</td><td>4</td><td>0</td></tr>
+        <tr><td>E3</td><td>Empty client output; status 1</td><td>49,509 / 50,591</td><td>1</td><td>4</td><td>0</td></tr>
+        <tr><td>E4 diagnostic</td><td>Flag returned; pass</td><td>49,548 / 50,754</td><td>1</td><td>4</td><td>0</td></tr>
+      </tbody>
+    </table>
+
+    <p>The table is descriptive and must not be converted into sensitivity,
+    specificity or accuracy percentages. The benign sample is too narrow, the
+    detector was tailored after examining the challenge, and no independent
+    holdout workload was used.</p>
+
+    <h3>Binding representative-alert facts</h3>
+    <ul class="tight">
+      <li>Evidence 1: successful <code>sched_process_exec</code> for
+      <code>/bin/sh</code>.</li>
+      <li>Evidence 2: successful <code>sched_process_exec</code> for
+      <code>/bin/cat</code>.</li>
+      <li>Evidence 3: <code>security_file_open</code> for resolved path
+      <code>/opt/aes-beta/flag</code>; mediation-stage evidence only.</li>
+      <li>Evidence 4: <code>open</code> for caller pathname <code>flag</code>
+      with return value 2; successful syscall-boundary evidence.</li>
+      <li>All four records share one host PID in each alert. The measured event
+      timestamp spans are 0.941, 0.625, 0.650 and 0.725 ms across E1-E4.</li>
+      <li>The spans represent intervals between kernel-event timestamps, not
+      detector latency or end-to-end alert-delivery latency.</li>
+      <li>Every alert is high severity and carries TA0002, TA0009, T1059.004 and
+      T1005 classification metadata.</li>
+    </ul>
+  </section>
+
+  <section id="performance">
+    <h2>8. Performance Readiness Verdict and Permitted Numerical Claims</h2>
+    <div class="callout accept">
+      <strong>Verdict: ready for scoped descriptive reporting.</strong> The
+      replicated Step 10 campaign is suitable for reporting monitor-cgroup CPU,
+      cgroup memory, RSS, PID observations, target workload context and the
+      filtered-versus-unfiltered comparison. It is not suitable for estimating
+      total system overhead or causal workload slowdown.
+    </div>
+
+    <table>
+      <caption>Table 6.3 content: replicated performance summary (five runs per profile)</caption>
+      <thead>
+        <tr><th>Profile and metric owner</th><th>CPU mean ± sample SD</th><th>Median; range of run means</th><th>Mean run P95; largest sample peak</th><th>Max cgroup memory / RSS</th><th>Workload duration mean ± SD</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Filtered monitor</td><td>0.39% ± 0.02</td><td>0.39%; 0.36-0.41%</td><td>0.92%; 1.32%</td><td>100.51 / 39.36 MiB</td><td>54.85 ± 4.09 s</td>
+        </tr>
+        <tr>
+          <td>Unfiltered monitor</td><td>4.87% ± 0.11</td><td>4.89%; 4.73-4.98%</td><td>7.72%; 9.27%</td><td>112.16 / 46.02 MiB</td><td>61.33 ± 3.04 s</td>
+        </tr>
+        <tr>
+          <td>No-monitor target context</td><td>34.80% ± 3.57</td><td>35.90%; 28.66-37.74%</td><td>67.72%; 82.44%</td><td>19.02 / 6.88 MiB</td><td>56.27 ± 7.22 s</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Permitted numerical statements</h3>
+    <ul>
+      <li>Across five filtered exploit runs, mean CPU charged to the monitor
+      cgroup ranged from 0.36% to 0.41% of one core; all five run means were
+      below the project-defined 5% gate.</li>
+      <li>The corresponding unfiltered monitor run means ranged from 4.73% to
+      4.98%, with an aggregate mean of 4.87%.</li>
+      <li>The filtered mean of 0.39% was approximately 92.0% lower than the
+      otherwise equivalent unfiltered mean of 4.87% in this workload. The raw
+      calculation from run values is approximately 92.03%; the archived rounded
+      summary reports 91.99%. Use “approximately 92.0%”.</li>
+      <li>All ten monitored performance runs emitted exactly one alert and no
+      matching textual loss diagnostic.</li>
+      <li>Mean node CPU was 94.70%, 95.11% and 94.89% in filtered, unfiltered and
+      no-monitor profiles respectively. This near-saturation is a required
+      qualification for workload-duration comparisons.</li>
+    </ul>
+
+    <h3>Metric interpretation</h3>
+    <p>Container CPU is derived from cgroup-v1 <code>cpuacct.usage</code> deltas
+    divided by wall-clock deltas and expressed as a percentage of one core. Node
+    CPU is calculated from <code>/proc/stat</code> and uses the full two-core
+    node as its 0-100% scale. Cgroup memory includes more than resident process
+    pages and must not be labelled RSS. RSS is reported separately from
+    <code>memory.stat</code>. The no-monitor row measures the target because no
+    monitor cgroup exists.</p>
+
+    <div class="callout caution">
+      Do not infer from the shorter filtered mean workload duration that the
+      filter caused a speed-up. The node was highly utilised, only five runs per
+      profile were collected, profile order was rotated rather than randomised,
+      and the target workload itself varied. Do not combine the three “primary”
+      columns without naming their different container owners.
+    </div>
+  </section>
+
+  <section id="visuals">
+    <h2>9. Figure and Table Budget</h2>
+    <h3>Figures: exactly three</h3>
+    <table>
+      <thead><tr><th>Visual</th><th>Question answered</th><th>Data source</th><th>Final asset path</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Figure 6.1: three-container testbed</td>
+          <td>Where do the trigger, target and monitor execute, and which network,
+          PID and host-resource boundaries do they share?</td>
+          <td>Applied <code>manifests/pod.yaml</code>, Pod description and namespace settings</td>
+          <td><code>Thesis/figures/chapter6/minikube-three-container-testbed.drawio.png</code></td>
+        </tr>
+        <tr>
+          <td>Figure 6.2: observed attack-evidence sequence</td>
+          <td>Which four observations complete the collective alert, and what
+          does each observation prove?</td>
+          <td>Applied detector YAML and four windowed alert records</td>
+          <td><code>Thesis/figures/chapter6/aes-beta-evidence-sequence.drawio.png</code></td>
+        </tr>
+        <tr>
+          <td>Figure 6.3: monitor CPU by profile</td>
+          <td>How do the five filtered monitor run means compare with the five
+          unfiltered means and the 5% project gate?</td>
+          <td><code>step10-replicated-performance-20260812T072832Z/runs.tsv</code></td>
+          <td><code>Thesis/figures/chapter6/monitor-cgroup-cpu-by-profile.pdf</code></td>
+        </tr>
+      </tbody>
+    </table>
+    <p>Figure 6.3 should be a paired/round-aware dot plot, not a bar chart of
+    aggregate means. Do not add a no-monitor point to it because that profile's
+    CPU value belongs to the target, not the monitor.</p>
+
+    <h3>Tables: exactly three</h3>
+    <ul>
+      <li><strong>Table 6.1:</strong> environment and controlled configuration;
+      answers what was held fixed.</li>
+      <li><strong>Table 6.2:</strong> seven functional windows; answers whether
+      each workload completed and whether an alert was observed.</li>
+      <li><strong>Table 6.3:</strong> replicated performance summary; answers how
+      measured resources differed by profile while preserving metric ownership.</li>
+    </ul>
+    <p>No screenshots, terminal output, raw JSON, code or complete configuration
+    blocks belong in the chapter.</p>
+  </section>
+
+  <section id="citations">
+    <h2>10. Citation and Glossary Requirements</h2>
+    <p>The current bibliography does not yet contain all external sources needed
+    by Chapter 6. Before final writing, either extend the writer's file
+    permissions or perform a separate bibliography update. Add verified primary
+    references for:</p>
+    <ul>
+      <li>Kubernetes Pod networking and process namespace sharing;</li>
+      <li>Kubernetes security contexts, privileged containers and host PID namespace;</li>
+      <li>Minikube start options and the Docker driver;</li>
+      <li>Linux cgroup-v1 <code>cpuacct</code> and memory-controller metric semantics;</li>
+      <li>the pinned openECSC AES-beta source revision;</li>
+      <li>the official MITRE ATT&amp;CK entries for T1059.004 and T1005.</li>
+    </ul>
+    <p>Suggested stable keys are <code>kubernetes_pod_networking</code>,
+    <code>kubernetes_process_namespace</code>,
+    <code>kubernetes_security_context</code>, <code>minikube_start</code>,
+    <code>minikube_docker_driver</code>, <code>linux_cgroup_v1_cpuacct</code>,
+    <code>linux_cgroup_v1_memory</code>, <code>openeCsc2024AesBeta</code>,
+    <code>mitre_t1059_004</code> and <code>mitre_t1005</code>. Keys are editorial
+    proposals, not evidence; each entry must be checked against the actual
+    primary URL and access date before use.</p>
+    <p>The glossary already covers eBPF, CPU, ATT&amp;CK, UID, PID, JSON and
+    related implementation terms. Add <strong>CTF</strong> if the abbreviation is
+    used after first definition, and <strong>RSS</strong> because it is a repeated
+    reported metric. Define “resident set size” in prose even if a glossary entry
+    is added. Add ROP only if exploit internals remain, although those details are
+    excluded by this synthesis.</p>
+  </section>
+
+  <section id="repetition">
+    <h2>11. No-Repetition Matrix against Chapters 2-5</h2>
+    <table>
+      <thead><tr><th>Prior owner</th><th>Do not repeat in Chapter 6</th><th>Chapter 6 may state only</th></tr></thead>
+      <tbody>
+        <tr><td>Chapter 2</td><td>eBPF execution, verifier, maps, helpers, perf transport, hook semantics and general ATT&amp;CK background</td><td>The three event types used as experimental evidence and the interpretation required by the result</td></tr>
+        <tr><td>Chapter 3</td><td>Requirements, architecture, kernel/user-space boundaries, policy/detector conceptual roles, point/collective taxonomy and design limitations</td><td>Which requirements are exercised by the selected evaluation questions</td></tr>
+        <tr><td>Chapter 4</td><td>Hook implementations, path resolution, binary contract, UID-filter implementation and compatibility branches</td><td>That the exact UID filter is enabled or disabled in each profile and what measured effect follows</td></tr>
+        <tr><td>Chapter 5</td><td>CLI bootstrap, probe registry, decoder, event admission, YAML schema, detector transition algorithm, correlation limits, deduplication, output and logging paths</td><td>The applied policy/detector scope, four observed evidence records and emitted alert fields needed to read the experiment</td></tr>
+      </tbody>
+    </table>
+    <p>Container topology belongs in Chapter 6 as the experimental environment,
+    even if Chapter 5 later gains a brief packaging discussion. Chapter 6 must
+    describe the applied testbed, not general deployment architecture.</p>
+  </section>
+
+  <section id="validity">
+    <h2>12. Threats-to-Validity Structure</h2>
+    <p><strong>Internal validity.</strong> Profiles were rotated cyclically rather
+    than randomly assigned. Pod recreation reduces state carry-over but does not
+    remove host load or cache effects. Sampling through Minikube SSH produced
+    intervals above the nominal one second, and the first/last workload fractions
+    may not align perfectly with selected samples. The node remained close to
+    saturation. The third exploit run had a client-output failure even though the
+    host-side sequence completed.</p>
+    <p><strong>Construct validity.</strong> Monitor-cgroup CPU is not total system
+    overhead; no-monitor target CPU cannot be subtracted from it. Cgroup memory
+    and RSS measure different quantities. The four kernel timestamps do not
+    measure alert latency. A missing textual loss diagnostic does not prove
+    loss-free perf transport. An LSM hook reports mediation, while syscall return
+    evidence is required for success. ATT&amp;CK labels classify the detector but
+    do not validate it.</p>
+    <p><strong>External validity.</strong> Results come from one Rocky Linux kernel
+    build, one Minikube node, one Docker-backed Kubernetes version, one public CTF
+    workload, one tailored collective detector and one synthetic flag. The
+    benign workload is narrow. No multi-node, production orchestration,
+    alternative kernel, workload mix or long-duration campaign was evaluated.</p>
+    <p><strong>Conclusion validity.</strong> Five runs per performance profile and
+    seven functional windows support descriptive statements, not inferential
+    statistics or accuracy rates. The approximately 92% filtering reduction is
+    specific to the selected workload, event scope, UID and saturated laboratory
+    node. Duration differences must not be presented as causal.</p>
+  </section>
+
+  <section id="exclusions">
+    <h2>13. Excluded Material</h2>
+    <ul>
+      <li><strong>Appendix/documentation:</strong> full commands, manifests,
+      detector YAML, configuration hashes, complete image IDs, raw JSON, complete
+      logs, all per-sample TSV rows and the reproducibility command transcript.</li>
+      <li><strong>Networking:</strong> socket enrichment, network event design,
+      cluster ingress and multi-node transport. Mention Pod-local loopback only
+      to explain the testbed.</li>
+      <li><strong>Implementation:</strong> loader, decoder, policy engine,
+      correlation map and filter code already owned by Chapters 4-5.</li>
+      <li><strong>Exploit mechanics:</strong> ROP-chain construction, offsets,
+      payload source and worker implementation. Describe only the controlled
+      behaviour relevant to observations.</li>
+      <li><strong>Non-authoritative campaigns:</strong> Step 7 direct-cat telemetry
+      as collective-detector evidence; Step 9 calibration values as final
+      performance results; the complete monitor-log alert count as a run count;
+      <code>hostPID: true</code> diagnostics as the final topology.</li>
+      <li><strong>Future work:</strong> least-privilege deployment, DaemonSets,
+      cluster-wide context, enforcement, larger benchmark campaigns and detector
+      generalisation belong in Chapter 7.</li>
+    </ul>
+  </section>
+
+  <section id="checklists">
+    <h2>14. Ordered Writing Checklist</h2>
+    <ol>
+      <li>Create the Chapter 6 file with the exact hierarchy and labels in Section 3.</li>
+      <li>Add or approve the required bibliography and glossary entries before
+      introducing citations or acronyms.</li>
+      <li>Write Sections 6.1-6.3 from protocol and applied artefacts, keeping
+      reproducibility detail outside the body.</li>
+      <li>Create Figure 6.1 and Table 6.1 from the applied Pod and archived environment.</li>
+      <li>Write Section 6.4 from windowed Step 6/8 evidence; create Figure 6.2 and Table 6.2.</li>
+      <li>Write Section 6.5 exclusively from the authoritative Step 10 campaign;
+      create Figure 6.3 and Table 6.3.</li>
+      <li>Write discussion only after results are fixed; do not introduce new data there.</li>
+      <li>Write the four validity paragraphs and verify every limitation against
+      the claim it constrains.</li>
+      <li>Finish the bridge to Chapter 7 and run cross-chapter repetition checks.</li>
+      <li>Run citation, glossary, label, figure-path and full LaTeX build checks.</li>
+    </ol>
+
+    <h2>15. Acceptance Checklist</h2>
+    <ul class="tight">
+      <li><span class="status yes">Required</span> 2,800-3,500 words and approximately 12-14 pages.</li>
+      <li><span class="status yes">Required</span> No more than three figures and three result tables; no source listings.</li>
+      <li><span class="status yes">Required</span> Every number is traceable to the named raw artefact and preserves metric ownership.</li>
+      <li><span class="status yes">Required</span> The kernel target/evaluation patch-level distinction is accurate but not overstated.</li>
+      <li><span class="status yes">Required</span> E3 separates detector completion from client-output success.</li>
+      <li><span class="status yes">Required</span> LSM mediation and syscall success are not conflated.</li>
+      <li><span class="status yes">Required</span> Zero loss diagnostics is never rewritten as zero loss.</li>
+      <li><span class="status yes">Required</span> The 5% gate is defined as monitor-cgroup CPU, not total overhead.</li>
+      <li><span class="status yes">Required</span> The approximately 92.0% reduction is explicitly scenario-specific.</li>
+      <li><span class="status yes">Required</span> No-monitor target metrics are not compared as monitor metrics.</li>
+      <li><span class="status yes">Required</span> Near-saturated node CPU qualifies duration and target-resource observations.</li>
+      <li><span class="status yes">Required</span> No detection-accuracy, causal, cluster-wide, enforcement or production-readiness claim appears.</li>
+      <li><span class="status yes">Required</span> British English and thesis terminology follow the shared style guide.</li>
+      <li><span class="status qualified">Prerequisite</span> New primary-source bibliography entries and CTF/RSS glossary decisions are approved.</li>
+      <li><span class="status qualified">Validation</span> All labels, citations and asset paths resolve in a complete thesis build.</li>
+    </ul>
+  </section>
+
+  <footer class="small">
+    <p>Evidence basis inspected: Chapter 6 workflow and four agent audits;
+    Minikube final and replicated-performance reports; Chapters 1-5;
+    bibliography and glossary; current Pod, policy and detector artefacts;
+    functional Step 6/8 evidence; and replicated Step 10 TSV, logs and summaries.</p>
+  </footer>
+</main>
+</body>
+</html>

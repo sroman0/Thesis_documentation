@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 5 Output, Logging and Packaging Audit</title>
+  <style>
+    :root {
+      --ink: #18232d;
+      --muted: #596775;
+      --line: #c8d0d7;
+      --panel: #f3f6f7;
+      --good: #e8f4ec;
+      --warn: #fff4df;
+      --risk: #fbe9e7;
+      --accent: #0d6075;
+    }
+    * { box-sizing: border-box; }
+    body {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+      color: var(--ink);
+      font: 16px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    h1, h2, h3 { line-height: 1.2; letter-spacing: 0; }
+    h1 { margin-bottom: .3rem; }
+    h2 { margin-top: 2.4rem; padding-bottom: .35rem; border-bottom: 2px solid var(--line); }
+    h3 { margin-top: 1.6rem; }
+    p, li { max-width: 92ch; }
+    code { padding: .08rem .28rem; background: #e9eef1; overflow-wrap: anywhere; }
+    pre { padding: 1rem; overflow-x: auto; color: #f4f7f8; background: #17232b; }
+    pre code { padding: 0; color: inherit; background: transparent; }
+    table { width: 100%; margin: 1rem 0; border-collapse: collapse; }
+    th, td { padding: .62rem; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--panel); }
+    .meta, .callout { margin: 1rem 0; padding: .85rem 1rem; border-left: 5px solid var(--accent); background: var(--panel); }
+    .confirmed { border-left-color: #32764b; background: var(--good); }
+    .warning { border-left-color: #96600b; background: var(--warn); }
+    .risk { border-left-color: #a23b32; background: var(--risk); }
+    .status { white-space: nowrap; font-weight: 700; }
+    .compact li { margin: .28rem 0; }
+    .small { color: var(--muted); font-size: .92rem; }
+    .path { overflow-wrap: anywhere; }
+    @media (max-width: 760px) {
+      body { padding: 1rem .7rem 3rem; }
+      table { display: block; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Output, Structured Logging and Packaging Audit</h1>
+    <p><strong>Chapter 5 evidence handoff</strong></p>
+    <div class="meta">
+      <p><strong>Repository:</strong> <code>/home/simone/project/demo_project</code></p>
+      <p><strong>Inspected branch:</strong> <code>main</code></p>
+      <p><strong>Inspected commit:</strong> <code>d916df7</code> (<code>Merge pull request #17 from V3suv1us/feature/composite-collective-correlation</code>)</p>
+      <p><strong>Working tree:</strong> dirty. Local modifications are present in <code>pkg/cmd/project.go</code>, <code>pkg/cmd/project_test.go</code>, and <code>pkg/ebpf/probes/probes.go</code>. The branch remains aligned with <code>origin/main</code>; these three local changes are not part of <code>d916df7</code>.</p>
+      <p><strong>Evidence rule:</strong> the detector-selector implementation, its tests, the policy-loader changes, and the MITRE collective policy are part of the inspected main-branch commit. The additional local changes are reported separately because they affect event-selection validation, cleanup diagnostics, and internal-probe classification.</p>
+    </div>
+    <div class="callout warning">
+      <strong>Scope boundary.</strong> Networking output, networking detectors, and their runtime paths are excluded. No performance result, production-readiness claim, or cluster-wide detection claim is made here.
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <h2>Executive Findings</h2>
+      <ol class="compact">
+        <li>The runtime has three semantic outputs but only two operating-system channels: normalised security events and detector alerts share <code>stdout</code>, while Zap diagnostics use <code>stderr</code>. Fatal command and lifecycle errors also use <code>stderr</code>, but bypass Zap.</li>
+        <li>The decoder event and detector alert are internal models. <code>pkg/output</code> owns their public JSON and compact-text representations and the conversion of numeric kernel values into readable labels.</li>
+        <li>JSON preserves typed argument values and adds optional labels; compact text replaces selected raw values with readable forms. The two conversion paths currently duplicate a long event-specific dispatch, creating a drift risk.</li>
+        <li>Point alerts present one source event. Collective alerts preserve an ordered evidence sequence; compact text bounds its rendering to 1,024 bytes plus an ellipsis, while JSON retains the event array.</li>
+        <li>Zap supports console and JSON encodings, four levels, and a dedicated libbpf callback. It is correctly excluded from security-data serialisation. The local changes now log and propagate project cleanup failures, but logger flush errors remain ignored and fatal setup errors still return through <code>main</code>.</li>
+        <li>The two-stage image embeds the eBPF object in the Go executable and copies only that executable into the runtime stage. Policy and detector YAML catalogues are not packaged and therefore require explicit external delivery.</li>
+        <li>The current README overstates the Docker workflow: it documents a <code>dev</code> stage and Make targets that do not exist, gives a different default image tag, and claims tracefs/debugfs mounts that <code>docker-run</code> does not currently apply.</li>
+        <li>Container execution is implemented as a privileged host-integrated Docker path. Kubernetes deployment is not implemented or validated: there is no manifest, privilege minimisation, host-resource contract, or operational lifecycle evidence.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Data Models and Presentation Ownership</h2>
+      <h3>Normalised event</h3>
+      <p><code>bufferdecoder.Event</code> is the internal event passed to policies, detectors, and output. It contains an <code>EventContext</code>, an event name, and typed arguments. The output layer converts it into an unexported <code>eventRecord</code> with process, host, kernel, and argument groups. This is the actual JSON schema used for both ordinary event output and alert evidence.</p>
+      <div class="callout risk">
+        <strong>Evidence loss at the presentation boundary.</strong> The internal context contains process start times, cgroup ID, leader and parent start times, flags, and stack ID. <code>eventRecord</code> does not expose those fields. Consequently, JSON evidence may omit the stable identities that a collective detector used to correlate events. Chapter 5 may describe the current schema, but should not call it a complete serialisation of the normalised event.
+      </div>
+
+      <h3>Detector alert</h3>
+      <p><code>detectors.Alert</code> is the preliminary detection result: detector identity, title, description, severity, creation time, evidence events, threat metadata, and free-form metadata. <code>output.AlertRecord</code> is the presentation model. It normalises every evidence event through the same <code>eventRecord</code>, derives sorted policy names from alert metadata, and converts threat metadata into an explicit JSON object.</p>
+
+      <h3>Human-readable adaptation</h3>
+      <p><code>argumentViews</code> adds symbolic labels to JSON without replacing typed values. <code>formatArg</code> renders compact-text values such as symbolic capabilities, signals, operation names, permission masks, hexadecimal pointers, file descriptors, and errno descriptions. Both are implemented in <code>pkg/output/event.go</code>. This is presentation logic, not decoding: the decoder remains responsible for type-safe binary interpretation.</p>
+      <p>The architectural statement should be concise: the decoder establishes type and value, while the output adapter establishes public shape and human-readable labels. An exhaustive list of mappings belongs in an appendix or generated reference.</p>
+    </section>
+
+    <section>
+      <h2>Output-Channel Contract Matrix</h2>
+      <table>
+        <thead>
+          <tr><th>Output class</th><th>Producer and model</th><th>Renderer</th><th>OS channel</th><th>Configuration</th><th>Contract and caveats</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Normalised security event</td>
+            <td><code>bufferdecoder.Event</code></td>
+            <td><code>JSONPrinter.Print</code> or <code>TablePrinter.Print</code></td>
+            <td><code>stdout</code></td>
+            <td><code>--output json|table</code>; suppressed by <code>--alerts-only</code></td>
+            <td>JSON Lines uses <code>eventRecord</code>. Compact text starts with <code>event=</code>. The term “raw event output” is misleading because the record has already been decoded and normalised.</td>
+          </tr>
+          <tr>
+            <td>Point alert</td>
+            <td><code>detectors.Alert</code> with one evidence event</td>
+            <td><code>JSONPrinter.PrintAlert</code> or <code>TablePrinter.PrintAlert</code></td>
+            <td><code>stdout</code></td>
+            <td><code>--alerts</code> or <code>--alerts-only</code>; format from <code>--alerts-output</code></td>
+            <td>JSON includes a one-element <code>events</code> array. Compact text includes <code>source_event</code>, PID, UID, command name, and arguments.</td>
+          </tr>
+          <tr>
+            <td>Collective alert</td>
+            <td><code>detectors.Alert</code> with ordered evidence events</td>
+            <td>Same alert printers</td>
+            <td><code>stdout</code></td>
+            <td>Same alert flags</td>
+            <td>JSON includes the evidence array. Compact text uses <code>sequence=event(...)-&gt;event(...)</code> and omits redundant <code>source_*</code> fields. The compact sequence is truncated after 1,024 bytes.</td>
+          </tr>
+          <tr>
+            <td>Operational diagnostic</td>
+            <td>Runtime, decoder path, detector engine, output failures, perf-buffer loss, and libbpf callback</td>
+            <td>Zap</td>
+            <td><code>stderr</code></td>
+            <td><code>--log-level</code>, <code>--log-format console|json</code></td>
+            <td>Not a security-data stream. Caller and stack traces are disabled. Timestamps are ISO 8601 and levels are lower-case.</td>
+          </tr>
+          <tr>
+            <td>Command/lifecycle failure</td>
+            <td>Cobra setup, object resolution, policy/detector bootstrap, logger construction, fatal runtime return</td>
+            <td><code>fmt.Fprintf</code> in <code>main</code></td>
+            <td><code>stderr</code></td>
+            <td>Not configurable</td>
+            <td>Plain <code>Error: ...</code>, including some failures that occur while a Zap logger exists. This is a separate error boundary, not a third security-data model.</td>
+          </tr>
+          <tr>
+            <td>CLI discovery/help</td>
+            <td>Cobra and probe registry</td>
+            <td>Cobra/<code>fmt.Fprintln</code></td>
+            <td><code>stdout</code></td>
+            <td><code>--help</code>, <code>--list-events</code></td>
+            <td>Runs before the monitoring runtime. It must not be described as event output.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="callout warning">
+        <strong>Mixed-stream caveat.</strong> Event and alert formats are configured independently but share <code>stdout</code>. A run may therefore interleave JSON events with compact-text alerts, or the reverse. JSON events also lack the explicit <code>type="event"</code> discriminator that alerts carry as <code>type="alert"</code>. The thesis should not promise a homogeneous machine-consumable stream without resolving or documenting this configuration constraint.
+      </div>
+    </section>
+
+    <section>
+      <h2>Error and Logging Path Map</h2>
+      <table>
+        <thead>
+          <tr><th>Phase</th><th>Example source</th><th>Path</th><th>Effect</th><th>Thesis wording</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Before logger construction</td><td>CLI validation; embedded/external object resolution; policy and detector loading/validation</td><td>Error returned through Cobra to <code>main</code>; plain message on <code>stderr</code></td><td>Startup aborts with non-zero status</td><td>Bootstrap errors precede managed structured logging.</td></tr>
+          <tr><td>Logger construction</td><td>Invalid Zap level/format or <code>zap.Config.Build</code> failure</td><td>Returned to <code>main</code>; plain <code>stderr</code></td><td>Startup aborts</td><td>Logger creation is itself part of the pre-logger boundary.</td></tr>
+          <tr><td>Fatal setup after logger construction</td><td>Runtime creation, detector initialisation, module open/load, map setup, perf-buffer creation, attachment</td><td>Returned through <code>ProjectRunner.Run</code> to <code>main</code>; not logged by Zap at the return site</td><td>Startup aborts</td><td>Avoid claiming that all post-bootstrap failures are structured.</td></tr>
+          <tr><td>Event decode failure</td><td><code>handleRawEvent</code></td><td>Zap <code>Error</code> with error, event ID/name, and byte length</td><td>Malformed record is dropped; loop continues</td><td>Non-fatal record failure is isolated and diagnosed.</td></tr>
+          <tr><td>Perf-buffer loss</td><td>Lost-event channel</td><td>Zap <code>Warn</code> with lost count</td><td>Loop continues</td><td>Loss is observable, not recovered or replayed.</td></tr>
+          <tr><td>Admission rejection</td><td>Event selection, command filter, policy filter</td><td>At debug level, only the first five drops are logged</td><td>No event output and no detector dispatch</td><td>Debug sampling prevents unbounded rejection diagnostics.</td></tr>
+          <tr><td>Detector evaluation error</td><td><code>Engine.ProcessEvent</code> result</td><td>Zap <code>Error</code> per returned error</td><td>Other results and subsequent events continue</td><td>Detector failure is diagnostic, not an alert.</td></tr>
+          <tr><td>Event/alert write failure</td><td><code>Printer.Print</code>, <code>PrintAlert</code></td><td>Zap <code>Error</code></td><td>Loop continues; failed output is not retried</td><td>Presentation errors do not become security events, but the corresponding datum may be lost.</td></tr>
+          <tr><td>Normal cancellation</td><td>SIGINT/SIGTERM context</td><td>No error; deferred close</td><td>Links and transport are closed</td><td>Signal-driven shutdown is cooperative.</td></tr>
+          <tr><td>Cleanup failure</td><td><code>Project.Close</code></td><td>Local working-tree change logs the failure through Zap and returns it, joining it with an existing runtime error when necessary</td><td>Shutdown can now report cleanup failure</td><td>This behaviour is not in commit <code>d916df7</code> until the local change is committed.</td></tr>
+          <tr><td>Logger flush failure</td><td><code>logger.Sync</code></td><td>Still discarded by <code>defer logger.Sync()</code></td><td>Failure is silent</td><td>Do not claim complete logging durability.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Zap and libbpf routing</h3>
+      <p><code>pkg/logging.New</code> builds a production-style Zap logger with <code>stderr</code> as both normal and internal error sink. Supported encodings are console and JSON; supported levels are debug, info, warn, and error. Caller annotation and stack traces are disabled. The libbpf global callback trims the trailing newline, adds <code>source=libbpf</code> and the numeric libbpf level, maps libbpf warnings to Zap warnings, and maps other accepted messages to Zap debug.</p>
+      <p>At debug level the callback accepts all libbpf messages. At info it filters libbpf debug records, while non-warning records that pass the callback are still emitted at Zap debug and therefore suppressed by the logger level; warnings remain visible. At warn only warnings remain visible. At error, warning callbacks can pass the filter but are suppressed by Zap's error threshold. This behaviour is implementation-specific and should be described as verbosity control, not as a lossless level translation.</p>
+    </section>
+
+    <section>
+      <h2>Packaging Claim-to-Source Matrix</h2>
+      <table>
+        <thead>
+          <tr><th>Claim</th><th>Status</th><th>Primary evidence</th><th>Safe Chapter 5 statement</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>The container build is multi-stage.</td><td class="status">Confirmed</td><td><code>Dockerfile:2-44</code></td><td>A Go/clang builder runs <code>make all</code>; a Debian slim runtime receives the resulting executable.</td></tr>
+          <tr><td>The eBPF object is available without a sidecar file.</td><td class="status">Confirmed</td><td><code>embedded-ebpf.go:8-9</code>; <code>pkg/cmd/initialize/bpfobject.go:20-83</code>; builder ordering in <code>Makefile</code></td><td>The generated object is embedded at Go build time, with environment/CLI override support for an external object.</td></tr>
+          <tr><td>The runtime image contains the application source.</td><td class="status">Rejected</td><td><code>Dockerfile:42</code></td><td>Only <code>/usr/local/bin/project</code> is copied from the builder.</td></tr>
+          <tr><td>The runtime image contains policy and detector catalogues.</td><td class="status">Rejected</td><td><code>Dockerfile:42</code>; catalogues under <code>rules/</code></td><td>YAML files are not embedded or copied. They must be supplied through an explicit bind mount, image extension, ConfigMap, or another external delivery mechanism.</td></tr>
+          <tr><td>The image has the complete runtime dependency closure.</td><td class="status">Partially evidenced</td><td><code>Dockerfile:37-40</code> installs <code>libelf1</code> and <code>zlib1g</code>; the executable is CGO-enabled and dynamically linked.</td><td>State only the declared runtime packages. Verify the built image with <code>ldd</code> or an execution test before claiming a complete dependency closure.</td></tr>
+          <tr><td>A Docker development stage and shell/build targets exist.</td><td class="status">Rejected</td><td>Dockerfile has <code>builder</code> and <code>runtime</code> only; Makefile defines no recipes for <code>docker-dev-image</code>, <code>docker-build</code>, or <code>docker-shell</code>.</td><td>Omit these targets until code and README agree.</td></tr>
+          <tr><td><code>make docker-image</code> creates a <code>:runtime</code> image and honours <code>DOCKER_BUILD_NETWORK</code>.</td><td class="status">Rejected</td><td><code>Makefile:18</code>, <code>Makefile:114-115</code></td><td>The default tag is <code>demo-project-ebpf:latest</code>, and the recipe currently hard-codes <code>--network=host</code>.</td></tr>
+          <tr><td>Docker execution uses broad host privileges.</td><td class="status">Confirmed</td><td><code>Makefile:119-127</code></td><td>The provided target uses <code>--privileged</code>, host PID and cgroup namespaces, and host BTF/BPF filesystem mounts. This documents the prototype path, not the minimum required privilege set.</td></tr>
+          <tr><td>The Docker target mounts tracefs and debugfs.</td><td class="status">Rejected as written</td><td><code>DOCKER_RUNTIME_MOUNTS</code> declares them, but <code>docker-run</code> does not use that variable.</td><td>Do not repeat the README claim until the recipe is corrected and exercised.</td></tr>
+          <tr><td>Kubernetes deployment is implemented.</td><td class="status">Unsupported</td><td>No manifest, Helm chart, security context, hostPath contract, health checks, or deployment tests in the inspected scope.</td><td>Describe only deployment considerations and unresolved host integration requirements. A DaemonSet or privileged-pod statement is a proposal, not an implemented result.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>External catalogue contract</h3>
+      <p>The CLI accepts policy and detector file or directory paths. Because the runtime image contains neither catalogue, a container invocation that uses YAML rules requires the files to exist inside the container at the paths passed to <code>--policy</code> and <code>--detectors</code>. No current Make target establishes that mount. This is a packaging gap, not a detector-engine limitation.</p>
+    </section>
+
+    <section>
+      <h2>Editorial Boundary and Redundancy Audit</h2>
+      <table>
+        <thead><tr><th>Existing owner</th><th>Already established</th><th>What Chapter 5 may add</th><th>What not to repeat</th></tr></thead>
+        <tbody>
+          <tr><td>Chapter 1</td><td>Motivation, target environment, host-level scope, and high-level policy/detector purpose.</td><td>One transition sentence from the thesis objective to the concrete user-space implementation.</td><td>Why kernel observability matters; the general project contribution.</td></tr>
+          <tr><td>Chapter 2</td><td>eBPF object loading theory, attachment lifecycle, maps/helpers, perf-buffer theory, BTF/CO-RE, and related tools.</td><td>Concrete Go objects and call order only where needed to explain ownership.</td><td>General perf-buffer versus BPF ring-buffer theory or a second related-work comparison.</td></tr>
+          <tr><td>Chapter 3</td><td>Three semantic output classes, stdout/stderr separation rationale, Zap as diagnostics, perf-buffer design choice, error-boundary intent, point/collective evidence, and ATT&amp;CK role.</td><td>Actual <code>Printer</code> boundary, record adapters, alert evidence rendering, Zap configuration, and observed error routing.</td><td>Why outputs should be separate; why Zap was selected; why perf buffer was selected.</td></tr>
+          <tr><td>Chapter 4</td><td>Build toolchain, generation and embedding of the eBPF object, C-side record construction, binary contract, and perf submission.</td><td>Begin when a byte record enters the Go perf-buffer channel; in packaging, mention only how the already-built executable is placed in the runtime image.</td><td>Compilation commands, C structures, submission helpers, hook catalogue, and transport implementation.</td></tr>
+          <tr><td>Chapter 6</td><td>Reserved for evaluation.</td><td>Only implementation-test references needed to substantiate structure.</td><td>Runtime examples as proof, detector quality, event coverage, performance, loss measurements, and deployment validation.</td></tr>
+        </tbody>
+      </table>
+      <div class="callout confirmed">
+        <strong>Recommended opening boundary for Section 5.5.</strong> “After admission and detector evaluation, the runtime presents normalised events and alerts through a shared printer abstraction, while operational conditions follow an independent Zap diagnostic path.” This starts from implementation and does not repeat Chapter 3's rationale.
+      </div>
+    </section>
+
+    <section>
+      <h2>Concise Paragraph Plan</h2>
+      <ol>
+        <li><strong>5.5, paragraph 1: output boundary.</strong> Introduce <code>Printer</code> as the common interface for normalised events and alerts, with format selection performed during runtime construction and both data classes directed to <code>stdout</code>.</li>
+        <li><strong>5.5, paragraph 2: event adaptation.</strong> Explain the conversion from the decoder model to <code>eventRecord</code>, then distinguish JSON's typed value plus label from compact text's terminal-oriented replacement.</li>
+        <li><strong>5.5, paragraph 3: alert evidence.</strong> Explain <code>detectors.Alert</code> versus <code>AlertRecord</code>, shared event normalisation, policy-name extraction, and ATT&amp;CK metadata propagation. Contrast one-event evidence with ordered collective evidence.</li>
+        <li><strong>5.5, paragraph 4: channel contract.</strong> State that event and alert data use <code>stdout</code>, Zap uses <code>stderr</code>, and <code>--alerts-only</code> suppresses presentation without bypassing detector evaluation. Qualify the mixed-format caveat.</li>
+        <li><strong>5.5, paragraph 5: structured diagnostics.</strong> Describe Zap construction, encodings, level filtering, libbpf callback routing, and non-fatal loop errors. End with the limitation that fatal lifecycle and cleanup paths are not uniformly structured.</li>
+        <li><strong>5.6, paragraph 1: build boundary.</strong> Refer back to Chapter 4 for object compilation and embedding; describe only the builder/runtime stage split.</li>
+        <li><strong>5.6, paragraph 2: runtime contents.</strong> State exactly what enters the runtime image and which dynamic libraries are declared. Avoid claiming a verified complete closure.</li>
+        <li><strong>5.6, paragraph 3: external inputs.</strong> Explain that BTF and kernel facilities come from the host and YAML catalogues require explicit external delivery.</li>
+        <li><strong>5.6, paragraph 4: deployment limit.</strong> Present the privileged Docker command as the current prototype path. Mark Kubernetes manifests, least privilege, lifecycle probes, and cluster integration as unimplemented.</li>
+        <li><strong>5.7 summary.</strong> Close on ownership boundaries: decoder values, output adaptation, alert evidence, diagnostic isolation, and a portable image that still depends on host kernel resources and external rule catalogues.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Source-Listing Candidate</h2>
+      <p><strong>Candidate, optional:</strong> the shared printer boundary from <code>pkg/output/printer.go:14-29</code>. It is short, stable, and explains format independence without exposing event-specific formatting detail. If the chapter reaches its listing budget, replace it with the output-channel matrix.</p>
+      <pre><code>type Printer interface {
+    Print(event bufferdecoder.Event) error
+    PrintAlert(alert detectors.Alert) error
+}
+
+func NewPrinter(format string, w io.Writer) (Printer, error) {
+    switch format {
+    case "json":
+        return NewJSONPrinter(w), nil
+    case "table":
+        return NewTablePrinter(w), nil
+    default:
+        return nil, fmt.Errorf("unsupported output format %q", format)
+    }
+}</code></pre>
+      <p class="small">The listing is verbatim apart from omitted comments and import context; no identifiers are renamed.</p>
+
+      <h3>Chapter-wide listing budget</h3>
+      <p>Use no more than <strong>six</strong> body listings in Chapter 5: one each for bootstrap/probe planning, schema-directed decoding, event admission, compiled detector evaluation, bounded collective-state advancement, and optionally the printer boundary above. Logging and containerisation should normally use matrices or a small lifecycle figure instead of further listings. Exhaustive schemas, mappings, flags, and YAML files belong in appendices.</p>
+    </section>
+
+    <section>
+      <h2>Material to Move Elsewhere</h2>
+      <h3>Move to Chapter 6</h3>
+      <ul class="compact">
+        <li>Commands and observed output used to demonstrate point or collective alerts.</li>
+        <li>Claims about output correctness under workload, dropped records, detector false positives, or operational usefulness.</li>
+        <li>Container execution validation on the target host and any privilege-reduction experiment.</li>
+        <li>All CPU, memory, thread, throughput, and loss measurements.</li>
+      </ul>
+      <h3>Move to appendices</h3>
+      <ul class="compact">
+        <li>The complete CLI flag table and invocation catalogue.</li>
+        <li>The full event argument-to-label mapping.</li>
+        <li>Complete JSON examples, detector/policy YAML files, and catalogue inventory.</li>
+        <li>Docker and future orchestration manifests, mount recipes, troubleshooting commands, and dependency inspection commands.</li>
+      </ul>
+      <h3>Keep as future work or an explicit limitation</h3>
+      <ul class="compact">
+        <li>Homogeneous event/alert stream framing and schema versioning.</li>
+        <li>Packaging the rule catalogue or defining a versioned external catalogue contract.</li>
+        <li>Least-privilege container execution and an implemented Kubernetes deployment model.</li>
+        <li>Reliable reporting of cleanup and logger-flush failures.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Terminology and British-English Corrections</h2>
+      <table>
+        <thead><tr><th>Avoid</th><th>Use</th><th>Reason</th></tr></thead>
+        <tbody>
+          <tr><td><code>Vesuvius</code></td><td>the proposed tool, the prototype, the monitoring agent, or the proposed system</td><td>The internal name is excluded from thesis prose.</td></tr>
+          <tr><td>raw event output, when referring to <code>Printer.Print</code></td><td>normalised event output or monitored-event output</td><td>The bytes have already been decoded, enriched, and admitted.</td></tr>
+          <tr><td>table output</td><td>compact text output, with “table” retained only as the CLI format name</td><td>The implementation emits key-value lines, not a tabular grid.</td></tr>
+          <tr><td>userspace runtime</td><td>user-space runtime</td><td>Canonical adjectival form; use “user space” as a noun.</td></tr>
+          <tr><td>containerization, behavior, normalized, catalog</td><td>containerisation, behaviour, normalised, catalogue</td><td>British English.</td></tr>
+          <tr><td>logs contain events and alerts</td><td>diagnostics are separate from event and alert output</td><td>Zap is not the security-data serialiser.</td></tr>
+          <tr><td>policy generates an alert</td><td>policy selects scope; detector evaluates events and emits an alert</td><td>Preserves the canonical responsibility boundary.</td></tr>
+          <tr><td>anomaly detection in general</td><td>deterministic point or collective detector match</td><td>The implemented engine does not infer general or contextual anomalies.</td></tr>
+          <tr><td>MITRE coverage proves detection</td><td>MITRE ATT&amp;CK tactics and techniques classify alert intent</td><td>Metadata is not proof of correctness or coverage.</td></tr>
+          <tr><td>Kubernetes support</td><td>future deployment consideration</td><td>No implemented and validated orchestration artefact exists.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Validation Evidence</h2>
+      <p>Focused tests for <code>pkg/output</code>, <code>pkg/logging</code>, and <code>pkg/config</code> passed. With the repository CGO flags and writable temporary build cache, the command tests passed, including the new empty policy/CLI intersection rejection. Probe-registry tests also passed, including the current internal classification. No image build or container execution was performed, so packaging statements above remain source-verified rather than runtime-validated.</p>
+    </section>
+
+    <section>
+      <h2>Unresolved Questions</h2>
+      <ol class="compact">
+        <li>Is <code>AlertRecord</code> intended as a versioned external API, and should the event JSON record receive an equally explicit type discriminator and schema version?</li>
+        <li>Should configurations that mix event and alert encodings on the same <code>stdout</code> be rejected, split into separate destinations, or formally framed?</li>
+        <li>Should alert evidence expose process start time, parent start time, cgroup ID, and other stable identifiers used by correlation?</li>
+        <li>Should output write failures terminate the runtime, trigger bounded retries, or remain non-fatal as currently implemented?</li>
+        <li>Should fatal setup errors occurring after logger construction be logged through Zap before they are returned, while avoiding duplicate messages in <code>main</code>?</li>
+        <li>Should <code>logger.Sync</code> errors be surfaced with the same policy now used for <code>Project.Close</code>?</li>
+        <li>Should the new empty policy/CLI event-intersection rejection be treated as a configuration error in the CLI contract and documented as such?</li>
+        <li>Can the duplicated event-specific adaptation in <code>argumentViews</code> and <code>formatArg</code> be centralised into one typed presentation descriptor?</li>
+        <li>Will policy and detector catalogues be copied into a derivative image, embedded, or mounted through a documented versioned contract?</li>
+        <li>What is the verified runtime shared-library closure inside the actual Debian runtime image?</li>
+        <li>Which host mounts and Linux capabilities are minimally required on the target system, rather than merely sufficient under <code>--privileged</code>?</li>
+        <li>Should the README/Makefile Docker drift be corrected before any container workflow enters Chapter 5?</li>
+        <li>Will Kubernetes deployment remain future work, or will a manifest and target-host validation be produced later for Chapter 6 or an appendix?</li>
+      </ol>
+    </section>
+  </main>
+
+  <footer>
+    <h2>Handoff Conclusion</h2>
+    <p>The strongest Chapter 5 narrative is not a catalogue of printers, flags, and files. It is an ownership argument: decoded events retain their security meaning, the output layer adapts them for human or machine consumption, detector alerts preserve the observations that caused a match, and operational diagnostics remain outside both security-data models. The container then packages the executable and embedded eBPF object, while deliberately exposing unresolved dependencies on host kernel resources and externally supplied rule catalogues.</p>
+  </footer>
+</body>
+</html>

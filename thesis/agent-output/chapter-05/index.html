@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 5 Agent Outputs</title>
+  <style>
+    :root { --ink:#19222c; --line:#cbd2d9; --panel:#f4f7f8; --accent:#0f5e75; --pending:#8a4b08; --ready:#23633d; }
+    * { box-sizing:border-box; }
+    body { max-width:980px; margin:2rem auto; padding:0 1rem 4rem; color:var(--ink); font:16px/1.55 system-ui,sans-serif; }
+    h1,h2 { line-height:1.2; }
+    table { width:100%; border-collapse:collapse; margin:1rem 0; }
+    th,td { border:1px solid var(--line); padding:.7rem; text-align:left; vertical-align:top; }
+    th { background:var(--panel); }
+    a { color:var(--accent); }
+    code { background:#edf0f3; padding:.08rem .28rem; overflow-wrap:anywhere; }
+    .status { font-weight:700; }
+    .pending { color:var(--pending); }
+    .ready { color:var(--ready); }
+    .callout { border-left:5px solid var(--accent); background:#e8f3f6; padding:.85rem 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Chapter 5 Agent Outputs</h1>
+  <div class="callout">
+    This directory is the HTML handoff workspace for the Chapter 5 rebuild.
+    Follow the gates in
+    <a href="../../chapter-05-agent-workflow.html">chapter-05-agent-workflow.html</a>.
+    Statuses in this index are updated only after the corresponding file has
+    been inspected.
+  </div>
+
+  <h2>Wave Status</h2>
+  <table>
+    <thead><tr><th>Wave</th><th>Agent output</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>runtime-lifecycle-audit.html</code></td><td class="status pending">Pending</td></tr>
+      <tr><td>1</td><td><code>event-decoder-admission-audit.html</code></td><td class="status pending">Pending</td></tr>
+      <tr><td>1</td><td><code>policy-detector-engine-audit.html</code></td><td class="status pending">Pending</td></tr>
+      <tr><td>1</td><td><code>output-logging-packaging-audit.html</code></td><td class="status pending">Pending</td></tr>
+      <tr><td>2</td><td><code>editorial-synthesis.html</code></td><td class="status pending">Blocked by Wave 1</td></tr>
+      <tr><td>3</td><td><code>writing-report.html</code></td><td class="status pending">Blocked by synthesis approval</td></tr>
+      <tr><td>4</td><td><code>final-review.html</code></td><td class="status pending">Blocked by Chapter 5 draft</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Rules</h2>
+  <ul>
+    <li>Every output must be valid standalone HTML.</li>
+    <li>Wave 1 agents write different files and may run in parallel.</li>
+    <li>No agent in Waves 1, 2 or 4 modifies the thesis.</li>
+    <li>The Wave 3 writer modifies only <code>chapter5.tex</code> and its HTML report.</li>
+    <li>Current code and tests override stale narrative documentation.</li>
+  </ul>
+</body>
+</html>

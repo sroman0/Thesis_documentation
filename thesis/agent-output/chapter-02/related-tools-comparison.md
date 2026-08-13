@@ -226,7 +226,7 @@ The following statements are supported by the implementation and are suitably
 bounded for the positioning section:
 
 1. The proposed system targets process and security monitoring on Rocky Linux 8
-   with kernel `4.18.0-553.109.1.el8_10.x86_64`, rather than pursuing a broad
+   with kernel `4.18.0-553.137.1.el8_10.x86_64`, rather than pursuing a broad
    cross-platform event catalogue.
 2. Its eBPF-side design is adapted to an enterprise kernel whose functionality
    includes backported features; compatibility is therefore evaluated against

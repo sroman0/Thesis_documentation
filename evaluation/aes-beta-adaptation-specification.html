@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Specifica di adattamento della challenge AES-beta</title>
+<style>
+:root {
+  --ink:#172033; --muted:#5f6b7d; --line:#d8dee8; --panel:#f7f9fc;
+  --blue:#2457a6; --green:#1f704c; --amber:#8a5b00; --red:#9b2c2c;
+  --code:#101622;
+}
+* { box-sizing:border-box; }
+body { margin:0; color:var(--ink); font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.62; }
+main { max-width:1160px; margin:0 auto; padding:44px 32px 80px; }
+h1 { max-width:900px; margin:0 0 10px; font-size:2.25rem; line-height:1.16; }
+h2 { margin-top:48px; padding-bottom:8px; border-bottom:1px solid var(--line); }
+h3 { margin-top:28px; }
+p,li { max-width:100ch; }
+a { color:var(--blue); }
+code { font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace; }
+pre { overflow:auto; padding:15px 17px; border-radius:7px; color:#e8edf5; background:var(--code); font-size:.88rem; line-height:1.45; }
+table { width:100%; margin:18px 0 28px; border-collapse:collapse; font-size:.94rem; }
+th,td { padding:10px 12px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+th { background:#f1f4f8; }
+.subtitle { max-width:920px; margin-bottom:22px; color:var(--muted); font-size:1.08rem; }
+.meta { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0 28px; }
+.tag { padding:5px 9px; border:1px solid var(--line); border-radius:5px; background:var(--panel); font-size:.84rem; }
+.toc,.box { padding:17px 21px; border:1px solid var(--line); border-radius:7px; background:#fbfcfe; }
+.toc ol { columns:2; padding-left:22px; }
+.toc a { text-decoration:none; }
+.note { border-left:4px solid var(--blue); }
+.good { border-left:4px solid var(--green); background:#f0f8f4; }
+.warn { border-left:4px solid var(--amber); background:#fff9ec; }
+.risk { border-left:4px solid var(--red); background:#fff5f5; }
+.status { color:var(--green); font-weight:700; }
+.pending { color:var(--amber); font-weight:700; }
+.small { color:var(--muted); font-size:.9rem; }
+.flow { display:grid; grid-template-columns:repeat(7,auto); gap:8px; align-items:center; margin:22px 0; }
+.node { min-width:120px; padding:13px; border:1px solid #bdc8d7; background:#fafcff; text-align:center; }
+.arrow { color:var(--blue); font-size:1.25rem; font-weight:800; }
+footer { margin-top:56px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); font-size:.9rem; }
+@media(max-width:800px) {
+  main { padding:28px 18px 52px; }
+  .toc ol { columns:1; }
+  .flow { grid-template-columns:1fr; }
+  .arrow { text-align:center; transform:rotate(90deg); }
+}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Specifica di adattamento della challenge AES-beta</h1>
+  <p class="subtitle">
+    Step 2 della roadmap: analisi della challenge originale e definizione delle
+    sole modifiche infrastrutturali necessarie per eseguirla come container
+    non privilegiato nel pod sperimentale Minikube.
+  </p>
+  <div class="meta">
+    <span class="tag">Stato: analisi completata</span>
+    <span class="tag">Data: 12 agosto 2026</span>
+    <span class="tag">Challenge: AES-beta</span>
+    <span class="tag">Revisione: 2602f22c</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Indice">
+  <strong>Indice</strong>
+  <ol>
+    <li><a href="#source">Sorgente verificata</a></li>
+    <li><a href="#behaviour">Comportamento originale</a></li>
+    <li><a href="#vulnerability">Vulnerabilità e exploit</a></li>
+    <li><a href="#process-load">Carico di processo</a></li>
+    <li><a href="#jail">Responsabilità di challenge-jail</a></li>
+    <li><a href="#adaptation">Adattamento approvato</a></li>
+    <li><a href="#filesystem">Layout del container target</a></li>
+    <li><a href="#trigger">Adattamento del trigger</a></li>
+    <li><a href="#invariants">Invarianti di equivalenza</a></li>
+    <li><a href="#security">Vincoli di sicurezza</a></li>
+    <li><a href="#validation">Piano di validazione</a></li>
+    <li><a href="#artifacts">File previsti</a></li>
+    <li><a href="#questions">Questioni aperte</a></li>
+    <li><a href="#gate">Gate per lo Step 3</a></li>
+  </ol>
+</nav>
+
+<section id="source">
+  <h2>1. Sorgente verificata</h2>
+  <p>
+    La challenge è stata letta dal checkout locale
+    <code>/home/simone/project/openECSC-2024</code>, branch <code>main</code>,
+    commit <code>2602f22c664eb98398413e6a7dfe03ea88b2d296</code>, con working tree
+    pulita. Il percorso analizzato è
+    <code>teamitaly-preselection-ctf/pwn01</code>.
+  </p>
+  <table>
+    <thead><tr><th>Artefatto</th><th>SHA-256</th><th>Ruolo</th></tr></thead>
+    <tbody>
+      <tr><td><code>src/build/aes-beta</code></td><td><code>44535b44a25e30457bc0c0f5d40cece943b0cb7f7504a37699419c7ea9c30671</code></td><td>Binario vulnerabile originale.</td></tr>
+      <tr><td><code>src/glibc/ld-linux-x86-64.so.2</code></td><td><code>491c2eb04e0b72ac00beaebadf181ce5c9e9545e223c58924cfc65511d8ffe6a</code></td><td>Loader dinamico originale.</td></tr>
+      <tr><td><code>src/glibc/libc.so.6</code></td><td><code>a7ec5ec30f3bfdc198d1b66cfb99f46d362a228916af64938cc6e2d0439707f6</code></td><td>glibc usata dal servizio e dagli offset ROP.</td></tr>
+      <tr><td><code>attachments/aes-beta.tar.gz</code></td><td><code>5054649e86ae3a0701786f9a01ec92120f956ef9a4b6b5f19e9089c93db5e570</code></td><td>Archivio distribuito ai partecipanti.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Il binario è un ELF PIE x86-64 non stripped, richiede
+    <code>/lib64/ld-linux-x86-64.so.2</code> e dipende da <code>libc.so.6</code>.
+    La libreria fornita è glibc Ubuntu 2.35. Gli hash saranno usati per impedire
+    che packaging o copie manuali alterino gli artefatti centrali.
+  </p>
+</section>
+
+<section id="behaviour">
+  <h2>2. Comportamento originale</h2>
+  <p>
+    AES-beta è un servizio interattivo che legge una chiave di otto byte e un
+    numero di blocchi, quindi permette di inviare messaggi da cifrare in modo
+    asincrono. Ogni nuovo messaggio crea due pipe e un processo figlio. Il figlio
+    legge il messaggio, applica uno XOR con la chiave e restituisce il risultato;
+    il padre conserva il PID e usa <code>waitpid</code> per recuperare stato e
+    output.
+  </p>
+  <div class="flow">
+    <div class="node">client TCP</div><div class="arrow">→</div>
+    <div class="node">session wrapper</div><div class="arrow">→</div>
+    <div class="node">aes-beta parent</div><div class="arrow">→</div>
+    <div class="node">forked worker</div>
+  </div>
+  <p>
+    Il binario è stato eseguito direttamente con il loader e la library path
+    originali. Banner, lettura della chiave, configurazione dei blocchi e menu
+    risultano utilizzabili senza patchare né ricompilare il sorgente.
+  </p>
+</section>
+
+<section id="vulnerability">
+  <h2>3. Vulnerabilità e catena di exploit</h2>
+  <ol>
+    <li>La chiave controllata dall'utente viene passata direttamente a <code>printf</code>, creando una format-string vulnerability.</li>
+    <li>La chiave <code>%9$p%7$n</code> espone una base libc e altera <code>n_blocks</code>, superando il limite atteso dal buffer locale del figlio.</li>
+    <li>L'exploit usa lo stato dei figli come oracolo per ricostruire il canary un byte alla volta.</li>
+    <li>Il payload finale costruisce una ROP chain basata sulla glibc fornita e invoca <code>system("cat flag")</code>.</li>
+    <li>La shell e <code>cat</code> ereditano la pipe di output del worker; il contenuto del flag ritorna quindi al client attraverso il protocollo della challenge.</li>
+  </ol>
+  <div class="box note">
+    <strong>Confine da preservare.</strong> L'adattamento non corregge la format
+    string, non modifica la dimensione dei buffer, non rivela il canary, non
+    cambia i gadget e non sostituisce il comando finale. La detection deve
+    osservare l'exploit originale, non una simulazione equivalente.
+  </div>
+</section>
+
+<section id="process-load">
+  <h2>4. Carico di processo generato</h2>
+  <p>
+    Il brute-force pubblicato prova fino a 256 valori per ciascuno dei sette byte
+    ignoti del canary. Nel caso peggiore crea 1.792 worker, ai quali si aggiunge
+    il worker del payload finale e i processi avviati da <code>system</code>. Il
+    numero reale può essere inferiore, ma il run rimane un burst intenso di
+    creazione e terminazione di processi.
+  </p>
+  <table>
+    <thead><tr><th>Fase</th><th>Attività</th><th>Implicazione sperimentale</th></tr></thead>
+    <tbody>
+      <tr><td>Handshake</td><td>Avvio della sessione e del processo principale.</td><td>Introduce i processi del wrapper, che devono essere distinguibili dal binario CTF.</td></tr>
+      <tr><td>Canary oracle</td><td>Fino a 1.792 chiamate a <code>fork</code>, con uscite normali o abort.</td><td>Stressa lifecycle hooks, perf buffer, decoder e output.</td></tr>
+      <tr><td>ROP finale</td><td>Un nuovo worker invoca <code>system</code>.</td><td>Produce il passaggio decisivo verso shell e comando.</td></tr>
+      <tr><td>Flag access</td><td><code>cat</code> apre e legge <code>flag</code>.</td><td>Fornisce l'evidenza puntuale e il termine della sequenza collettiva.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Il controllo benigno dovrà creare un solo worker e recuperare il ciphertext.
+    Questo offre un confronto naturale con lo stesso servizio senza exploit.
+  </p>
+</section>
+
+<section id="jail">
+  <h2>5. Cosa appartiene a challenge-jail</h2>
+  <p>
+    Il deployment originale usa l'immagine privilegiata
+    <code>cybersecnatlab/challenge-jail</code>. Dalla configurazione pubblicata
+    risultano responsabilità esterne al binario vulnerabile:
+  </p>
+  <ul>
+    <li>ascolto TCP sulla porta 1337 e creazione di una sessione per connessione;</li>
+    <li>proof-of-work configurato tramite <code>POW_BITS</code> e bypass hash;</li>
+    <li>timeout della sessione;</li>
+    <li>limite <code>RLIMIT_NOFILE=1024</code>;</li>
+    <li>selezione del loader e della glibc forniti;</li>
+    <li>preparazione del flag e della working directory;</li>
+    <li>isolamento aggiuntivo che, nel compose originale, richiede esecuzione privilegiata.</li>
+  </ul>
+  <p>
+    Questi comportamenti sono infrastruttura della competizione e non la
+    vulnerabilità studiata. Nel laboratorio saranno sostituiti in modo esplicito
+    e verificabile per evitare un secondo container privilegiato nello stesso pod.
+  </p>
+</section>
+
+<section id="adaptation">
+  <h2>6. Adattamento approvato</h2>
+  <table>
+    <thead><tr><th>Elemento</th><th>Decisione</th><th>Motivazione</th></tr></thead>
+    <tbody>
+      <tr><td>Binario CTF</td><td>Copiato senza modifiche e verificato tramite SHA-256.</td><td>Preserva bug, layout, stack canary e comportamento di fork.</td></tr>
+      <tr><td>Loader e glibc</td><td>Copiati senza modifiche nei path attesi dall'ELF; AES-beta viene avviato direttamente.</td><td>Preserva gli offset usati dalla ROP chain e mantiene AES-beta come executable transition osservata.</td></tr>
+      <tr><td>Listener</td><td>Sostituito con un listener minimale che esegue un wrapper per connessione.</td><td>Rimuove la dipendenza dal jail privilegiato mantenendo una sessione TCP.</td></tr>
+      <tr><td>Proof-of-work</td><td>Rimosso dal listener e dal client del laboratorio.</td><td>Non contribuisce alla vulnerabilità e renderebbe il test dipendente da un bypass esterno.</td></tr>
+      <tr><td>Timeout</td><td>Mantenuto come limite esplicito, inizialmente 900 secondi.</td><td>L'exploit completo può essere lungo; il limite evita sessioni bloccate.</td></tr>
+      <tr><td>File descriptor limit</td><td>Impostato a 1024 nel wrapper, se supportato dal runtime.</td><td>Replica il limite pubblicato e contiene il burst di pipe.</td></tr>
+      <tr><td>Flag</td><td>Valore sintetico montato come file <code>/opt/aes-beta/flag</code>.</td><td>Il payload originale usa un pathname relativo e non deve accedere a segreti reali.</td></tr>
+      <tr><td>Utente</td><td>UID/GID non root dedicato al target.</td><td>La challenge non richiede privilegi kernel o host.</td></tr>
+      <tr><td>Exploit</td><td>Payload, gadget, brute-force e parsing invariati; cambiano host, porta e handshake PoW.</td><td>Preserva la semantica offensiva originale.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="filesystem">
+  <h2>7. Layout previsto del container target</h2>
+  <pre><code>/listener                          # wrapper TCP statico
+/opt/aes-beta/
+  aes-beta                         # artefatto originale, read-only
+  flag                             # Secret sintetico, read-only
+/lib64/ld-linux-x86-64.so.2        # loader originale, read-only
+/lib/x86_64-linux-gnu/libc.so.6    # libc originale, read-only
+/bin/sh                            # BusyBox statico
+/bin/cat                           # BusyBox statico
+
+working directory: /opt/aes-beta
+listen address:    0.0.0.0:1337
+runtime user:      non-root</code></pre>
+  <p>
+    Lo Step 3 ha sostituito il wrapper shell provvisorio con un listener statico
+    che avvia direttamente <code>/opt/aes-beta/aes-beta</code>. Il loader e la
+    libc originali sono collocati nei path attesi dall'ELF: questo preserva il
+    runtime originale senza far apparire il loader come programma eseguito
+    esplicitamente nella traccia di processo.
+  </p>
+  <p>
+    La working directory è un requisito funzionale: il comando originale
+    <code>cat flag</code> deve risolvere il file sintetico senza cambiare il
+    payload. Il target deve inoltre contenere <code>/bin/sh</code> e
+    <code>cat</code>, usati indirettamente da <code>system</code>.
+  </p>
+</section>
+
+<section id="trigger">
+  <h2>8. Adattamento del container trigger</h2>
+  <p>
+    Il trigger conterrà la glibc del checker originale, pwntools e due entrypoint
+    manuali. Pwntools non è installato nell'ambiente host corrente e dovrà essere
+    dichiarato e fissato nell'immagine del trigger.
+  </p>
+  <table>
+    <thead><tr><th>Script</th><th>Comportamento</th><th>Modifiche rispetto all'originale</th></tr></thead>
+    <tbody>
+      <tr><td><code>run-benign.py</code></td><td>Invia chiave non speciale, configura un numero valido di blocchi, cifra un messaggio, recupera il worker e termina.</td><td>Nuovo controllo negativo; non tenta overflow o command execution.</td></tr>
+      <tr><td><code>run-exploit.py</code></td><td>Esegue format-string leak, brute-force del canary, ROP finale e verifica del flag sintetico.</td><td>Usa <code>127.0.0.1:1337</code> e rimuove esclusivamente l'attesa/invio del proof-of-work.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Ogni script dovrà stampare Run ID, timestamp UTC, durata, esito e numero di
+    worker richiesti. Non dovrà avviarsi automaticamente con il container.
+  </p>
+</section>
+
+<section id="invariants">
+  <h2>9. Invarianti di equivalenza</h2>
+  <p>Il porting sarà considerato fedele soltanto se soddisfa tutti i controlli seguenti:</p>
+  <ol>
+    <li>Gli hash del binario, loader e glibc nel container coincidono con quelli della revisione openECSC.</li>
+    <li>Il binario viene eseguito tramite il loader e la libreria originali, non contro la glibc della base image.</li>
+    <li>La format-string produce una base libc interpretabile dall'exploit originale.</li>
+    <li>Il controllo benigno crea un worker e restituisce il ciphertext previsto.</li>
+    <li>Il brute-force ricostruisce il canary attraverso gli stati dei processi figli.</li>
+    <li>La ROP chain mantiene gli stessi gadget e lo stesso comando <code>cat flag</code>.</li>
+    <li>Il flag è ottenibile soltanto attraverso il servizio vulnerabile, non tramite filesystem condiviso con il trigger.</li>
+    <li>L'exploit completa senza capability, container privilegiato o accesso al PID namespace host.</li>
+  </ol>
+</section>
+
+<section id="security">
+  <h2>10. Vincoli di sicurezza del laboratorio</h2>
+  <ul>
+    <li>Il target e il trigger devono avere <code>allowPrivilegeEscalation: false</code> a livello Kubernetes; questa proprietà non impedisce la command execution interna al processo già compromesso.</li>
+    <li>Capabilities Linux rimosse per target e trigger, salvo evidenza di una necessità specifica.</li>
+    <li>Root filesystem preferibilmente read-only, con volumi scrivibili limitati alle directory temporanee richieste.</li>
+    <li>Nessun socket Docker, bpffs, BTF, tracefs o directory host montata nei container CTF.</li>
+    <li>Flag esclusivamente sintetico e non riutilizzato come credenziale.</li>
+    <li>Il listener accetta connessioni solo nel network namespace del pod; non è previsto un Service esterno.</li>
+    <li>Limiti CPU, memoria, processi e file descriptor dichiarati, con valori compatibili con il brute-force.</li>
+  </ul>
+  <div class="box warn">
+    <strong>Tensione da verificare.</strong> Un limite PID troppo basso rende
+    impossibile l'exploit; uno troppo alto può disturbare il nodo Minikube. Il
+    valore dovrà essere scelto dopo un run Docker controllato e registrato come
+    variabile sperimentale.
+  </div>
+</section>
+
+<section id="validation">
+  <h2>11. Piano di validazione prima di Kubernetes</h2>
+  <table>
+    <thead><tr><th>ID</th><th>Controllo</th><th>Esito richiesto</th></tr></thead>
+    <tbody>
+      <tr><td>A1</td><td>Verifica SHA-256 degli artefatti copiati.</td><td>Tutti gli hash coincidono con la tabella della Sezione 1.</td></tr>
+      <tr><td>A2</td><td>Avvio diretto tramite loader e library path.</td><td>Banner e menu disponibili senza errori di linking.</td></tr>
+      <tr><td>A3</td><td>Connessione al listener da un secondo container.</td><td>Una sessione isolata raggiunge AES-beta su porta 1337.</td></tr>
+      <tr><td>A4</td><td>Controllo benigno.</td><td>Un worker termina con stato valido e ciphertext corretto.</td></tr>
+      <tr><td>A5</td><td>Exploit adattato.</td><td>Il client recupera esattamente il flag sintetico.</td></tr>
+      <tr><td>A6</td><td>Confronto del processo finale.</td><td>Sono osservabili shell, <code>cat</code> e apertura di <code>/opt/aes-beta/flag</code>.</td></tr>
+      <tr><td>A7</td><td>Controllo dei privilegi.</td><td>Target e trigger funzionano come utenti non root senza capability aggiuntive.</td></tr>
+      <tr><td>A8</td><td>Reset della sessione.</td><td>Una nuova connessione non eredita processi o stato applicativo dalla precedente.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="artifacts">
+  <h2>12. File previsti per l'implementazione</h2>
+  <p>
+    Lo Step 2 non crea questi file. La struttura è stata precisata dallo Step 3
+    e sarà realizzata nello Step 4, senza modificare il checkout openECSC.
+  </p>
+  <pre><code>demo_project/k8s/minikube-ctf/
+  images/
+    target/
+      Dockerfile
+      listener/
+    trigger/
+      Dockerfile
+      run-benign.py
+      run-exploit.py
+      requirements.txt
+  upstream/
+    README.md                       # provenienza e procedura di copia
+  scripts/
+    verify-upstream-checksums.sh
+    test-target-docker.sh</code></pre>
+  <p>
+    Gli artefatti binari openECSC non devono essere duplicati senza una decisione
+    esplicita su licenza, dimensione e tracciamento Git. Il Docker build context
+    potrà copiarli dal checkout locale documentato oppure da una directory
+    vendorizzata con provenienza e checksum.
+  </p>
+</section>
+
+<section id="questions">
+  <h2>13. Questioni aperte</h2>
+  <table>
+    <thead><tr><th>Questione</th><th>Decisione provvisoria</th><th>Quando risolverla</th></tr></thead>
+    <tbody>
+      <tr><td>Listener TCP</td><td>Risolta nello Step 3: wrapper statico Go con sessioni serializzate, timeout e reaping esplicito.</td><td>Da implementare e validare nello Step 4.</td></tr>
+      <tr><td>Base image</td><td>Risolta nello Step 3: target finale <code>scratch</code> con loader/libc originali e BusyBox statico; digest BusyBox da fissare.</td><td>Da implementare e validare nello Step 4.</td></tr>
+      <tr><td>Distribuzione upstream</td><td>Checkout attuale esterno a <code>demo_project</code>; nessuna copia automatica ancora definita.</td><td>Prima di rendere riproducibile la build.</td></tr>
+      <tr><td>Limite PID</td><td>Deve consentire il burst senza compromettere il nodo.</td><td>Validazione Docker e primo run Minikube.</td></tr>
+      <tr><td>Durata exploit</td><td>Timeout iniziale 900 secondi.</td><td>Dopo almeno tre run controllati.</td></tr>
+      <tr><td>Detector collettivo</td><td>Non fissato finché non viene osservata la relazione reale tra shell, cat e file-open.</td><td>Dopo A6.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="gate">
+  <h2>14. Gate per lo Step 3</h2>
+  <ul>
+    <li><span class="status">Definito:</span> insieme degli artefatti originali da preservare.</li>
+    <li><span class="status">Definito:</span> confine tra vulnerabilità e infrastruttura challenge-jail.</li>
+    <li><span class="status">Definito:</span> unica modifica ammessa all'exploit: endpoint e rimozione dell'handshake PoW.</li>
+    <li><span class="status">Definito:</span> working directory e flag sintetico richiesti dal payload originale.</li>
+    <li><span class="status">Definito:</span> controlli di equivalenza e validazione Docker.</li>
+    <li><span class="status">Definito nello Step 3:</span> listener statico e immagine target minimale.</li>
+    <li><span class="status">Implementato nello Step 4:</span> immagini target/trigger e percorsi benigno/exploit.</li>
+  </ul>
+  <div class="box good">
+    <strong>Output dello Step 2.</strong> La challenge può essere adattata senza
+    modificare il binario vulnerabile o la catena offensiva. Il design concreto
+    dei container è ora disponibile nello Step 3.
+  </div>
+</section>
+
+<section>
+  <h2>15. Collegamenti</h2>
+  <ul>
+    <li><a href="minikube-ctf-experiment-design.html">Step 1: specifica sperimentale</a>.</li>
+    <li><a href="minikube-ctf-container-design.html">Step 3: design dei container e del Pod</a>.</li>
+    <li><a href="minikube-ctf-container-implementation.html">Step 4: implementazione e validazione Docker</a>.</li>
+    <li><a href="https://github.com/ECSC2024/openECSC-2024/tree/main/teamitaly-preselection-ctf/pwn01">Sorgente upstream di AES-beta</a>.</li>
+  </ul>
+</section>
+
+<footer>
+  Documento di analisi e adattamento. Le immagini e gli script elencati sono
+  intenzioni vincolanti per la fase successiva, non componenti già implementati
+  o risultati sperimentali acquisiti.
+</footer>
+</main>
+</body>
+</html>

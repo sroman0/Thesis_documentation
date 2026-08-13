@@ -12,8 +12,9 @@ e decisioni architetturali verificabili. Il capitolo deve spiegare:
 4. perche' sono state adottate queste separazioni.
 
 Il Capitolo 3 descrive il design, non il codice. Nomi di funzioni, struct, mappe,
-file Go, sezioni ELF, flag CLI e procedure di test appartengono al Capitolo 4 o
-alle appendici.
+file Go e flag CLI appartengono al Capitolo 5, mentre sezioni ELF e dettagli
+kernel-space appartengono al Capitolo 4; le procedure di test appartengono al
+Capitolo 6 o alle appendici.
 
 ## Struttura canonica
 
@@ -22,7 +23,7 @@ alle appendici.
 #### 3.1.1 Target Environment and Compatibility Assumptions
 
 Definisce Rocky Linux 8.10, il kernel enterprise
-`4.18.0-553.109.1.el8_10.x86_64`, la presenza di backport e la necessita' di
+`4.18.0-553.137.1.el8_10.x86_64`, la presenza di backport e la necessita' di
 verificare sul target hook, helper, BTF, attachment e comportamento del
 verifier. CO-RE riduce la dipendenza dai layout, ma non sostituisce funzionalita'
 assenti.
@@ -101,7 +102,7 @@ runtime Go.
 Motiva un header comune e argomenti tipizzati, condivisi tra C e Go. Introduce
 la necessita' di mantenere coerenti identificatori, dimensioni e semantica tra
 producer e consumer. Il layout da 136 byte e le correzioni specifiche vengono
-documentati nel Capitolo 4.
+documentati nei Capitoli 4 e 5 secondo il confine kernel-space/user-space.
 
 #### 3.4.2 Perf-Buffer Transport and Failure Boundaries
 
@@ -134,7 +135,7 @@ Mantiene distinti:
 
 Le modalita' che mostrano soltanto gli alert appartengono al livello di
 presentazione e non modificano la logica di raccolta o detection. La tecnologia
-di logging e le flag concrete vengono descritte nel Capitolo 4.
+di logging e le flag concrete vengono descritte nel Capitolo 5.
 
 ### 3.6 Policy and Detection Architecture
 
@@ -158,7 +159,7 @@ parent-child immediata, identita' stabile di una risorsa file, cgroup locale e
 combinazioni composite. Lo stato e' limitato da finestre brevi e da un massimo
 per detector. Non esiste un grafo persistente dei processi o una correlazione
 cluster-wide. I campi concreti usati per costruire queste identita' appartengono
-al Capitolo 4.
+ai Capitoli 4 e 5 secondo la responsabilita' implementativa.
 
 #### 3.6.4 Alert Evidence and MITRE ATT&CK Metadata
 
@@ -181,10 +182,10 @@ Raccoglie le decisioni principali e le alternative escluse:
 
 ## Confini Con I Capitoli Adiacenti
 
-Il Capitolo 2 contiene teoria e related work. Il Capitolo 3 presenta requisiti,
-componenti e ragioni progettuali. Il Capitolo 4 dimostra come tali decisioni
-sono realizzate nel codice. Il Capitolo 5 valuta comportamento, copertura e
-prestazioni.
+Il Capitolo 2 contiene i fondamenti eBPF e il related work. Il Capitolo 3 presenta requisiti,
+componenti e ragioni progettuali. Il Capitolo 4 realizza la raccolta
+kernel-space, mentre il Capitolo 5 realizza runtime Go e detection. Il Capitolo
+6 valuta comportamento, copertura e prestazioni.
 
 ## Evidenze Interne Da Verificare
 

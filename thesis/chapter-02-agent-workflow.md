@@ -1,5 +1,16 @@
 # Workflow agenti - Capitolo 2
 
+> **Nota sulla numerazione corrente:** questo workflow precede la separazione
+> dell'implementazione in Capitolo 4 kernel-space e Capitolo 5 user-space.
+> Ogni riferimento storico alla valutazione nel Capitolo 5 va ora letto come
+> Capitolo 6. L'indice canonico resta `definitive-outline.md`.
+
+> **Nota sulla revisione eBPF-centric:** la precedente Sezione 2.3 su anomaly
+> taxonomy, policy, detector e ATT&CK e' stata rimossa dal Capitolo 2. Il suo
+> output di ricerca resta storico; definizioni e scelte del sistema proposto
+> appartengono ora al Capitolo 3. Il Capitolo 2 aggiunge invece object loading,
+> attachment lifecycle e una trattazione piu' completa delle mappe eBPF.
+
 ## Strategia
 
 Il lavoro e' diviso in tre ondate:
@@ -10,8 +21,10 @@ Il lavoro e' diviso in tre ondate:
 3. un revisore indipendente controlla testo, fonti e posizionamento.
 
 Gli agenti della prima ondata devono lavorare su file diversi. Questo evita
-conflitti e mantiene separate ricerca bibliografica, teoria della detection,
-confronto tra strumenti ed evidenza implementativa.
+conflitti e mantiene separate ricerca bibliografica, fondamenti eBPF,
+confronto tra strumenti ed evidenza implementativa. Il secondo agente riportato
+di seguito documenta una fase editoriale precedente e non deve essere rilanciato
+per la struttura corrente.
 
 ## Ondata 1 - Agenti da avviare in parallelo
 
@@ -37,9 +50,10 @@ Read completely:
 Research the material required for:
 - 2.1 Linux Kernel Observability;
 - 2.2.1 Execution Model, Verifier and JIT Compilation;
-- 2.2.2 Program Types, Hooks and Attachment Mechanisms;
-- 2.2.3 Maps, Helpers and Kernel-to-Userspace Transport;
-- 2.2.4 BTF and CO-RE Portability.
+- 2.2.2 Object Files, Loading and Attachment Lifecycle;
+- 2.2.3 Hook Selection and Event Semantics;
+- 2.2.4 Maps, Helpers and Kernel-to-Userspace Transport;
+- 2.2.5 BTF and CO-RE Portability.
 
 Use primary and authoritative sources: Linux kernel documentation, eBPF
 specifications, peer-reviewed papers and official libbpf documentation.
@@ -58,8 +72,9 @@ Explicitly clarify:
 - the modern naming of BPF/eBPF;
 - what the verifier checks and what it cannot guarantee;
 - interpreter versus JIT execution;
+- ELF object contents, libbpf loading, attachment ownership and pinning;
 - program type versus hook versus attachment mechanism;
-- maps, helpers, perf buffers and ring buffers;
+- array, hash, per-CPU and shared maps, helpers, perf buffers and ring buffers;
 - BTF and CO-RE, including their portability limits;
 - why enterprise-kernel backports make version-only assumptions unreliable.
 

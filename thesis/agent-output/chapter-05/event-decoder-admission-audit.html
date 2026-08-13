@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 5 Event Decoder, Registry and Admission Audit</title>
+  <style>
+    :root {
+      --ink: #17212b;
+      --muted: #586574;
+      --line: #c9d2da;
+      --panel: #f4f7f9;
+      --accent: #0d6075;
+      --soft: #e8f4f7;
+      --warn: #fff3dc;
+      --danger: #fdeaea;
+      --ok: #eaf6ee;
+    }
+    * { box-sizing: border-box; }
+    body {
+      max-width: 1120px;
+      margin: 2rem auto;
+      padding: 0 1.2rem 4rem;
+      color: var(--ink);
+      font: 16px/1.58 system-ui, sans-serif;
+    }
+    h1, h2, h3 { line-height: 1.2; letter-spacing: 0; }
+    h2 { margin-top: 2.3rem; padding-bottom: .35rem; border-bottom: 2px solid var(--line); }
+    h3 { margin-top: 1.6rem; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    th, td { border: 1px solid var(--line); padding: .65rem; text-align: left; vertical-align: top; }
+    th { background: var(--panel); }
+    code { background: #edf1f4; padding: .08rem .28rem; overflow-wrap: anywhere; }
+    pre { overflow: auto; padding: 1rem; color: #eef5f7; background: #17252d; }
+    .callout { margin: 1rem 0; padding: .85rem 1rem; border-left: 5px solid var(--accent); background: var(--soft); }
+    .warning { border-left-color: #95600b; background: var(--warn); }
+    .danger { border-left-color: #a32d2d; background: var(--danger); }
+    .ok { border-left-color: #267044; background: var(--ok); }
+    .muted { color: var(--muted); }
+    .pipeline { display: grid; gap: .45rem; margin: 1rem 0; }
+    .stage { padding: .65rem .8rem; border: 1px solid var(--line); background: var(--panel); }
+    .arrow { text-align: center; color: var(--accent); font-weight: 700; }
+    ul, ol { padding-left: 1.4rem; }
+    li { margin: .25rem 0; }
+    @media (max-width: 780px) {
+      table { display: block; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Event Decoder, Registry and Admission Audit</h1>
+  <p><strong>Chapter 5, Wave 1 technical report</strong></p>
+
+  <div class="callout">
+    <strong>Scope.</strong> This report audits the host-event perf-record path from
+    libbpfgo delivery to admission into the detector engine. It excludes the C
+    serializer, networking decoders and experimental evaluation.
+  </div>
+
+  <div class="callout danger">
+    <strong>Re-audit after merge.</strong> The report was rechecked after the
+    repository was pushed to <code>main</code>. The current clean commit is
+    <code>d916df707be2a0392c2431c66a30913ab1cd2dab</code>. The constructor issue
+    described below is fixed, but the merge introduced a registry regression:
+    <code>raw_sys_enter</code> is public again without a decoder schema. The
+    registry test suite therefore fails. The same merge also removed
+    <code>internal: true</code> from <code>security_socket_sendmsg</code>; it is
+    another support probe that must be reviewed together with this failure.
+  </div>
+
+  <div class="callout ok">
+    <strong>Second re-audit.</strong> The current working tree now contains the
+    intended registry correction: <code>raw_sys_enter</code> and
+    <code>security_socket_sendmsg</code> are explicitly internal. The complete
+    package test suite passes with these changes. They are still uncommitted, so
+    the clean commit named above does not yet contain the passing registry
+    state.
+  </div>
+
+  <h2>Repository State</h2>
+  <table>
+    <tbody>
+      <tr><th>Repository</th><td><code>/home/simone/project/demo_project</code></td></tr>
+      <tr><th>Inspected commit</th><td><code>d916df707be2a0392c2431c66a30913ab1cd2dab</code></td></tr>
+      <tr><th>Branch state</th><td><code>main</code> and <code>origin/main</code> point to this commit.</td></tr>
+      <tr><th>Working tree</th><td>Dirty at the second re-audit: <code>pkg/cmd/project.go</code>, <code>pkg/cmd/project_test.go</code>, and <code>pkg/ebpf/probes/probes.go</code> are modified.</td></tr>
+      <tr><th>Merge scope</th><td>The merge includes runtime-constructor corrections, policy detector selection, derived network event selection, and probe-registry changes. The current local changes complete the probe classification and tighten runtime startup/cleanup handling.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout ok">
+    The runtime constructor correction is committed: options are applied to
+    the constructed project once, and the logger and network printer are derived
+    from that same object. The public/internal probe classification is corrected
+    in the current working tree, but still needs to be committed.
+  </div>
+
+  <h3>Verification Run</h3>
+  <p>
+    With the repository-local libbpf include and archive paths, the current
+    tree passed <code>pkg/bufferdecoder</code>, <code>pkg/events</code>,
+    <code>pkg/policy</code>, <code>pkg/ebpf</code> (which currently contains no
+    tests), and the other non-probe packages in the complete run. The complete
+    <code>go test ./pkg/...</code> run fails in
+    <code>pkg/ebpf/probes</code>, at <code>TestPublicProbesHaveDecoderSpecs</code>
+    for <code>raw_sys_enter</code>. The latter failure applies to the clean
+    commit before the local registry correction; the current dirty tree passes
+    the complete <code>go test ./pkg/...</code> run.
+  </p>
+
+  <h2>Record-to-Admitted-Event Pipeline</h2>
+  <div class="pipeline">
+    <div class="stage"><strong>1. Perf delivery.</strong> During initialisation, libbpfgo opens one reader over the <code>events</code> perf-event array and delivers record byte slices and loss counts on separate Go channels.</div>
+    <div class="arrow">&#8595;</div>
+    <div class="stage"><strong>2. Runtime receive.</strong> <code>Project.Run</code> selects a raw byte slice from <code>perfBufChannel</code>. Debug accounting may note the first raw record; no event interpretation has occurred yet.</div>
+    <div class="arrow">&#8595;</div>
+    <div class="stage"><strong>3. Decoding begins.</strong> <code>handleRawEvent</code> calls <code>bufferdecoder.DecodeEvent(raw)</code>. This call is the first interpretation of host-event bytes.</div>
+    <div class="arrow">&#8595;</div>
+    <div class="stage"><strong>4. Fixed context.</strong> The decoder reads the explicit 136-byte context, then the one-byte declared argument count.</div>
+    <div class="arrow">&#8595;</div>
+    <div class="stage"><strong>5. Schema-directed arguments.</strong> The numeric event ID selects an event specification. Each encountered index selects the corresponding argument name and decoding type. Successfully decoded arguments are returned in schema order.</div>
+    <div class="arrow">&#8595;</div>
+    <div class="stage"><strong>6. Decoded event.</strong> The result is one <code>bufferdecoder.Event</code> containing the context, public logical-event name and typed arguments. Host events require no second normalisation object.</div>
+    <div class="arrow">&#8595;</div>
+    <div class="stage"><strong>7. Runtime admission.</strong> The event must pass, in order, the selected-event set, the optional exact command-name filter, and the policy manager. A rejection returns immediately.</div>
+    <div class="arrow">&#8595;</div>
+    <div class="stage"><strong>8. Independent consumers.</strong> Unless <code>alerts-only</code> is set, the event printer receives the admitted event. The detector engine receives it regardless of <code>alerts-only</code>. Detector alerts then use the independent alert printer.</div>
+  </div>
+
+  <p>
+    Optional socket or network enrichment occurs after decoding and before
+    admission, but it is outside this host-event audit. It must not be described
+    as the general normalisation stage.
+  </p>
+
+  <h2>Fixed Event Context</h2>
+  <p>
+    <code>bufferdecoder.EventContext</code> is the explicit Go mirror of the
+    fixed C context. <code>DecodeContext</code> reads fields by fixed little-endian
+    offsets instead of relying on Go struct layout or <code>binary.Read</code>.
+    The contract covers timestamp and task start times, cgroup identity, process
+    and thread identities in observed and host namespaces, UID, namespace IDs,
+    fixed command and UTS-name arrays, event ID, syscall number, stack and CPU
+    identifiers, and policy metadata. Its declared wire size is 136 bytes.
+  </p>
+  <p>
+    This explicit-offset approach makes the wire layout visible and avoids Go
+    padding assumptions, but the size constant and field offsets remain manually
+    synchronised with the C structure. There is no automated cross-language
+    layout generator or compile-time C/Go assertion in the inspected packages.
+  </p>
+
+  <h2>Schema-Directed Argument Decoding</h2>
+  <p>
+    The wire record carries an argument index but no independent type tag. The
+    index is looked up in <code>pkg/events/spec.go</code>; its registered
+    <code>DecodeAs</code> value determines how many bytes are consumed and which
+    Go value is produced. This means that a valid event is schema-compatible in
+    the practical sense that every encountered index can be decoded using the
+    registered schema. It does not mean that the producer's intended type can be
+    verified independently from the schema.
+  </p>
+  <p>Implemented host payload families include:</p>
+  <ul>
+    <li>fixed-width booleans and unsigned or signed integer and pointer values;</li>
+    <li>length-prefixed strings and byte slices;</li>
+    <li>bounded arrays of length-prefixed strings;</li>
+    <li>compact NUL-delimited argument arrays with payload length and reported count;</li>
+    <li>fixed-width compact credential snapshots; and</li>
+    <li>socket-address records, whose protocol-specific audit is outside this report.</li>
+  </ul>
+  <p>
+    Strings have trailing NUL bytes removed and are checked for valid UTF-8.
+    Missing schema fields are permitted because eBPF collection can omit an
+    unavailable argument while preserving the indexes of later fields.
+  </p>
+
+  <h2>Malformed-Input Behaviour Matrix</h2>
+  <table>
+    <thead>
+      <tr><th>Condition</th><th>Current behaviour</th><th>Test evidence</th><th>Contract interpretation</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Record shorter than 136-byte context</td>
+        <td>Rejected by <code>DecodeContext</code>.</td>
+        <td>No direct <code>DecodeEvent</code> regression test found.</td>
+        <td>Structural failure; record stops before admission.</td>
+      </tr>
+      <tr>
+        <td>Context present but argument-count byte missing</td>
+        <td>Rejected while decoding <code>argnum</code>.</td>
+        <td>No direct test found.</td>
+        <td>Structural failure.</td>
+      </tr>
+      <tr>
+        <td>Unknown event ID</td>
+        <td>Rejected with ID, derived name, declared count and remaining byte count.</td>
+        <td><code>TestEventNameReturnsUnknownForMissingID</code> tests name lookup only; no direct decoder rejection test.</td>
+        <td>Schema drift is made visible and cannot enter policy or detector processing.</td>
+      </tr>
+      <tr>
+        <td>Argument index outside the selected event schema</td>
+        <td>Rejected immediately.</td>
+        <td>No direct test found.</td>
+        <td>Schema incompatibility.</td>
+      </tr>
+      <tr>
+        <td>Truncated fixed-width scalar</td>
+        <td>Rejected when fewer bytes than the schema width remain.</td>
+        <td>No direct scalar-truncation test found.</td>
+        <td>Structural failure.</td>
+      </tr>
+      <tr>
+        <td>Truncated string or byte value</td>
+        <td>Rejected if the length field is missing or its declared content is unavailable.</td>
+        <td>No direct top-level sized-record truncation test found.</td>
+        <td>Structural failure.</td>
+      </tr>
+      <tr>
+        <td>Oversized variable value</td>
+        <td>Rejected above 4096 bytes for one string, 65536 for bytes, 64 string-array elements, 8192 compact-array payload bytes, or 1024 reported compact-array values.</td>
+        <td>No direct maximum-limit tests found.</td>
+        <td>Configured decoder bound, not proof of producer correctness.</td>
+      </tr>
+      <tr>
+        <td>Truncated string-array element</td>
+        <td>Rejected.</td>
+        <td><code>TestDecodeStringArrayRecordRejectsTruncatedElement</code>.</td>
+        <td>Structural failure.</td>
+      </tr>
+      <tr>
+        <td>Invalid UTF-8</td>
+        <td>Rejected for decoded string payloads.</td>
+        <td><code>TestDecodeArgsArrayRecordRejectsInvalidUTF8</code> covers a compact argument array.</td>
+        <td>Text-normalisation failure.</td>
+      </tr>
+      <tr>
+        <td>Truncated credential snapshot</td>
+        <td>Rejected unless all 80 bytes are available.</td>
+        <td><code>TestDecodeCredentialRecordRejectsTruncatedPayload</code>.</td>
+        <td>Fixed-layout failure.</td>
+      </tr>
+      <tr>
+        <td>Schema argument absent</td>
+        <td>Accepted. Only encountered arguments appear in the event.</td>
+        <td>Design is documented in code; no focused missing-argument test found.</td>
+        <td>Intentional sparse encoding.</td>
+      </tr>
+      <tr>
+        <td>Declared count exceeds complete records actually present</td>
+        <td>If the byte stream ends exactly between arguments, decoding stops and succeeds with fewer arguments. If a partial record begins, its decoder normally returns an error.</td>
+        <td>No focused test found.</td>
+        <td>Non-canonical input may be accepted; the count is not strictly enforced.</td>
+      </tr>
+      <tr>
+        <td>Duplicate argument index</td>
+        <td>Accepted; the later decoded value overwrites the earlier value in the index map.</td>
+        <td>No focused test found.</td>
+        <td>Not canonicalised or rejected.</td>
+      </tr>
+      <tr>
+        <td>Trailing bytes after the declared arguments</td>
+        <td>Ignored; full record consumption is not required.</td>
+        <td>No focused test found.</td>
+        <td>Bounded typed decoding, not strict canonical framing.</td>
+      </tr>
+      <tr>
+        <td>Producer type differs from registered type</td>
+        <td>No wire type tag exists. A wrong-width payload may fail through truncation or misalign later records; a same-width mismatch can be silently interpreted as the registered type.</td>
+        <td>No cross-language schema test found.</td>
+        <td>Cannot be claimed as an explicitly detected type mismatch.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout warning">
+    The most accurate claim is that the decoder provides <em>bounded,
+    schema-directed typed interpretation</em>. It does not currently enforce a
+    unique canonical encoding because missing fields, duplicate indexes and
+    trailing bytes are accepted, and declared argument count is not always
+    satisfied strictly.
+  </div>
+
+  <h2>Registry Authority and Invariants</h2>
+  <p>
+    There is no single registry for both semantics and attachment. The event
+    registry is authoritative for the public userspace decoding contract; the
+    probe registry is authoritative for attachment and CLI selection. Their
+    relationship is many-to-one where several physical programs produce one
+    logical event. Internal probes are physical dependencies without a public
+    decoded-event contract.
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>Invariant</th><th>Owner</th><th>Exact tests</th><th>Qualification</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Event IDs, names and argument schemas are unique and reversible in userspace.</td>
+        <td><code>pkg/events</code></td>
+        <td><code>TestEventSpecsHaveConsistentIDsAndNames</code>, <code>TestListNamesReturnsSortedUniqueDecoderEvents</code>, <code>TestExistsAndIDByNameUseDecoderRegistry</code></td>
+        <td>These tests do not compare Go IDs with C constants.</td>
+      </tr>
+      <tr>
+        <td>Every ordinary public probe name has a decoder schema.</td>
+        <td>Cross-registry test in <code>pkg/ebpf/probes</code></td>
+        <td><code>TestPublicProbesHaveDecoderSpecs</code></td>
+        <td>Directional cgroup selectors are an explicit exception because they produce protocol event names rather than their selector names.</td>
+      </tr>
+      <tr>
+        <td>Every non-network decoder event is exposed by at least one public probe.</td>
+        <td>Cross-registry test in <code>pkg/ebpf/probes</code></td>
+        <td><code>TestDecoderEventsAreExposedByPublicProbes</code></td>
+        <td>Network event families are deliberately skipped.</td>
+      </tr>
+      <tr>
+        <td>Internal support probes are absent from the public event set and cannot be selected directly.</td>
+        <td><code>pkg/ebpf/probes</code></td>
+        <td><code>TestInternalProbesAreHiddenFromCliSelection</code></td>
+        <td>The current clean merge regressed at least <code>raw_sys_enter</code> and <code>security_socket_sendmsg</code>; the invariant test detects the first failure.</td>
+      </tr>
+      <tr>
+        <td>Selecting a public event also selects its internal dependencies.</td>
+        <td><code>pkg/ebpf/probes</code></td>
+        <td><code>TestSelectAttachesImpliedProbesWithoutExposingInternalEvents</code></td>
+        <td>Dependency probes do not become admitted logical events.</td>
+      </tr>
+      <tr>
+        <td>Several physical probes may produce one logical event.</td>
+        <td><code>pkg/ebpf/probes</code></td>
+        <td><code>TestSelectCanAttachMultipleProbesForOneEvent</code>, <code>TestSelectCanAttachChmodSyscallFamily</code>, <code>TestSelectCanAttachOpenSyscallFamily</code>, <code>TestSelectCanAttachChownSyscallFamily</code></td>
+        <td>The decoder sees the shared event ID and schema, not the physical producer identity.</td>
+      </tr>
+      <tr>
+        <td>Default selection exposes all public probe names once, while include/exclude validation rejects unsupported or empty selections.</td>
+        <td><code>pkg/ebpf/probes</code></td>
+        <td><code>TestSupportedEventNamesAreSortedAndUnique</code>, <code>TestSelectDefaultEnablesAllSupportedEvents</code>, <code>TestSelectRejectsUnsupportedEvents</code>, <code>TestSelectRejectsEmptySelection</code></td>
+        <td>The public set is derived from probe specs with <code>EmitsEvent()</code>.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>What Normalisation Means Here</h2>
+  <div class="callout ok">
+    <strong>Precise answer.</strong> For runtime events, decoding is the
+    normalisation boundary. <code>bufferdecoder.DecodeEvent</code> converts a raw
+    perf record into the common typed representation consumed by both policy
+    matching and detectors. It resolves the logical event name, maps indexed
+    payloads to schema names and Go types, orders present arguments by schema,
+    trims string terminators, and validates text and configured bounds.
+  </div>
+  <p>
+    The policy layer constructs a small <code>policy.EventInput</code> containing
+    the event name, command, UID and a pointer to the same decoded event. This is
+    an admission view, not a second event normalisation stage. The detector type
+    is a direct alias of <code>bufferdecoder.Event</code>, so detector dispatch
+    receives the same model without conversion.
+  </p>
+  <p>
+    <code>pkg/output/event.go</code> creates a separate user-facing JSON record,
+    groups context fields and adds symbolic labels. Its comment also uses the
+    word “normalized”, but architecturally this is presentation adaptation. It
+    occurs only when an admitted event is printed and is not the representation
+    consumed by policy or detector logic. Chapter 5 should reserve
+    <em>normalised event</em> for the decoded <code>bufferdecoder.Event</code> and
+    call the output structure a presentation or serialisation model.
+  </p>
+
+  <h2>Admission and Presentation Boundaries</h2>
+  <table>
+    <thead><tr><th>Boundary</th><th>Input</th><th>Rejection effect</th></tr></thead>
+    <tbody>
+      <tr><td>Decode</td><td>Raw perf bytes</td><td>Diagnostic error; no event filter, policy, output or detector receives the record.</td></tr>
+      <tr><td>Event selection</td><td>Decoded logical-event name</td><td>Stops before event output and detector dispatch.</td></tr>
+      <tr><td>Command filter</td><td>Exact <code>CommString()</code> match</td><td>Stops before policy matching, output and detectors.</td></tr>
+      <tr><td>Policy admission</td><td>Event name, command, UID and typed arguments</td><td>Stops before event output and detectors. Suppression wins over monitor or detect matches.</td></tr>
+      <tr><td>Bootstrap policy/CLI intersection</td><td>Exact event allowlist derived from policy and the CLI selection</td><td>Startup now fails when the intersection is empty, avoiding a runtime with no effective collection scope. Covered by <code>TestNewProjectRunnerRejectsEmptyPolicyCLIIntersection</code>.</td></tr>
+      <tr><td><code>alerts-only</code></td><td>Already admitted event</td><td>Suppresses only regular event presentation. Detector processing and alert presentation continue.</td></tr>
+      <tr><td>Missing alert printer</td><td>Detector result</td><td>Detectors still process the event; alerts are not rendered.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The current runtime has no direct unit tests for <code>handleRawEvent</code>;
+    <code>pkg/ebpf</code> reports “no test files”. Policy matching and probe
+    selection are tested independently, but the order and short-circuit
+    behaviour of this complete hot path are established only by code inspection.
+  </p>
+
+  <h2>Loss, Malformation and Processing Errors</h2>
+  <ul>
+    <li><strong>Lost records</strong> are counts received from libbpfgo's separate loss channel. Zap emits a warning; no bytes exist to decode.</li>
+    <li><strong>Malformed records</strong> reached user space but failed <code>DecodeEvent</code>. Zap emits a decoding error with available ID/name and record size; processing continues with later records.</li>
+    <li><strong>Filter rejections</strong> are valid decoded events deliberately stopped by runtime admission. At debug level, only the first five drops are logged.</li>
+    <li><strong>Detector errors</strong> occur after admission and are logged independently. Other detector results for the same event remain available.</li>
+    <li><strong>Presentation errors</strong> are logged after decoding and admission and do not turn the event into an alert or terminate the loop.</li>
+    <li><strong>Closed perf or loss channels</strong> end <code>Run</code> without an error; this is a lifecycle termination path, not malformed input.</li>
+  </ul>
+
+  <h2>Paragraph Plan for Chapter 5</h2>
+  <ol>
+    <li><strong>Section 5.2, handoff.</strong> Begin at the libbpfgo perf channel and identify the exact call where raw bytes become interpreted. Refer back to Chapter 4 for serialization and transport rather than repeating them.</li>
+    <li><strong>Section 5.2, fixed context.</strong> Explain explicit offset decoding and why it protects against Go padding assumptions. State the 136-byte contract once and place cross-language maintenance among the limitations.</li>
+    <li><strong>Section 5.2, indexed arguments.</strong> Explain that the event registry supplies names and types because the wire record carries indexes, not type tags. Summarise payload families without cataloguing every event.</li>
+    <li><strong>Section 5.2, validation semantics.</strong> State both sides of the contract: truncation, unknown IDs, invalid indexes and configured overflows fail; sparse arguments are intentional, while duplicates, trailing bytes and some count mismatches are currently tolerated.</li>
+    <li><strong>Section 5.2, dual registries.</strong> Distinguish schema authority from attachment authority. Use one multi-probe example and one internal-dependency example, then cite the consistency tests.</li>
+    <li><strong>Section 5.3, admission.</strong> Present the short-circuit order: selected event, command, policy. Explain that rejected events reach neither presentation nor detectors.</li>
+    <li><strong>Section 5.3, fan-out.</strong> Explain that <code>alerts-only</code> changes presentation only and that the same decoded event reaches policy and detector logic.</li>
+    <li><strong>Section 5.3, failure paths.</strong> Contrast transport loss, malformed records, valid filter drops, detector errors and output errors. Avoid performance claims until Chapter 6.</li>
+  </ol>
+
+  <h2>Source-Listing Candidates</h2>
+  <p><strong>Budget: at most two listings for this material.</strong></p>
+  <ol>
+    <li>
+      <strong>Schema-directed indexed decoding.</strong> A 12–16 line excerpt
+      from <code>decodeArguments</code> showing event-spec lookup, index bounds,
+      schema-selected decoding and final schema ordering. Omit individual payload
+      decoders. The prose should explain sparse fields and the absence of wire
+      type tags.
+    </li>
+    <li>
+      <strong>Admission and fan-out.</strong> A 14–18 line excerpt from
+      <code>handleRawEvent</code> showing decode failure, the three admission
+      checks, the <code>alerts-only</code> branch and unconditional detector
+      dispatch. Omit networking enrichment, counters and logging fields. This
+      listing can replace a prose enumeration of the hot path.
+    </li>
+  </ol>
+  <p>
+    Do not list the complete 136-byte offset decoder in the body. A compact
+    field-group figure or prose description is clearer, while exact offsets
+    already belong to the implementation contract and can be moved to an
+    appendix if required.
+  </p>
+
+  <h2>Redundancy Ledger</h2>
+  <table>
+    <thead><tr><th>Existing owner</th><th>Already established</th><th>Chapter 5 treatment</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Chapter 3, event lifecycle</td>
+        <td>Bootstrap precedes collection; admitted events may reach output and detectors independently.</td>
+        <td>Do not redraw the whole architecture. Show the concrete Go call order and ownership only.</td>
+      </tr>
+      <tr>
+        <td>Chapter 3, decoding and registration</td>
+        <td>Typed <code>bufferdecoder.Event</code>, sparse arguments, duplicate/trailing tolerance, and dual registry responsibilities.</td>
+        <td>Retain the claims but replace design prose with implementation mechanisms, exact tests and the strictness qualification.</td>
+      </tr>
+      <tr>
+        <td>Chapter 3, output and logging</td>
+        <td>Events, alerts and Zap diagnostics are separate paths.</td>
+        <td>Only explain where <code>alerts-only</code> branches and how failures are routed; leave formatting details to Section 5.5.</td>
+      </tr>
+      <tr>
+        <td>Chapter 3, policy architecture</td>
+        <td>Policy event scope, permissive no-policy behaviour, suppression precedence and shared detector stream.</td>
+        <td>Section 5.3 should show the concrete <code>EventInput</code> and short circuit, not repeat policy theory.</td>
+      </tr>
+      <tr>
+        <td>Chapter 4, binary contract</td>
+        <td>136-byte context, argument count, indexed records, length-prefixed variable payloads, perf output and loss distinction.</td>
+        <td>Begin from bytes delivered by libbpfgo. Refer back for C construction and explain only the Go mirror and validation.</td>
+      </tr>
+      <tr>
+        <td>Chapter 4, logical versus physical events</td>
+        <td>Several probes may converge on one logical schema; support probes need not emit public events.</td>
+        <td>Use the registry tests to demonstrate how this distinction is implemented, without repeating hook-family examples.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Unresolved Contract Risks</h2>
+  <ol>
+    <li><strong>Registry correction must be committed.</strong> The current local changes mark support-only <code>raw_sys_enter</code> and <code>security_socket_sendmsg</code> as internal, and the complete package test suite passes. The clean commit still fails until these changes are included.</li>
+    <li><strong>Cross-language event IDs.</strong> C and Go event constants are manually maintained. Existing registry tests remain entirely in Go and cannot detect a numeric mismatch emitted by eBPF.</li>
+    <li><strong>Cross-language context layout.</strong> The 136-byte layout is explicit and tested indirectly through decoding, but no generated ABI or C/Go compile-time comparison prevents one side from changing alone.</li>
+    <li><strong>Argument-schema drift.</strong> No wire type tag exists, and tests do not compare every C write index and width against every Go argument specification. Same-width semantic mismatches may decode without error.</li>
+    <li><strong>Non-canonical records.</strong> Duplicate indexes overwrite, trailing bytes are ignored, and an overstated argument count can be accepted when the stream ends between records. Decide whether this permissiveness is intentional before presenting it as a stable public contract.</li>
+    <li><strong>Validation coverage.</strong> Unknown IDs, invalid indexes, short contexts, short scalars, oversized payloads, duplicate indexes, missing arguments and trailing bytes need focused regression tests.</li>
+    <li><strong>Hot-path integration coverage.</strong> There are no direct tests proving admission order, filter short circuits, <code>alerts-only</code> behaviour, or continued processing after malformed input and presentation errors.</li>
+    <li><strong>Registry exception pressure.</strong> The network selector exception means “every public probe has a same-named decoder event” is not universally true. Chapter wording should qualify the invariant instead of hiding the exception.</li>
+    <li><strong>Merge regression in internal classification.</strong> The previous merge temporarily exposed raw syscall and socket-send support probes as public. The current working tree restores the correct boundary; the remaining risk is version drift until it is committed.</li>
+    <li><strong>Terminology ambiguity.</strong> <code>pkg/output/event.go</code> calls its JSON view “normalized”. Reserve architecture-level normalisation for <code>bufferdecoder.Event</code> and describe the output record as a presentation model.</li>
+  </ol>
+
+  <h2>Editorial Conclusions</h2>
+  <div class="callout ok">
+    The central Chapter 5 claim can be supported: one schema-directed decoder
+    produces the typed host-event model shared by policy and detector logic,
+    after which explicit admission gates control both presentation and analysis.
+    The chapter must pair this claim with the decoder's actual permissiveness and
+    the remaining manual C/Go synchronization risks.
+  </div>
+  <p>
+    The current Chapter 3 wording is mostly accurate, including its qualification
+    that decoding is bounded rather than canonical. Chapter 5 should deepen that
+    account through concrete ownership and tests, not repeat the architectural
+    narrative. Before synthesis, the current probe-registry and runtime-lifecycle
+    changes should be committed so the implementation evidence refers to one
+    coherent, passing revision.
+  </p>
+</body>
+</html>

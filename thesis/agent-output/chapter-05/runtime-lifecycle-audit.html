@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 5 Runtime Bootstrap and Lifecycle Audit</title>
+  <style>
+    :root { color-scheme: light; --ink:#20242a; --muted:#59616d; --line:#c8ced6; --soft:#f4f6f8; --blue:#eaf3ff; --amber:#fff5df; --red:#fff0f0; --green:#edf8f0; }
+    body { max-width: 1160px; margin: 2rem auto; padding: 0 1.2rem 4rem; color: var(--ink); font: 16px/1.55 system-ui, sans-serif; }
+    h1, h2, h3 { line-height: 1.2; }
+    h1 { margin-bottom: .25rem; }
+    h2 { margin-top: 2.2rem; border-bottom: 1px solid var(--line); padding-bottom: .3rem; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    code { background: var(--soft); padding: .08rem .28rem; }
+    pre { overflow-x: auto; background: #1f242b; color: #f6f7f9; padding: 1rem; border-radius: 4px; line-height: 1.42; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.8rem; font-size: .94rem; }
+    th, td { border: 1px solid var(--line); padding: .55rem .65rem; text-align: left; vertical-align: top; }
+    th { background: var(--soft); }
+    .note, .warning, .critical, .verified { padding: .8rem 1rem; margin: 1rem 0; border-left: 4px solid; }
+    .note { background: var(--blue); border-color: #3974ad; }
+    .warning { background: var(--amber); border-color: #b47812; }
+    .critical { background: var(--red); border-color: #b33b3b; }
+    .verified { background: var(--green); border-color: #348653; }
+    .muted { color: var(--muted); }
+    .tag { display:inline-block; padding:.08rem .38rem; border-radius:3px; font-size:.82rem; font-weight:650; }
+    .committed { background:#e8eef8; color:#24466f; }
+    .dirty { background:#fff0c7; color:#6a4800; }
+    .gap { background:#f9dddd; color:#7d2525; }
+    ol li, ul li { margin: .3rem 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Runtime Bootstrap, Probe Planning and Lifecycle Audit</h1>
+    <p class="muted">Wave 1 evidence report for Chapter 5: User-Space Runtime and Detection Implementation</p>
+  </header>
+
+  <section>
+    <h2>Audit Baseline</h2>
+    <table>
+      <tbody>
+        <tr><th>Repository</th><td><code>demo_project</code></td></tr>
+        <tr><th>Inspected commit</th><td><code>d916df707be2a0392c2431c66a30913ab1cd2dab</code>, 7 August 2026, <em>Merge pull request #17 from V3suv1us/feature/composite-collective-correlation</em></td></tr>
+        <tr><th>Working tree</th><td>The pushed <code>main</code> baseline was clean. During this audit, three local files were modified with final corrections: <code>pkg/cmd/project.go</code>, <code>pkg/cmd/project_test.go</code> and <code>pkg/ebpf/probes/probes.go</code>. These corrections remain uncommitted until pushed.</td></tr>
+        <tr><th>Verification</th><td>After the local corrections, <code>go test ./...</code> passed with the repository libbpf CGO flags. <code>make build</code> also completed and regenerated the eBPF object and executable.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="warning">
+      <strong>Pending local corrections.</strong>
+      Policy-driven detector-catalogue selection and the corrected <code>Project</code> constructor are committed. The remaining local changes mark <code>raw_sys_enter</code> and <code>security_socket_sendmsg</code> as internal support probes, reject an empty policy/CLI event intersection, propagate cleanup errors and add regression coverage. They must still be committed before being treated as the final repository baseline.
+    </div>
+
+    <p>The audit treats committed code as the publication baseline and uses the dirty tree only to identify intended corrections and newer behaviour. Networking algorithms and packet processing were not analysed; cgroup attachment appears only where necessary to account for every registered attachment kind and its resource ownership.</p>
+  </section>
+
+  <section>
+    <h2>End-to-End Bootstrap Sequence</h2>
+    <ol>
+      <li><code>cmd/project/main.go</code> invokes the Cobra command and converts a returned error into a non-zero process exit.</li>
+      <li>The root command starts from <code>config.Default()</code>. Cobra binds flags directly to the central <code>config.Config</code>.</li>
+      <li>The command normalises derived toggles and validates output and logging formats. <code>--list-events</code> exits here and does not resolve an object or acquire kernel resources.</li>
+      <li>The object initialiser resolves eBPF bytes using <code>PROJECT_BPF_OBJECT</code>, then the explicit configuration path, then the embedded <code>dist/project.bpf.o</code>. BTF resolution independently uses <code>PROJECT_BTF_FILE</code>, the configured path, then <code>/sys/kernel/btf/vmlinux</code>.</li>
+      <li>The application runner loads policy files, validates their event names, creates one policy manager and, when configured, parses detector files and constructs one detector engine. <span class="tag dirty">dirty tree</span> Policy metadata may first reduce the detector catalogue.</li>
+      <li>An exact finite policy event allowlist may replace or intersect the CLI include set before any eBPF module is opened. Open-ended policy rules do not narrow collection.</li>
+      <li>The runner creates the Zap diagnostic logger and passes the policy manager, detector engine and logger into the eBPF runtime constructor.</li>
+      <li>The eBPF constructor validates object bytes and BTF path, translates logical event selection into physical probe specifications and dependencies, and creates output adapters. No kernel resource has yet been acquired.</li>
+      <li><code>Init</code> initialises the detector engine, configures libbpf diagnostics and opens a libbpf module from the resolved object bytes.</li>
+      <li>If a selected cgroup attachment requires it, the runtime reuses an existing cgroup-v2 mount or creates a temporary managed mount.</li>
+      <li>The probe registry disables autoload for registered, unselected program names. The module then performs relocation, verification and loading for programs that remain enabled.</li>
+      <li>User space reads and patches the singleton <code>config_map</code> entry for the optional exact effective-UID filter.</li>
+      <li>The runtime creates buffered Go channels, opens one libbpfgo perf reader for the <code>events</code> map with 1,024 pages, and starts it. A separate channel reports perf losses.</li>
+      <li>The current runtime also initialises an <code>events_map</code> gate introduced for adjacent networking work. This is a real lifecycle dependency, but its packet semantics belong outside this chapter audit.</li>
+      <li>Each selected probe is attached using the strategy stored in its registry specification. Links are retained in attachment order.</li>
+      <li>The main loop waits for cancellation, raw perf records or loss notifications. Cancellation returns normally; record-local decoding and processing failures are logged without terminating the loop.</li>
+      <li>The runner's deferred cleanup destroys links in reverse order, releases a runtime-created cgroup-v2 mount, closes the perf reader and closes the module.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Component and Ownership Matrix</h2>
+    <table>
+      <thead><tr><th>Component</th><th>Owned responsibility</th><th>Acquired state</th><th>Failure boundary</th></tr></thead>
+      <tbody>
+        <tr><td><code>cmd/project</code></td><td>Process entry, standard streams, signal-derived cancellation and final exit status.</td><td>Signal notification context.</td><td>Returns startup/runtime errors to stderr; no kernel ownership.</td></tr>
+        <tr><td><code>pkg/cmd/cobra</code> and <code>pkg/config</code></td><td>CLI binding, defaults, derived toggles and static format validation.</td><td>Pure Go configuration.</td><td>Rejects invalid output/log formats before object resolution.</td></tr>
+        <tr><td><code>pkg/cmd/initialize</code></td><td>Object-byte and BTF-path precedence.</td><td>Object byte slice and resolved path strings.</td><td>Filesystem and embedded-object errors are fatal before runtime construction.</td></tr>
+        <tr><td><code>pkg/cmd.ProjectRunner</code></td><td>Policy/detector bootstrap, effective event scope, logger construction and top-level lifecycle composition.</td><td>Policy manager, optional detector engine and logger.</td><td>Definition errors are fatal before opening libbpf; deferred runtime cleanup follows successful construction.</td></tr>
+        <tr><td><code>pkg/ebpf/probes</code></td><td>Physical program registry, public/internal classification, dependency expansion, autoload decisions and attachment routing.</td><td>No persistent runtime state; returns plans and links.</td><td>Unknown events, empty selections, missing programs and attach failures are fatal.</td></tr>
+        <tr><td><code>pkg/ebpf.Project</code></td><td>libbpf module, map configuration, perf reader, links, event loop and cleanup.</td><td>Module, perf buffer, channels, links and conditional cgroup mount.</td><td>Setup failures abort <code>Init</code>; event-local failures are logged and discarded; cancellation stops the loop.</td></tr>
+        <tr><td><code>libbpfgo</code></td><td>Open/load object, map access, perf reader and concrete attach APIs.</td><td>Kernel object descriptors and BPF links.</td><td>Errors are wrapped by the owning Go layer.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Probe Planning and Registry Semantics</h2>
+    <p>The probe registry is authoritative for production and attachment, not for binary decoding. A public specification provides a CLI-visible logical event name, a compiled program name, a hook and an attachment kind. Several specifications may share one logical event, which is how entry/return pairs and syscall families converge on one event schema. An internal specification remains attachable but is omitted from the public event set.</p>
+    <p>Dependency expansion is represented by <code>impliedBy</code>. A selected public event adds a support specification to the physical plan without adding its internal name to the logical event set. The resulting event set continues to control post-decode admission, while the specification slice controls autoload and attachment.</p>
+    <div class="note"><strong>Selective-autoload boundary.</strong> Only program names represented in <code>supportedProbes</code> are considered for disabling. An unregistered program present in the eBPF object remains outside this control. Chapter 5 should say “unselected registered programs”, never “all unselected programs in the object”.</div>
+  </section>
+
+  <section>
+    <h2>Attachment Routing</h2>
+    <table>
+      <thead><tr><th>Registry kind</th><th>libbpfgo route</th><th>Input interpretation</th><th>Ownership note</th></tr></thead>
+      <tbody>
+        <tr><td>Raw tracepoint</td><td><code>AttachRawTracepoint</code></td><td>The registered hook string is passed as the tracepoint name.</td><td>Returned link enters the common link slice.</td></tr>
+        <tr><td>Tracepoint</td><td><code>AttachTracepoint</code></td><td>The hook must contain a non-empty <code>category/name</code> pair.</td><td>Malformed registry metadata is rejected before attachment.</td></tr>
+        <tr><td>Kprobe</td><td><code>AttachKprobe</code></td><td>The registered hook is the target kernel symbol.</td><td>Symbol availability is checked only by the attach operation.</td></tr>
+        <tr><td>Kretprobe</td><td><code>AttachKretprobe</code></td><td>The registered hook is the target kernel symbol's return path.</td><td>Entry/return logical pairing is established by shared kernel state, not by the Go link object.</td></tr>
+        <tr><td>Cgroup skb ingress</td><td><code>AttachCgroupLegacy</code> with ingress attach type</td><td>Requires a resolved cgroup-v2 mountpoint.</td><td>The runtime unmounts only a mount it created itself.</td></tr>
+        <tr><td>Cgroup skb egress</td><td><code>AttachCgroupLegacy</code> with egress attach type</td><td>Requires a resolved cgroup-v2 mountpoint.</td><td>Same conditional ownership as ingress.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Lifecycle and Cleanup Findings</h2>
+    <ul>
+      <li><span class="tag committed">implemented</span> Configuration and external definitions are prepared before the module is opened.</li>
+      <li><span class="tag committed">implemented</span> A partially initialised <code>Project</code> is still closed because the runner installs <code>defer project.Close()</code> before calling <code>Init</code>.</li>
+      <li><span class="tag committed">implemented</span> Links are destroyed in reverse attachment order and errors are accumulated with <code>errors.Join</code>.</li>
+      <li><span class="tag committed">implemented</span> A pre-existing cgroup-v2 mount is never unmounted by the runtime; a runtime-created mount is tracked separately.</li>
+      <li><span class="tag committed">implemented</span> SIGINT and SIGTERM cancel the shared context; the main loop treats cancellation as a normal stop.</li>
+      <li><span class="tag gap">gap</span> The runner discards the error returned by <code>Project.Close</code>. Consequently, link-destroy or unmount failures are neither returned nor logged, despite documentation claiming observable cleanup conditions.</li>
+      <li><span class="tag gap">gap</span> <code>Init</code> checks cancellation only at entry. Cancellation during a long object load or attach sequence does not interrupt those libbpf operations.</li>
+      <li><span class="tag gap">gap</span> No direct tests exercise partial initialisation, reverse cleanup, signal cancellation, perf channel closure, cgroup mount ownership or attach failure.</li>
+      <li><span class="tag gap">gap</span> The detector engine is initialised but exposes no corresponding close call in this lifecycle. This is acceptable only while detector resources remain ordinary Go state.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Claim-to-Code-and-Test Matrix</h2>
+    <table>
+      <thead><tr><th>Candidate Chapter 5 claim</th><th>Primary code evidence</th><th>Test evidence</th><th>Assessment</th></tr></thead>
+      <tbody>
+        <tr><td>CLI normalisation enables detectors from configured paths and enables alerts for alerts-only mode.</td><td><code>pkg/config/config.go</code>; <code>pkg/cmd/cobra/cobra.go</code></td><td><code>pkg/config/config_test.go</code></td><td>Supported, although validation covers formats rather than path existence or cross-field semantics.</td></tr>
+        <tr><td>Event listing requires no object or kernel setup.</td><td>Early <code>ListEvents</code> branch in the root command.</td><td>No root-command test found.</td><td>Supported by control flow; untested.</td></tr>
+        <tr><td>The embedded object is the fallback after environment and explicit-path overrides.</td><td><code>pkg/cmd/initialize/bpfobject.go</code></td><td>No initialiser tests found.</td><td>Implemented, but do not claim tested precedence.</td></tr>
+        <tr><td>BTF resolution is independent from object resolution.</td><td><code>BPFObject</code> resolves <code>PROJECT_BTF_FILE</code>, config and default separately.</td><td>No direct test.</td><td>Implemented.</td></tr>
+        <tr><td>An exact policy allowlist can narrow the CLI event set before module opening.</td><td><code>NewProjectRunner</code>; <code>Manager.EffectiveEventSelection</code></td><td>Policy manager tests, <code>TestNewProjectRunnerAppliesExactPolicyEventSelection</code> and the empty-intersection regression.</td><td>Supported after the local correction is committed.</td></tr>
+        <tr><td>Logical selection expands to multiple producers and internal dependencies.</td><td><code>probes.Select</code>, repeated event names and <code>impliedBy</code>.</td><td>Multi-probe family and implied-dependency tests.</td><td>Supported after the local internal-probe corrections are included.</td></tr>
+        <tr><td>Unselected registered programs have autoload disabled before object loading.</td><td><code>ConfigureAutoload</code> precedes <code>BPFLoadObject</code>.</td><td>Selection tests only; no libbpf mock/integration test.</td><td>Implementation-supported, not directly tested.</td></tr>
+        <tr><td>The runtime writes the exact UID guard after object loading.</td><td><code>configureKernelFilters</code>.</td><td>Configuration tests only; no loaded-map test.</td><td>Implemented with a manually maintained byte-offset contract.</td></tr>
+        <tr><td>One perf reader consumes <code>events</code> and separately reports loss.</td><td><code>InitPerfBuf</code> and the run-loop select.</td><td>No runtime reader test.</td><td>Implemented; active transport is perf only.</td></tr>
+        <tr><td>Every attachment kind has an explicit route.</td><td><code>probes.Attach</code>.</td><td>No attach-routing unit test or target-kernel integration test.</td><td>Implemented, operational support depends on the host.</td></tr>
+        <tr><td>Shutdown releases all acquired kernel-facing resources.</td><td><code>Project.Close</code>; runner defer.</td><td>No lifecycle test.</td><td>Cleanup is attempted in order; the local correction now logs and propagates cleanup errors.</td></tr>
+        <tr><td>Policies can select detector definitions by metadata before engine construction.</td><td><code>pkg/policy/detector_selector.go</code> and <code>pkg/cmd/project.go</code>.</td><td>Committed selector and runner tests.</td><td><span class="tag committed">committed</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Defects and Qualification Requirements</h2>
+    <div class="verified">
+      <strong>Empty policy/CLI intersection fixed locally.</strong>
+      <code>NewProjectRunner</code> now rejects an empty effective event set instead of passing it to <code>probes.Select</code>, where an empty include list means “all public events”. The regression is covered by <code>TestNewProjectRunnerRejectsEmptyPolicyCLIIntersection</code>. This correction is still pending commit.
+    </div>
+    <ul>
+      <li>The constructor defect identified in the previous audit is fixed in the pushed baseline.</li>
+      <li>Configured detectors do not independently expand the event collection plan. A detector may be constructed even when CLI/policy event selection omits an event it consumes; it will simply never receive that input. The policy selector validates required events for detectors selected by a policy, not for every CLI-configured detector.</li>
+      <li>Autoload control is registry-complete only if every relevant eBPF program is represented in the registry. No test compares the full object program catalogue with registry program names.</li>
+      <li>The raw <code>config_map</code> offsets are not mirrored by a typed Go structure and have no object-backed regression test.</li>
+      <li>The perf reader starts before the adjacent <code>events_map</code> initialisation and before attachment. This ordering is harmless for host producers because none is attached yet, but Chapter 5 should describe the actual order rather than saying all maps are configured before the reader opens.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Stale or Unsupported Documentation Claims</h2>
+    <table>
+      <thead><tr><th>Claim</th><th>Location/example</th><th>Correction for Chapter 5</th></tr></thead>
+      <tbody>
+        <tr><td>The runtime removes the memlock limit during initialisation.</td><td><code>documentation/implementation/userspace-lifecycle.md</code> and <code>documentation/report.md</code>.</td><td>No memlock adjustment exists in the inspected command or runtime code. Remove this step unless it is reintroduced.</td></tr>
+        <tr><td><code>BPFObjPath</code> is always an absolute filesystem path and object bytes are read from disk.</td><td>Older report/configuration prose.</td><td>The default path is embedded bytes with the synthetic name <code>embedded:dist/project.bpf.o</code>; only an external override is resolved to an absolute path and read from disk.</td></tr>
+        <tr><td>Object/BTF precedence is covered by initialiser tests.</td><td>Earlier agent audit wording.</td><td>No test file exists under <code>pkg/cmd/initialize</code>. Present precedence as code-inspected behaviour.</td></tr>
+        <tr><td>All networking support probes are internal at commit <code>d916df7</code>.</td><td>Current lifecycle documentation.</td><td>The pushed registry still leaves <code>raw_sys_enter</code> and <code>security_socket_sendmsg</code> public despite having no decoder schema; the local correction marks them internal.</td></tr>
+        <tr><td>Policy metadata selection already defines the stable detector bootstrap.</td><td>Current lifecycle and thesis design prose.</td><td>This is now committed in <code>d916df7</code>; still distinguish detector selection from automatic event-scope expansion.</td></tr>
+        <tr><td>Cleanup failures are reported through Zap.</td><td>Chapter 3 operational-logging prose.</td><td>The local runner correction now logs and propagates errors returned by <code>Project.Close</code>. This correction remains pending commit.</td></tr>
+        <tr><td>Every unselected object program is excluded from loading.</td><td>Broad autoload descriptions.</td><td>Only unselected programs represented by the probe registry are explicitly disabled.</td></tr>
+        <tr><td>A detector's required inputs are always made available before engine construction.</td><td>Chapter 3 detector-declaration prose.</td><td>This is true only for the dirty policy-selected path and only within the selecting policy. General CLI detector/event consistency is not validated.</td></tr>
+        <tr><td>The runtime still supports both BPF ring-buffer and perf-buffer readers.</td><td>Legacy demo and writing notes.</td><td>The active implementation has one perf-event reader and no BPF ring-buffer runtime path.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Chapter 5 Runtime Section: Paragraph Plan</h2>
+    <ol>
+      <li><strong>Implementation boundary.</strong> Introduce the Go control plane as the concrete owner of configuration, object resolution, probe planning and resource lifetime; cross-reference Chapter 3 instead of repeating the architecture diagram.</li>
+      <li><strong>Outer bootstrap.</strong> Explain flag binding, normalisation, validation and the privileged-free <code>--list-events</code> branch.</li>
+      <li><strong>Object inputs.</strong> State the exact object and BTF precedence, including embedded bytes and the limits of embedding. Do not repeat general BTF/CO-RE theory from Chapter 2.</li>
+      <li><strong>Policy-derived scope.</strong> Explain only the concrete compilation of exact allowlists into the effective event set. Open-ended policy semantics and detector algorithms belong later in Chapter 5.</li>
+      <li><strong>Two registries, one plan.</strong> Describe the probe registry's concrete representation of public producers, internal dependencies and many-to-one logical events; cross-reference Chapter 3's conceptual definitions.</li>
+      <li><strong>Selective loading.</strong> Show that autoload is changed before <code>BPFLoadObject</code>, while explicitly limiting the claim to registered program names.</li>
+      <li><strong>Post-load resources.</strong> Describe the exact UID map patch, perf reader and loss channel. Mention the adjacent event-gate map only as an implementation dependency, without discussing networking.</li>
+      <li><strong>Attachment dispatch.</strong> Explain that one registry field selects the libbpfgo attach API. Use representative raw-tracepoint, kprobe and paired kretprobe examples rather than a hook catalogue.</li>
+      <li><strong>Ownership and failure boundaries.</strong> Distinguish fatal bootstrap failures from event-local errors, then state cancellation and reverse cleanup. The local runner correction now surfaces cleanup errors.</li>
+      <li><strong>Test boundary.</strong> Close with registry invariants that are unit-tested and lifecycle operations that still require object-backed or target-kernel tests. Evaluation results remain in Chapter 6.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Body Listing Candidates</h2>
+    <h3>Candidate 1: Logical Events to Physical Probe Plan</h3>
+    <pre><code>for _, probe := range supportedProbes {
+    if _, ok := selectedEvents[probe.eventName]; ok {
+        selectedProbes = append(selectedProbes, probe)
+        continue
+    }
+    for _, trigger := range probe.impliedBy {
+        if _, ok := selectedEvents[trigger]; ok {
+            selectedProbes = append(selectedProbes, probe)
+            break
+        }
+    }
+}</code></pre>
+    <p><strong>Why it replaces prose:</strong> these eleven lines demonstrate both direct producer selection and dependency closure without reproducing registry data. The surrounding text should explain that the logical event set and physical probe slice remain distinct.</p>
+
+    <h3>Candidate 2: Selective Autoload Before Loading</h3>
+    <pre><code>selectedPrograms := make(map[string]struct{}, len(selected))
+for _, probe := range selected {
+    selectedPrograms[probe.program] = struct{}{}
+}
+
+for _, probe := range supportedProbes {
+    if _, keep := selectedPrograms[probe.program]; keep {
+        continue
+    }
+    prog, err := module.GetProgram(probe.program)
+    if err != nil {
+        return err
+    }
+    if err := prog.SetAutoload(false); err != nil {
+        return err
+    }
+}</code></pre>
+    <p><strong>Why it replaces prose:</strong> the excerpt makes the registry-bounded nature and timing of selective loading concrete. The actual chapter should use at most one of these two listings if the same mechanism can be explained clearly with a lifecycle figure.</p>
+  </section>
+
+  <section>
+    <h2>Redundancy Ledger</h2>
+    <table>
+      <thead><tr><th>Topic</th><th>Primary owner</th><th>Chapter 5 treatment</th></tr></thead>
+      <tbody>
+        <tr><td>eBPF object model, verifier, BTF/CO-RE and loading theory</td><td>Chapter 2</td><td>State only concrete precedence, libbpf calls and failure consequences.</td></tr>
+        <tr><td>Control path, data path and kernel/user-space responsibility split</td><td>Chapter 3</td><td>Do not redraw the whole architecture; narrate method ordering and ownership.</td></tr>
+        <tr><td>Conceptual logical event, producer probe and support probe distinction</td><td>Chapter 3</td><td>Show the concrete <code>Spec</code> representation and tested dependency expansion.</td></tr>
+        <tr><td>Hook families, event payloads, binary writer and compatibility branches</td><td>Chapter 4</td><td>Refer to logical names only as examples of planning; do not re-explain hooks or record fields.</td></tr>
+        <tr><td>Decoder and event registry</td><td>Later Chapter 5 section</td><td>In the runtime section, mention only that selected public names must have schemas.</td></tr>
+        <tr><td>Policy predicates and detector algorithms</td><td>Later Chapter 5 sections</td><td>Keep only bootstrap event-scope compilation and engine ownership here.</td></tr>
+        <tr><td>Output rendering and Zap configuration</td><td>Later Chapter 5 section</td><td>State logger creation and failure channel only; omit formats and rendering.</td></tr>
+        <tr><td>Measured startup, CPU, memory, throughput and event loss</td><td>Chapter 6</td><td>No results or performance conclusions in this implementation section.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Implementation Limitations for Chapter 5</h2>
+    <ul>
+      <li>Selective autoload depends on registry completeness and is not an object-wide discovery mechanism.</li>
+      <li>Object and BTF resolution is target-facing configuration, not a portability guarantee.</li>
+      <li>Attachment is fail-fast: the runtime does not continue with a partially attached observation domain.</li>
+      <li>The exact UID filter is a narrow map-configured admission control, not a compiled policy language.</li>
+      <li>Perf transport has finite capacity and explicit loss notifications; measured loss belongs in Chapter 6.</li>
+      <li>Cleanup attempts are ordered, and the local correction now logs and returns cleanup errors. Direct lifecycle tests are still missing.</li>
+      <li>Cgroup mount creation is conditional and privileged; it is not evidence of Kubernetes deployment or workload identity.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Unresolved Questions</h2>
+    <ol>
+      <li>Will the local internal-probe, empty-intersection and cleanup corrections be committed as the accepted thesis baseline before Chapter 5 is written?</li>
+      <li>Is rejecting a disjoint policy/CLI event intersection the intended final user-facing behaviour?</li>
+      <li>Should every configured detector be checked against the final effective event set, even when no policy metadata selector selected it?</li>
+      <li>Should errors from <code>logger.Sync</code> also be propagated, or is diagnostic logging sufficient?</li>
+      <li>Should a registry/object consistency test enumerate compiled program names so selective autoload can make a stronger completeness claim?</li>
+      <li>Should the raw <code>config_map</code> offsets be represented by a tested shared contract or verified through an object-backed integration test?</li>
+      <li>Which target-kernel integration tests will establish attach routing, partial cleanup and cancellation behaviour for Chapter 6?</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Acceptance Summary</h2>
+    <p>The architecture described in Chapter 3 is recognisable in the implementation: user-space validation precedes kernel acquisition, logical events become a dependency-aware physical plan, autoload is configured before loading, one perf reader feeds the runtime, and a single owner closes links, conditional mounts, the reader and the module. The constructor and detector-selection changes are now present in the pushed baseline. The evidence remains strongest for pure selection and registry invariants; libbpf lifecycle operations still have no direct tests.</p>
+    <p>Chapter 5 can describe the current lifecycle after the three local corrections are committed. It should retain two qualifications: selective autoload is registry-bounded, and detector selection does not automatically expand the event scope. Cleanup errors are now surfaced by the local runner correction.</p>
+  </section>
+</body>
+</html>

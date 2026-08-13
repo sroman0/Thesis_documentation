@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Implementazione e validazione Docker del laboratorio CTF</title>
+<style>
+:root { --ink:#172033; --muted:#5f6b7d; --line:#d8dee8; --panel:#f7f9fc; --blue:#2457a6; --green:#1f704c; --amber:#8a5b00; --red:#9b2c2c; --code:#101622; }
+* { box-sizing:border-box; }
+body { margin:0; color:var(--ink); font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.62; }
+main { max-width:1160px; margin:0 auto; padding:44px 32px 80px; }
+h1 { max-width:900px; margin:0 0 10px; font-size:2.25rem; line-height:1.16; }
+h2 { margin-top:48px; padding-bottom:8px; border-bottom:1px solid var(--line); }
+h3 { margin-top:28px; }
+p,li { max-width:100ch; }
+a { color:var(--blue); }
+code { font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace; }
+pre { overflow:auto; padding:15px 17px; border-radius:7px; color:#e8edf5; background:var(--code); font-size:.88rem; line-height:1.45; }
+table { width:100%; margin:18px 0 28px; border-collapse:collapse; font-size:.94rem; }
+th,td { padding:10px 12px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+th { background:#f1f4f8; }
+.subtitle { max-width:920px; margin-bottom:22px; color:var(--muted); font-size:1.08rem; }
+.meta { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0 28px; }
+.tag { padding:5px 9px; border:1px solid var(--line); border-radius:5px; background:var(--panel); font-size:.84rem; }
+.toc,.box { padding:17px 21px; border:1px solid var(--line); border-radius:7px; background:#fbfcfe; }
+.toc ol { columns:2; padding-left:22px; }
+.toc a { text-decoration:none; }
+.good { border-left:4px solid var(--green); background:#f0f8f4; }
+.warn { border-left:4px solid var(--amber); background:#fff9ec; }
+.status { color:var(--green); font-weight:700; }
+.pending { color:var(--amber); font-weight:700; }
+footer { margin-top:56px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); font-size:.9rem; }
+@media(max-width:800px) { main { padding:28px 18px 52px; } .toc ol { columns:1; } }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Implementazione e validazione Docker del laboratorio CTF</h1>
+  <p class="subtitle">
+    Step 4 della roadmap: costruzione delle immagini AES-beta target e attack
+    trigger, verifica dell'equivalenza degli artefatti upstream e prova locale
+    dei percorsi benigno e offensivo prima dell'integrazione Kubernetes.
+  </p>
+  <div class="meta">
+    <span class="tag">Stato: completato</span>
+    <span class="tag">Data: 12 agosto 2026</span>
+    <span class="tag">demo_project: 497da90f</span>
+    <span class="tag">Validazione: Docker 26.1.3</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Indice">
+  <strong>Indice</strong>
+  <ol>
+    <li><a href="#scope">Scopo e confini</a></li>
+    <li><a href="#artifacts">Artefatti implementati</a></li>
+    <li><a href="#target">Immagine target</a></li>
+    <li><a href="#trigger">Immagine trigger</a></li>
+    <li><a href="#equivalence">Equivalenza upstream</a></li>
+    <li><a href="#security">Profilo del test</a></li>
+    <li><a href="#results">Risultati</a></li>
+    <li><a href="#process">Evidenza di processo attesa</a></li>
+    <li><a href="#limits">Limiti attuali</a></li>
+    <li><a href="#gate">Gate per lo Step 5</a></li>
+  </ol>
+</nav>
+
+<section id="scope">
+  <h2>1. Scopo e confini</h2>
+  <p>
+    Questa fase verifica che la challenge possa funzionare in due container
+    Docker non privilegiati prima di introdurre Minikube e il monitor eBPF. Non
+    produce ancora risultati sulla visibilità degli hook, sui detector o sulle
+    prestazioni del tool. In questo modo un eventuale problema Kubernetes non
+    viene confuso con un errore di packaging della CTF.
+  </p>
+  <div class="box good">
+    Il criterio principale è soddisfatto: exploit e controllo benigno funzionano
+    con filesystem root in sola lettura, capability rimosse e
+    <code>no-new-privileges</code>, mentre il flag è l'unico file esterno montato
+    nel target.
+  </div>
+</section>
+
+<section id="artifacts">
+  <h2>2. Artefatti implementati</h2>
+  <pre><code>demo_project/k8s/minikube-ctf/
+  .dockerignore
+  images/
+    target/
+      Dockerfile
+      listener/main.go
+    trigger/
+      Dockerfile
+      aes_beta_protocol.py
+      run-benign.py
+      run-exploit.py
+      requirements.txt
+      requirements.lock
+  scripts/
+    prepare-upstream.sh
+    build-images.sh
+    test-images.sh
+  README.md</code></pre>
+  <p>
+    La directory <code>.build</code> è esclusa da Git. Contiene soltanto copie
+    temporanee degli artefatti upstream già verificate a checksum e usate come
+    input del Docker build. Il checkout openECSC non viene modificato.
+  </p>
+</section>
+
+<section id="target">
+  <h2>3. Immagine target</h2>
+  <p>
+    Il target usa un'immagine finale <code>scratch</code>. Un primo stage compila
+    staticamente il listener Go; un secondo stage fornisce BusyBox statico per
+    <code>/bin/sh</code> e <code>/bin/cat</code>. Il binario AES-beta, il loader e
+    la libc originali sono copiati nei path attesi dall'ELF. Il processo finale
+    viene eseguito come UID/GID 10001.
+  </p>
+  <p>
+    Il listener accetta una sessione alla volta, avvia direttamente AES-beta,
+    collega il socket ai suoi standard stream e usa la directory
+    <code>/opt/aes-beta</code>. Applica <code>RLIMIT_NOFILE=1024</code>, un timeout
+    di 900 secondi e un process group dedicato. Alla terminazione attende il
+    processo e registra soltanto metadati di sessione, senza payload o flag.
+  </p>
+  <table>
+    <thead><tr><th>Immagine</th><th>ID locale validato</th><th>Dimensione</th><th>Utente</th></tr></thead>
+    <tbody>
+      <tr><td><code>aes-beta-target:local</code></td><td><code>sha256:de73e8e4dd492a962559f1c47f253cdb0c5cf942529bf5d7372fc7990b866e68</code></td><td>11,411,176 byte</td><td><code>10001:10001</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="trigger">
+  <h2>4. Immagine trigger</h2>
+  <p>
+    Il trigger usa Python 3.12 e pwntools 4.13.0. Le dipendenze transitive sono
+    fissate in <code>requirements.lock</code>; la base image è bloccata tramite
+    digest. Non vengono installati pacchetti Debian aggiuntivi. Il container
+    resta inattivo con <code>sleep infinity</code> come UID/GID 10002, e i client
+    vengono eseguiti soltanto su richiesta.
+  </p>
+  <table>
+    <thead><tr><th>Client</th><th>Funzione</th><th>Controllo</th></tr></thead>
+    <tbody>
+      <tr><td><code>run-benign</code></td><td>Invia una chiave e un messaggio validi, crea un worker e recupera il risultato.</td><td>Exit status zero e ciphertext XOR atteso.</td></tr>
+      <tr><td><code>run-exploit</code></td><td>Esegue leak, canary oracle e ROP della soluzione upstream.</td><td>Flag conforme al pattern sintetico configurato.</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <thead><tr><th>Immagine</th><th>ID locale validato</th><th>Dimensione</th><th>Utente</th></tr></thead>
+    <tbody>
+      <tr><td><code>aes-beta-trigger:local</code></td><td><code>sha256:4c9427d74cbe0a810a3c1f7561dcb80e4d6aa0f6746503a7980879031ab380a0</code></td><td>341,928,018 byte</td><td><code>10002:10002</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="equivalence">
+  <h2>5. Equivalenza con la challenge upstream</h2>
+  <table>
+    <thead><tr><th>Artefatto nel target</th><th>SHA-256 verificato</th></tr></thead>
+    <tbody>
+      <tr><td><code>/opt/aes-beta/aes-beta</code></td><td><code>44535b44a25e30457bc0c0f5d40cece943b0cb7f7504a37699419c7ea9c30671</code></td></tr>
+      <tr><td><code>/lib64/ld-linux-x86-64.so.2</code></td><td><code>491c2eb04e0b72ac00beaebadf181ce5c9e9545e223c58924cfc65511d8ffe6a</code></td></tr>
+      <tr><td><code>/lib/x86_64-linux-gnu/libc.so.6</code></td><td><code>a7ec5ec30f3bfdc198d1b66cfb99f46d362a228916af64938cc6e2d0439707f6</code></td></tr>
+    </tbody>
+  </table>
+  <p>
+    L'exploit conserva <code>%9$p%7$n</code>, leak offset
+    <code>0x29d90</code>, gadget <code>0x43817</code> e
+    <code>0x1bbbc3</code>, brute-force di 256 candidati per byte e payload
+    <code>cat flag</code>. Sono cambiati soltanto endpoint, handshake PoW e
+    chiusura finale del menu. Quest'ultima evita che una sessione riuscita venga
+    registrata come terminata per EOF.
+  </p>
+</section>
+
+<section id="security">
+  <h2>6. Profilo Docker validato</h2>
+  <pre><code>target:
+  --read-only
+  --cap-drop ALL
+  --security-opt no-new-privileges
+  flag bind-mounted read-only
+
+trigger:
+  --read-only
+  --cap-drop ALL
+  --security-opt no-new-privileges
+  isolated /tmp tmpfs</code></pre>
+  <p>
+    I container comunicano su una rete bridge temporanea creata dal test. Non
+    montano Docker socket, BTF, bpffs, tracefs o directory host. Lo script usa
+    una trap per rimuovere container, rete, flag e directory temporanee anche in
+    caso di fallimento.
+  </p>
+</section>
+
+<section id="results">
+  <h2>7. Risultati del 12 agosto 2026</h2>
+  <table>
+    <thead><tr><th>Caso</th><th>Risultato</th><th>Durata client</th><th>Evidenza principale</th></tr></thead>
+    <tbody>
+      <tr><td>Build</td><td><span class="status">PASS</span></td><td>non usata come metrica</td><td>Digest base fissati, staging a checksum riuscito.</td></tr>
+      <tr><td>Benigno finale</td><td><span class="status">PASS</span></td><td>25 ms</td><td>Worker status 0, ciphertext <code>12070011170f1311</code>.</td></tr>
+      <tr><td>Exploit finale</td><td><span class="status">PASS</span></td><td>39,891 ms</td><td>1.793 worker, flag <code>THESIS{controlled_process_monitoring_test}</code>.</td></tr>
+      <tr><td>Lifecycle target</td><td><span class="status">PASS</span></td><td>39,350 ms per sessione exploit</td><td>AES-beta termina con exit code 0.</td></tr>
+      <tr><td>Integrità immagine</td><td><span class="status">PASS</span></td><td>non applicabile</td><td>I tre hash estratti dall'immagine coincidono con upstream.</td></tr>
+      <tr><td>Cleanup</td><td><span class="status">PASS</span></td><td>non applicabile</td><td>Nessun container o network del test rimasto attivo.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Le durate dimostrano funzionalità e aiutano a dimensionare il timeout; non
+    sono benchmark del monitor e non devono essere presentate come risultati di
+    overhead eBPF.
+  </p>
+</section>
+
+<section id="process">
+  <h2>8. Evidenza di processo attesa in Kubernetes</h2>
+  <p>
+    Il controllo benigno produce una sessione AES-beta, un fork e la relativa
+    uscita. L'exploit produce il processo padre AES-beta e 1.793 worker; il
+    worker finale esegue una shell tramite <code>system</code>, quindi
+    <code>cat</code>, che apre il flag. Questa catena offre tre livelli di prova:
+    volume dei processi, transizioni eseguibili e accesso al filesystem.
+  </p>
+  <pre><code>listener
+  aes-beta
+    worker x 1792       # canary oracle
+    worker finale
+      sh -c "cat flag"
+        cat flag</code></pre>
+  <p>
+    Il monitor dovrà confermare questa struttura con gli identificatori host e
+    i timestamp reali. Il diagramma è un'aspettativa derivata dal comportamento
+    applicativo, non ancora evidenza eBPF acquisita.
+  </p>
+</section>
+
+<section id="limits">
+  <h2>9. Limiti attuali</h2>
+  <ul>
+    <li>L'immagine trigger è ampia perché conserva pwntools e le dipendenze della soluzione originale; il processo idle resta tuttavia <code>sleep</code>, non Python.</li>
+    <li>Le versioni Python sono bloccate, ma il lock non contiene gli hash delle wheel.</li>
+    <li>Il listener serializza le sessioni e non è progettato come servizio CTF multiutente.</li>
+    <li>Non sono ancora verificati <code>hostPID: false</code>, mount kernel, attach e visibilità cross-container in Minikube.</li>
+    <li>Non esistono ancora policy o detector specifici per la sequenza AES-beta.</li>
+    <li>Le durate locali possono cambiare con CPU, kernel e runtime del nodo Minikube.</li>
+  </ul>
+</section>
+
+<section id="gate">
+  <h2>10. Gate per lo Step 5</h2>
+  <ul>
+    <li><span class="status">Completato:</span> immagini target e trigger costruibili.</li>
+    <li><span class="status">Completato:</span> integrità degli artefatti upstream verificata prima e dopo la build.</li>
+    <li><span class="status">Completato:</span> test benigno e exploit completi senza privilegi.</li>
+    <li><span class="status">Completato:</span> cleanup automatico degli artefatti Docker temporanei.</li>
+    <li><span class="pending">Prossimo:</span> creare Namespace, ConfigMap, Secret e Pod a tre container.</li>
+    <li><span class="pending">Prossimo:</span> caricare le immagini in Minikube e verificare il Pod inizialmente con <code>hostPID: false</code>.</li>
+  </ul>
+  <div class="box good">
+    Lo Step 5 può ora concentrarsi esclusivamente sull'integrazione Kubernetes e
+    sul monitor. La challenge e l'exploit sono già stati validati come coppia
+    indipendente.
+  </div>
+</section>
+
+<section>
+  <h2>11. Collegamenti</h2>
+  <ul>
+    <li><a href="minikube-ctf-experiment-design.html">Step 1: specifica sperimentale</a>.</li>
+    <li><a href="aes-beta-adaptation-specification.html">Step 2: adattamento della challenge</a>.</li>
+    <li><a href="minikube-ctf-container-design.html">Step 3: design dei container</a>.</li>
+    <li><a href="../../demo_project/k8s/minikube-ctf/README.md">Guida operativa degli artefatti</a>.</li>
+  </ul>
+</section>
+
+<footer>
+  Report di implementazione Docker. I risultati Kubernetes ed eBPF devono
+  essere acquisiti in una fase successiva e non sono implicati da questi test.
+</footer>
+</main>
+</body>
+</html>

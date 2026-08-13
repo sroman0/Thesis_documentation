@@ -39,12 +39,12 @@ partially verified as a compatibility claim.**
 - `documentation/implementation/hooks.md`: hook-specific target decisions and
   verifier mitigations.
 - `Thesis/content/chapters/chapter1.tex`: records the exact target as
-  `4.18.0-553.109.1.el8_10.x86_64`.
+  `4.18.0-553.137.1.el8_10.x86_64`.
 
 **Safe academic wording**
 
 > The prototype was developed for Rocky Linux 8.10 on the
-> `4.18.0-553.109.1.el8_10.x86_64` enterprise kernel. This target motivated
+> `4.18.0-553.137.1.el8_10.x86_64` enterprise kernel. This target motivated
 > explicit attention to vendor backports, available attachment points, BTF
 > information, kernel data layouts, and verifier behaviour.
 

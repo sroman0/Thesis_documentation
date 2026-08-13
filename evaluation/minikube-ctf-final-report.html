@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laboratorio Minikube AES-beta: progettazione, implementazione e risultati</title>
+<style>
+:root {
+  --ink:#162033; --muted:#5c6879; --line:#d7dee8; --panel:#f6f8fb;
+  --blue:#2457a6; --green:#176b43; --amber:#8a5a00; --red:#963838;
+  --code:#111827; --code-ink:#edf2f7;
+}
+* { box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body {
+  margin:0; color:var(--ink); background:#fff;
+  font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  line-height:1.68;
+}
+main { max-width:1120px; margin:0 auto; padding:48px 32px 84px; }
+h1 { max-width:920px; margin:0 0 12px; font-size:2.45rem; line-height:1.14; }
+h2 { margin-top:54px; padding-bottom:9px; border-bottom:1px solid var(--line); line-height:1.25; }
+h3 { margin-top:30px; line-height:1.3; }
+p,li { max-width:100ch; }
+a { color:var(--blue); }
+code { font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace; }
+pre {
+  overflow:auto; margin:18px 0 25px; padding:16px 18px; border-radius:6px;
+  color:var(--code-ink); background:var(--code); font-size:.88rem; line-height:1.52;
+}
+table { width:100%; margin:20px 0 30px; border-collapse:collapse; font-size:.94rem; }
+th,td { padding:10px 12px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+th { background:#eef2f7; }
+.subtitle { max-width:930px; margin:0 0 24px; color:var(--muted); font-size:1.12rem; }
+.meta { display:flex; flex-wrap:wrap; gap:8px; margin:20px 0 30px; }
+.tag { padding:5px 9px; border:1px solid var(--line); border-radius:5px; background:var(--panel); font-size:.84rem; }
+.toc,.box { padding:18px 22px; border:1px solid var(--line); border-radius:7px; background:#fbfcfe; }
+.toc ol { columns:2; padding-left:22px; }
+.toc a { text-decoration:none; }
+.note { border-left:4px solid var(--blue); }
+.good { border-left:4px solid var(--green); background:#f0f8f4; }
+.warn { border-left:4px solid var(--amber); background:#fff9ed; }
+.risk { border-left:4px solid var(--red); background:#fff5f5; }
+.small { color:var(--muted); font-size:.91rem; }
+.architecture { margin:26px 0; padding:20px; border:2px solid #8da1bc; background:#f7f9fc; }
+.architecture-title { margin-bottom:16px; font-weight:750; }
+.containers { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:13px; }
+.container { min-height:190px; padding:15px; border:1px solid #bbc7d6; background:#fff; }
+.container strong { display:block; margin-bottom:7px; }
+.flow { margin-top:15px; padding:12px; background:#eaf0f8; text-align:center; font-family:monospace; }
+.sequence { display:grid; grid-template-columns:repeat(7,auto); gap:8px; align-items:center; margin:24px 0; }
+.node { padding:13px; border:1px solid #bdc8d7; background:#fafcff; text-align:center; }
+.arrow { color:var(--blue); font-weight:800; text-align:center; }
+.command-title { margin-bottom:5px; font-weight:700; }
+.command-note { margin-top:-15px; color:var(--muted); font-size:.92rem; }
+.result { font-weight:750; color:var(--green); }
+footer { margin-top:58px; padding-top:20px; border-top:1px solid var(--line); color:var(--muted); font-size:.9rem; }
+@media(max-width:820px) {
+  main { padding:30px 18px 56px; }
+  h1 { font-size:2rem; }
+  .toc ol { columns:1; }
+  .containers,.sequence { grid-template-columns:1fr; }
+  .arrow { transform:rotate(90deg); }
+}
+@media print {
+  body { font-size:10.5pt; }
+  main { max-width:none; padding:0; }
+  pre { white-space:pre-wrap; }
+  a { color:inherit; text-decoration:none; }
+  .toc { break-after:page; }
+}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Dal comportamento offensivo all'evidenza eBPF</h1>
+  <p class="subtitle">
+    Relazione finale del laboratorio Minikube costruito attorno alla challenge
+    AES-beta: motivazioni, teoria, architettura del Pod, detector collective,
+    procedura di esecuzione e interpretazione dei risultati.
+  </p>
+  <div class="meta">
+    <span class="tag">Data: 12 agosto 2026</span>
+    <span class="tag">Ambiente: Rocky Linux 8.10 + Minikube</span>
+    <span class="tag">Kubernetes: v1.30.0</span>
+    <span class="tag">Topologia: un Pod, tre container</span>
+    <span class="tag">Prototipo base: 497da90f</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Indice">
+  <strong>Indice</strong>
+  <ol>
+    <li><a href="#story">Perché è stato costruito il laboratorio</a></li>
+    <li><a href="#challenge">Perché AES-beta</a></li>
+    <li><a href="#theory">Teoria osservativa</a></li>
+    <li><a href="#architecture">Architettura del Pod</a></li>
+    <li><a href="#implementation">Implementazione</a></li>
+    <li><a href="#detector">Policy e detector</a></li>
+    <li><a href="#procedure">Procedura completa</a></li>
+    <li><a href="#commands">Comandi e significato</a></li>
+    <li><a href="#evidence">Raccolta delle evidenze</a></li>
+    <li><a href="#results">Risultati funzionali</a></li>
+    <li><a href="#performance">Prestazioni</a></li>
+    <li><a href="#claims">Cosa dimostra il test</a></li>
+    <li><a href="#next">Lavoro ancora necessario</a></li>
+  </ol>
+</nav>
+
+<section id="story">
+  <h2>1. Perché è stato costruito il laboratorio</h2>
+  <p>
+    Un monitor di sicurezza non può essere valutato soltanto verificando che i
+    suoi programmi eBPF si carichino. Deve essere posto davanti a un comportamento
+    reale, deve raccogliere gli eventi prodotti da quel comportamento e deve
+    trasformarli in un risultato comprensibile. Per questo motivo il test è stato
+    costruito come una piccola storia completa: un client interagisce con un
+    servizio vulnerabile, l'exploit induce il servizio a creare nuovi processi e
+    ad accedere a un file, mentre il monitor osserva la sequenza dal kernel.
+  </p>
+  <p>
+    La scelta di Kubernetes non serve a sostenere che il prototipo sia già un
+    prodotto Kubernetes completo. Minikube offre piuttosto un ambiente controllato
+    nel quale eseguire più workload isolati sullo stesso kernel Linux. Il punto
+    sperimentale è verificare che un monitor eBPF containerizzato possa osservare
+    attività prodotta da un altro container e riconoscere una catena offensiva,
+    mantenendo distinti il successo dell'attacco, la visibilità degli eventi e la
+    generazione dell'alert.
+  </p>
+  <div class="box note">
+    <strong>Domanda centrale.</strong> Quando una vulnerabilità nel target porta
+    all'esecuzione di una shell e alla lettura di un file protetto dalla challenge,
+    il prototipo riesce a ricostruire questa azione attraverso evidenza di processo
+    e filesystem, senza produrre lo stesso alert durante un uso benigno?
+  </div>
+</section>
+
+<section id="challenge">
+  <h2>2. Perché è stata scelta AES-beta</h2>
+  <p>
+    AES-beta proviene dal repository openECSC-2024 e non è una simulazione scritta
+    appositamente per il monitor. Il servizio contiene una vulnerabilità di format
+    string e una successiva condizione di overflow sfruttata attraverso una ROP
+    chain. L'exploit pubblicato ricostruisce il canary del processo e termina
+    invocando <code>system("cat flag")</code>. Questa conclusione produce una
+    traccia particolarmente utile per la parte della tesi dedicata ai processi:
+    il processo compromesso avvia una shell, la shell esegue <code>cat</code> e
+    quest'ultimo apre il flag.
+  </p>
+  <div class="sequence" aria-label="Catena offensiva osservata">
+    <div class="node">AES-beta compromesso</div><div class="arrow">→</div>
+    <div class="node"><code>/bin/sh</code></div><div class="arrow">→</div>
+    <div class="node"><code>/bin/cat</code></div><div class="arrow">→</div>
+    <div class="node"><code>/opt/aes-beta/flag</code></div>
+  </div>
+  <p>
+    Il brute force del canary rende inoltre il workload non banale: nel run
+    completo vengono creati 1.793 worker. La challenge esercita quindi sia il
+    percorso funzionale del detector sia il trasporto e la decodifica sotto un
+    burst di processi. Il caso benigno usa lo stesso servizio e lo stesso
+    protocollo, ma crea un solo worker e non raggiunge shell, <code>cat</code> o
+    flag. Esso costituisce il controllo negativo naturale dell'esperimento.
+  </p>
+  <p>
+    L'adattamento conserva il binario vulnerabile, il loader, la glibc, i gadget
+    e il comando finale originali. Sono stati sostituiti soltanto gli elementi
+    infrastrutturali della competizione: il jail privilegiato e il proof of work.
+    Un listener TCP minimale avvia direttamente AES-beta per ogni connessione,
+    mentre il flag reale è sostituito da un valore sintetico. In questo modo il
+    test resta fedele alla semantica offensiva senza introdurre segreti o un
+    secondo container privilegiato.
+  </p>
+</section>
+
+<section id="theory">
+  <h2>3. La teoria dietro l'osservazione</h2>
+  <h3>3.1 Perché un container può osservare un altro container</h3>
+  <p>
+    I container isolano processi e filesystem, ma non possiedono un kernel
+    separato. I programmi eBPF del monitor vengono caricati nel kernel del nodo
+    Minikube e si collegano a hook che sono attraversati anche dai processi del
+    target. Di conseguenza, il monitor non deve entrare nel process namespace
+    del target per ricevere gli eventi. Il Pod mantiene infatti
+    <code>hostPID: false</code> e <code>shareProcessNamespace: false</code>.
+    Questa distinzione è importante: la visibilità deriva dagli hook kernel,
+    non dalla condivisione della vista dei PID tra container.
+  </p>
+  <p>
+    Il container del monitor è privilegiato perché deve accedere alle risorse
+    necessarie al caricamento e all'attach eBPF, tra cui BTF, bpffs e tracefs.
+    Target e trigger rimangono invece non root, senza capability aggiuntive e
+    con filesystem di root in sola lettura. Il privilegio appartiene quindi al
+    sensore, non al workload attaccato.
+  </p>
+
+  <h3>3.2 Perché servono eventi diversi</h3>
+  <p>
+    Un singolo hook non racconta l'intera operazione. Il detector combina tre
+    eventi logici che osservano stadi differenti:
+  </p>
+  <ul>
+    <li><code>sched_process_exec</code> conferma che un processo ha sostituito con successo la propria immagine eseguibile; viene usato per riconoscere <code>/bin/sh</code> e <code>/bin/cat</code>.</li>
+    <li><code>security_file_open</code> osserva il file già risolto dal VFS durante la mediazione LSM; fornisce il percorso kernel <code>/opt/aes-beta/flag</code>, ma da solo non prova l'esito finale dell'apertura.</li>
+    <li><code>open</code> conserva la richiesta al confine della syscall e il suo valore di ritorno; un valore non negativo indica che il chiamante ha ricevuto un file descriptor valido.</li>
+  </ul>
+  <p>
+    La sequenza unisce quindi una transizione eseguibile riuscita, l'identità
+    risolta dell'oggetto e l'esito della syscall. Questa scelta evita di trattare
+    una semplice richiesta o un punto di mediazione come prova sufficiente di un
+    accesso completato.
+  </p>
+
+  <h3>3.3 Filtraggio, policy e detection</h3>
+  <p>
+    Il flusso viene ristretto a livelli successivi. Il filtro UID nel kernel
+    ammette soltanto gli eventi il cui effective UID è <code>10001</code>, quello
+    del target. La policy limita il dominio ai tre eventi richiesti. Infine il
+    detector collective valuta contenuto, ordine, finestra temporale e relazione
+    tra processi. Questi livelli non sono equivalenti: il filtro riduce il volume
+    trasferito, la policy definisce lo scope di osservazione e il detector decide
+    quando l'evidenza costituisce un alert.
+  </p>
+</section>
+
+<section id="architecture">
+  <h2>4. Architettura del Pod</h2>
+  <div class="architecture" role="img" aria-label="Pod AES-beta con tre container">
+    <div class="architecture-title">Pod <code>aes-beta-lab</code> nel namespace <code>ebpf-ctf-lab</code></div>
+    <div class="containers">
+      <div class="container">
+        <strong><code>ctf-target</code></strong>
+        Listener e binario AES-beta. Esegue come UID/GID 10001, possiede il solo
+        flag sintetico e genera l'albero di processi dell'exploit.
+      </div>
+      <div class="container">
+        <strong><code>attack-trigger</code></strong>
+        Contiene client benigno ed exploit. Esegue come UID/GID 10002 e rimane
+        inattivo fino a un comando esplicito dell'operatore.
+      </div>
+      <div class="container">
+        <strong><code>project-monitor</code></strong>
+        Carica eBPF, riceve i record perf, decodifica gli eventi e valuta policy
+        e detector. È l'unico container privilegiato.
+      </div>
+    </div>
+    <div class="flow">trigger → TCP 127.0.0.1:1337 → target → hook del kernel del nodo → monitor</div>
+  </div>
+  <p>
+    I container dello stesso Pod condividono il network namespace. Per questo il
+    trigger raggiunge il listener attraverso <code>127.0.0.1:1337</code> senza un
+    Service Kubernetes e senza esporre la challenge fuori dal Pod. Non condividono
+    invece il flag: esso è creato come Secret e montato esclusivamente nel target.
+    Il trigger può ottenerlo soltanto inducendo il servizio vulnerabile a leggerlo.
+  </p>
+  <p>
+    BTF, bpffs e tracefs sono montati dal nodo solo nel monitor. Target e trigger
+    non ricevono socket Docker, filesystem eBPF o directory host. Questa topologia
+    mantiene il test contenuto pur riconoscendo che il monitor privilegiato non
+    rappresenta ancora un profilo Kubernetes di minimo privilegio.
+  </p>
+</section>
+
+<section id="implementation">
+  <h2>5. Come è stato implementato</h2>
+  <p>
+    Il laboratorio si trova in <code>demo_project/k8s/minikube-ctf/</code>. Le
+    immagini del target e del trigger sono separate dal monitor. Prima della
+    build, gli artefatti AES-beta vengono prelevati dal checkout locale
+    <code>openECSC-2024</code> e confrontati con checksum noti. Questa verifica
+    impedisce che una ricompilazione o una copia accidentale cambi proprio il
+    programma che si intende valutare.
+  </p>
+  <p>
+    L'immagine target contiene il listener statico, AES-beta, il loader e la
+    glibc originali, oltre a <code>/bin/sh</code> e <code>/bin/cat</code> forniti
+    da BusyBox statico. La working directory è <code>/opt/aes-beta</code>, così
+    il comando originale <code>cat flag</code> continua a funzionare senza
+    modificare il payload. Il root filesystem resta read-only e il file flag è
+    montato separatamente.
+  </p>
+  <p>
+    Il trigger contiene due entry point manuali. <code>run-benign</code> esegue
+    una normale operazione di cifratura e verifica la risposta. <code>run-exploit</code>
+    conserva la logica offensiva originale, sostituendo soltanto indirizzo,
+    porta e handshake del proof of work. Entrambi stampano un Run ID e un esito,
+    consentendo di collegare la finestra del client ai log del monitor.
+  </p>
+  <p>
+    Manifest, ConfigMap e Secret sono mantenuti separati. Il detector viene
+    trasformato in ConfigMap al deployment, mentre il valore del flag viene
+    fornito dall'operatore e non compare nel repository. Le immagini usano
+    <code>imagePullPolicy: Never</code>, perché vengono costruite localmente e
+    caricate esplicitamente nel profilo Minikube.
+  </p>
+</section>
+
+<section id="detector">
+  <h2>6. Dalla policy all'alert collective</h2>
+  <p>
+    La policy <code>aes-beta-process-observation</code> seleziona
+    <code>sched_process_exec</code>, <code>security_file_open</code> e
+    <code>open</code>. Il detector <code>aes-beta-command-execution</code> riceve
+    solo questi eventi già decodificati e cerca entro cinque secondi quattro
+    evidenze ordinate:
+  </p>
+  <ol>
+    <li>esecuzione riuscita di <code>/bin/sh</code>;</li>
+    <li>esecuzione riuscita di <code>/bin/cat</code>;</li>
+    <li>mediazione LSM sul percorso risolto <code>/opt/aes-beta/flag</code>;</li>
+    <li>apertura della richiesta relativa <code>flag</code> con return value maggiore di <code>-1</code>.</li>
+  </ol>
+  <p>
+    La condizione globale richiede UID 10001. La strategia
+    <code>group_by: process_tree</code> lega gli eventi attraverso l'identità
+    stabile del processo e le relazioni immediate genitore-figlio. Non viene
+    ricostruita un'ancestry arbitraria e non viene costruito un grafo persistente
+    dei processi. La correlazione è locale al nodo e al breve intervallo del
+    detector.
+  </p>
+  <p>
+    L'alert è classificato come <code>high</code> e conserva tutti e quattro gli
+    eventi. I metadati MITRE ATT&amp;CK associano la sequenza a Execution e Unix
+    Shell (<code>TA0002</code>, <code>T1059.004</code>) e a Collection da sistema
+    locale (<code>TA0009</code>, <code>T1005</code>). Questa mappatura rende il
+    risultato interpretabile in un vocabolario condiviso; la prova della
+    detection resta l'evidenza concreta inclusa nell'alert.
+  </p>
+</section>
+
+<section id="procedure">
+  <h2>7. Procedura completa</h2>
+  <p>
+    La procedura seguente parte da un checkout in
+    <code>/home/simone/project/demo_project</code>. I comandi mostrano il profilo
+    Minikube eseguito come root, usato durante la validazione perché l'utente non
+    disponeva dell'accesso diretto al socket Docker. Se Docker e Minikube sono
+    disponibili all'utente corrente, i prefissi <code>sudo</code> e le variabili
+    di override possono essere omessi.
+  </p>
+
+  <h3>7.1 Avviare il cluster</h3>
+  <pre><code>cd /home/simone/project/demo_project
+
+MINIKUBE='sudo /usr/local/bin/minikube' \
+MINIKUBE_FORCE=true \
+  ./k8s/minikube-ctf/scripts/start-minikube.sh</code></pre>
+  <p>
+    Lo script avvia un profilo Docker con Kubernetes v1.30.0, due CPU e 4096 MiB.
+    <code>MINIKUBE</code> sostituisce il comando predefinito; il valore può
+    contenere anche <code>sudo</code>. <code>MINIKUBE_FORCE=true</code> inoltra
+    <code>--force</code>, necessario quando Minikube viene eseguito come root.
+  </p>
+
+  <h3>7.2 Costruire le immagini</h3>
+  <pre><code>DOCKER='sudo docker' \
+  ./k8s/minikube-ctf/scripts/build-images.sh</code></pre>
+  <p>
+    <code>DOCKER</code> indica quale comando usare per il daemon. Lo script
+    verifica e prepara gli artefatti upstream, poi costruisce
+    <code>aes-beta-target:local</code> e <code>aes-beta-trigger:local</code>. Se il
+    repository openECSC si trova altrove, si aggiunge
+    <code>OPENECSC_ROOT=/percorso/openECSC-2024</code>.
+  </p>
+
+  <h3>7.3 Caricare le immagini nel nodo Minikube</h3>
+  <pre><code>DOCKER='sudo docker' \
+MINIKUBE='sudo /usr/local/bin/minikube' \
+  ./k8s/minikube-ctf/scripts/load-minikube-images.sh</code></pre>
+  <p>
+    Minikube usa un daemon Docker distinto da quello host. <code>image load</code>
+    trasferisce le due immagini della challenge e <code>demo-project-ebpf:latest</code>
+    nel nodo. Il monitor viene ricostruito dal working tree corrente per evitare
+    di eseguire un'immagine obsoleta. Solo quando questo comportamento è voluto
+    si può usare <code>REBUILD_MONITOR=0</code>.
+  </p>
+
+  <h3>7.4 Creare Namespace, configurazione e Pod</h3>
+  <pre><code>KUBECTL='sudo /usr/local/bin/minikube kubectl --' \
+FLAG_VALUE='THESIS{controlled_process_monitoring_test}' \
+  ./k8s/minikube-ctf/scripts/deploy-lab.sh</code></pre>
+  <p>
+    <code>KUBECTL</code> fa eseguire <code>kubectl</code> nel profilo Minikube
+    corretto. <code>FLAG_VALUE</code> fornisce il valore sintetico usato per
+    creare il Secret; non è necessario né opportuno usare il flag originale
+    della competizione. Lo script applica Namespace, policy e detector, ricrea
+    il Pod e attende che tutti i container siano Ready.
+  </p>
+
+  <h3>7.5 Verificare lo stato iniziale</h3>
+  <pre><code>sudo /usr/local/bin/minikube kubectl -- \
+  -n ebpf-ctf-lab get pod aes-beta-lab -o wide
+
+sudo /usr/local/bin/minikube kubectl -- \
+  -n ebpf-ctf-lab logs aes-beta-lab -c project-monitor --tail=20</code></pre>
+  <p>
+    <code>-n</code> seleziona il namespace, <code>-o wide</code> aggiunge nodo e
+    indirizzo del Pod, <code>-c</code> sceglie il container in un Pod
+    multi-container e <code>--tail=20</code> limita i log alle ultime venti righe.
+    Prima del test il Pod deve risultare <code>3/3 Running</code> e il monitor non
+    deve mostrare errori di load o attach.
+  </p>
+
+  <h3>7.6 Eseguire il controllo benigno</h3>
+  <pre><code>KUBECTL='sudo /usr/local/bin/minikube kubectl --' \
+RUN_ID='benign-manual-01' \
+  ./k8s/minikube-ctf/scripts/run-scenario.sh benign</code></pre>
+  <p>
+    Lo script usa <code>kubectl exec</code> per avviare
+    <code>/opt/trigger/run-benign</code> nel container trigger. Il Run ID rende
+    riconoscibile la prova. Il client deve completare la cifratura, mentre il
+    monitor non deve produrre un alert AES-beta.
+  </p>
+
+  <h3>7.7 Eseguire l'exploit</h3>
+  <pre><code>KUBECTL='sudo /usr/local/bin/minikube kubectl --' \
+RUN_ID='exploit-manual-01' \
+  ./k8s/minikube-ctf/scripts/run-scenario.sh exploit</code></pre>
+  <p>
+    Questa volta viene eseguito <code>/opt/trigger/run-exploit</code>. Il client
+    tenta di recuperare il flag attraverso la challenge e il monitor deve
+    produrre un solo alert con quattro eventi ordinati. Il run può richiedere
+    circa un minuto a causa del brute force del canary.
+  </p>
+</section>
+
+<section id="commands">
+  <h2>8. I comandi manuali e le flag del monitor</h2>
+  <p>
+    Gli script rendono il test ripetibile, ma le operazioni decisive possono
+    essere eseguite direttamente per capire che cosa avviene.
+  </p>
+
+  <h3>8.1 Invocare direttamente i client</h3>
+  <pre><code># Controllo benigno
+sudo /usr/local/bin/minikube kubectl -- -n ebpf-ctf-lab \
+  exec aes-beta-lab -c attack-trigger -- \
+  env RUN_ID=benign-direct-01 /opt/trigger/run-benign
+
+# Exploit
+sudo /usr/local/bin/minikube kubectl -- -n ebpf-ctf-lab \
+  exec aes-beta-lab -c attack-trigger -- \
+  env RUN_ID=exploit-direct-01 /opt/trigger/run-exploit</code></pre>
+  <p>
+    <code>exec</code> avvia un processo nel container già in esecuzione. Il
+    separatore <code>--</code> termina le opzioni di kubectl; ciò che segue è il
+    comando eseguito nel container. <code>env RUN_ID=...</code> imposta la
+    variabile solo per quel processo, senza modificare il Pod.
+  </p>
+
+  <h3>8.2 Osservare e validare l'alert</h3>
+  <pre><code>sudo /usr/local/bin/minikube kubectl -- -n ebpf-ctf-lab \
+  logs aes-beta-lab -c project-monitor --timestamps \
+  | jq 'select(.type == "alert" and .detector == "aes-beta-command-execution")'</code></pre>
+  <p>
+    <code>--timestamps</code> antepone l'orario fornito da Kubernetes. Il filtro
+    <code>jq</code> conserva soltanto gli oggetti JSON di tipo alert prodotti dal
+    detector del laboratorio. L'oggetto risultante deve riportare severità
+    <code>high</code>, quattro evidenze e i metadati ATT&amp;CK previsti.
+  </p>
+
+  <h3>8.3 Comprendere le flag del monitor</h3>
+  <p>Nel manifest il container <code>project-monitor</code> viene avviato con:</p>
+  <pre><code>--policy /etc/project/policies/process-observation.yaml
+--detectors /etc/project/detectors/aes-beta-command-execution.yaml
+--alerts-only
+--alerts-output json
+--kernel-filter-uid-enabled
+--kernel-filter-uid 10001
+--log-format json
+--log-level info</code></pre>
+  <table>
+    <thead><tr><th>Flag</th><th>Effetto</th><th>Perché viene usata</th></tr></thead>
+    <tbody>
+      <tr><td><code>--policy</code></td><td>Carica la policy che seleziona il dominio degli eventi.</td><td>Evita di elaborare eventi non necessari alla prova.</td></tr>
+      <tr><td><code>--detectors</code></td><td>Carica la definizione del detector AES-beta.</td><td>Isola la detection in esame dagli altri detector del catalogo.</td></tr>
+      <tr><td><code>--alerts-only</code></td><td>Non stampa ogni evento ammesso, ma continua a valutarlo.</td><td>Impedisce che i molti worker dell'exploit rendano il risultato illeggibile.</td></tr>
+      <tr><td><code>--alerts-output json</code></td><td>Serializza gli alert come JSON.</td><td>Permette validazione strutturale e conservazione dell'evidenza ordinata.</td></tr>
+      <tr><td><code>--kernel-filter-uid-enabled</code></td><td>Attiva l'ammissione UID nel programma eBPF.</td><td>Scarta prima del trasporto il rumore prodotto da altri utenti del nodo.</td></tr>
+      <tr><td><code>--kernel-filter-uid 10001</code></td><td>Imposta l'effective UID ammesso.</td><td>10001 è l'identità assegnata al container target.</td></tr>
+      <tr><td><code>--log-format json</code></td><td>Emette la diagnostica operativa Zap in JSON.</td><td>Separa e rende interrogabili errori, lifecycle e perdite.</td></tr>
+      <tr><td><code>--log-level info</code></td><td>Mostra messaggi informativi e di severità maggiore.</td><td>Conserva lo stato operativo senza il volume del debug.</td></tr>
+    </tbody>
+  </table>
+  <div class="box warn">
+    <strong>Eventi e log non sono la stessa cosa.</strong> Alert ed eventi di
+    sicurezza sono dati del monitor; i messaggi Zap descrivono invece il
+    funzionamento del runtime. Un errore di decodifica o una perdita perf non
+    deve essere interpretato come comportamento offensivo.
+  </div>
+</section>
+
+<section id="evidence">
+  <h2>9. Raccogliere e conservare le evidenze</h2>
+  <pre><code>KUBECTL='sudo /usr/local/bin/minikube kubectl --' \
+EVIDENCE_DIR='./k8s/minikube-ctf/evidence/manual-run-01' \
+  ./k8s/minikube-ctf/scripts/collect-evidence.sh</code></pre>
+  <p>
+    Il comando salva la versione Kubernetes, il manifest effettivamente
+    applicato, la descrizione del Pod, gli eventi del namespace e i log
+    temporizzati dei tre container. <code>EVIDENCE_DIR</code> rende esplicita la
+    destinazione; se omessa, lo script crea una directory identificata dal
+    timestamp UTC. La directory <code>evidence/</code> è esclusa da Git perché può
+    contenere output voluminoso e dati specifici del run.
+  </p>
+  <p>
+    Per una prova accademicamente leggibile non basta conservare l'alert. Devono
+    rimanere insieme almeno: versione del prototipo, configurazione applicata,
+    identità delle immagini, orari del client, output benigno o exploit, log del
+    monitor, stato e restart dei container ed eventuali diagnostiche di perdita.
+    Solo questo insieme permette di ricostruire il nesso tra input, workload ed
+    evidenza osservata.
+  </p>
+  <p>Al termine il laboratorio può essere rimosso con:</p>
+  <pre><code>KUBECTL='sudo /usr/local/bin/minikube kubectl --' \
+  ./k8s/minikube-ctf/scripts/cleanup-lab.sh</code></pre>
+  <p>
+    Lo script elimina l'intero namespace e, con esso, Pod, ConfigMap e Secret.
+    Non elimina il profilo Minikube né le immagini caricate nel nodo.
+  </p>
+</section>
+
+<section id="results">
+  <h2>10. Risultati della valutazione funzionale</h2>
+  <p>
+    La procedura funzionale è stata ripetuta con tre workload benigni e quattro
+    exploit, mantenendo il Pod attivo e separando le finestre temporali. Il
+    risultato più importante non è soltanto che l'exploit abbia funzionato, ma
+    che la risposta del monitor sia rimasta coerente nei casi osservati.
+  </p>
+  <table>
+    <thead><tr><th>Scenario</th><th>Run</th><th>Workload</th><th>Alert validi</th><th>Perdite diagnosticate</th></tr></thead>
+    <tbody>
+      <tr><td>Benigno</td><td>3</td><td>3 successi, un worker per run</td><td>0 su 3</td><td>0</td></tr>
+      <tr><td>Exploit</td><td>4</td><td>3 flag ricevuti; 1 output client incompleto</td><td>4 su 4</td><td>0</td></tr>
+    </tbody>
+  </table>
+  <div class="box good">
+    <strong>Esito funzionale.</strong> Nei run osservati, ogni catena che ha
+    raggiunto shell, <code>cat</code> e apertura del flag ha prodotto esattamente
+    un alert strutturalmente valido; le interazioni benigne non ne hanno prodotto.
+  </div>
+  <p>
+    Ogni alert contiene nell'ordine i due executable transition, la mediazione
+    sul file risolto e l'apertura riuscita. Nel terzo exploit il client non ha
+    ricevuto il flag, ma la telemetria mostra che il target aveva comunque
+    eseguito shell e <code>cat</code> e aperto il file. Il run non è stato escluso:
+    mostra che l'esito del canale applicativo e la detection del comportamento
+    host sono proprietà differenti.
+  </p>
+  <p>
+    Durante la prova il Pod è rimasto <code>3/3 Running</code> senza restart. Le
+    evidenze grezze sono conservate in
+    <code>demo_project/k8s/minikube-ctf/evidence/step8-repeated-runs-20260812/</code>.
+  </p>
+</section>
+
+<section id="performance">
+  <h2>11. Valutazione replicata delle prestazioni</h2>
+  <p>
+    Poiché Metrics Server non era disponibile, la CPU è stata misurata leggendo
+    <code>cpuacct.usage</code> dal cgroup v1 del container sul nodo Minikube. La
+    differenza tra due campioni, divisa per il tempo trascorso, esprime la
+    percentuale di un singolo core. Il sampler gira fuori dal cgroup del monitor
+    e registra nello stesso istante monitor, target e CPU complessiva del nodo.
+    Sono state eseguite cinque repliche per ciascun profilo, ruotandone l'ordine.
+  </p>
+  <table>
+    <thead><tr><th>Profilo</th><th>CPU primaria media</th><th>Deviazione</th><th>Intervallo delle medie</th><th>P95 medio</th><th>Durata media</th></tr></thead>
+    <tbody>
+      <tr><td>Filtered</td><td>0,39%</td><td>0,02</td><td>0,36-0,41%</td><td>0,92%</td><td>54,85 s</td></tr>
+      <tr><td>Unfiltered</td><td>4,87%</td><td>0,11</td><td>4,73-4,98%</td><td>7,72%</td><td>61,33 s</td></tr>
+      <tr><td>No monitor</td><td>34,80% target</td><td>3,57</td><td>28,66-37,74%</td><td>67,72% target</td><td>56,27 s</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Il profilo filtered rimane sotto il 5% in tutte le repliche e riduce del
+    91,99% la CPU user-space media rispetto a unfiltered. Tutti i dieci run
+    monitorati producono l'alert atteso e nessuna diagnostica di perdita. Il
+    risultato riguarda il cgroup user-space del monitor: non attribuisce tutto
+    il lavoro eBPF eseguito nel contesto dei task osservati.
+  </p>
+
+  <h3>11.1 Riprodurre la valutazione</h3>
+  <pre><code>
+KUBECTL='sudo /usr/local/bin/minikube kubectl --' \
+MINIKUBE='sudo /usr/local/bin/minikube' \
+REPETITIONS=5 DURATION_SECONDS=90 WARMUP_SECONDS=10 \
+CPU_THRESHOLD=5.0 \
+  ./k8s/minikube-ctf/scripts/run-replicated-performance.sh</code></pre>
+  <p>
+    La suite ricrea i Pod, alterna filtered, unfiltered e no-monitor e conserva
+    serie TSV, output dello scenario, log e statistiche rigenerabili. I risultati
+    completi sono descritti nella
+    <a href="minikube-ctf-replicated-performance-evaluation.html">valutazione prestazionale replicata</a>.
+  </p>
+</section>
+
+<section id="claims">
+  <h2>12. Cosa dimostra, e cosa non dimostra, l'esperimento</h2>
+  <h3>Conclusioni supportate</h3>
+  <ul>
+    <li>Il prototipo può essere eseguito come monitor privilegiato in un Pod Minikube e caricare gli hook richiesti sul kernel del nodo.</li>
+    <li>Con <code>hostPID: false</code>, gli hook eBPF osservano processi generati dal container target nello stesso Pod.</li>
+    <li>Il decoder, la policy e il detector collective ricostruiscono una sequenza offensiva composta da eventi di processo e file.</li>
+    <li>Nei run controllati, il caso benigno e l'exploit hanno prodotto risultati distinguibili.</li>
+    <li>Nel profilo operativo, la CPU user-space media del monitor è 0,39% di un core e rimane sotto il 5% in tutte le cinque repliche.</li>
+    <li>Il filtro UID riduce del 91,99% la CPU user-space media rispetto allo stesso profilo senza filtro.</li>
+  </ul>
+  <h3>Conclusioni non supportate</h3>
+  <ul>
+    <li>Il test non dimostra detection generale di ogni command execution, falso positivo o falso negativo in workload reali.</li>
+    <li>Non dimostra correlazione cluster-wide, identificazione di workload Kubernetes o ricostruzione arbitraria dell'albero dei processi.</li>
+    <li>Non dimostra enforcement: il monitor osserva e segnala, ma non blocca l'exploit.</li>
+    <li>Non dimostra overhead totale inferiore al 5%: il gate verificato riguarda il container monitor, mentre il costo kernel eBPF non è interamente attribuito a quel cgroup.</li>
+    <li>Non definisce ancora un profilo Kubernetes di minimo privilegio pronto per produzione.</li>
+  </ul>
+</section>
+
+<section id="next">
+  <h2>13. Lavoro ancora necessario</h2>
+  <p>
+    La validazione funzionale e il benchmark replicato sono pronti per l'audit
+    del Capitolo 6. Resta opportuno eseguire un controllo benigno prolungato e
+    una prova di stabilità per osservare il cleanup dello stato collective oltre
+    le brevi finestre già valutate.
+  </p>
+  <p>
+    Un'eventuale stima dell'overhead totale richiederebbe strumentazione ulteriore
+    capace di attribuire il lavoro eBPF e un nodo non quasi saturo dal workload.
+    Questa estensione non è necessaria per sostenere il risultato più circoscritto
+    sulla CPU user-space del profilo operativo.
+  </p>
+  <div class="box note">
+    <strong>Uso nella tesi.</strong> Questo laboratorio fornisce già il filo
+    narrativo per il capitolo sperimentale: scenario e threat model, topologia,
+    protocollo, validazione funzionale, benchmark replicato e limiti di
+    attribuzione. Gli agenti devono ora verificare i dati grezzi prima della
+    sintesi editoriale.
+  </div>
+</section>
+
+<section id="references">
+  <h2>14. Artefatti e documentazione di dettaglio</h2>
+  <ul>
+    <li><a href="../../demo_project/k8s/minikube-ctf/README.md">README operativo del laboratorio</a></li>
+    <li><a href="aes-beta-adaptation-specification.html">Analisi e adattamento di AES-beta</a></li>
+    <li><a href="minikube-ctf-container-design.html">Design dei tre container</a></li>
+    <li><a href="minikube-ctf-kubernetes-deployment.html">Deployment Kubernetes</a></li>
+    <li><a href="minikube-ctf-ebpf-workload-visibility.html">Verifica della visibilità eBPF</a></li>
+    <li><a href="minikube-ctf-detector-validation.html">Validazione del detector collective</a></li>
+    <li><a href="minikube-ctf-repeated-functional-evaluation.html">Valutazione funzionale ripetuta</a></li>
+    <li><a href="minikube-ctf-performance-methodology.html">Metodologia prestazionale</a></li>
+    <li><a href="minikube-ctf-performance-calibration.html">Calibrazione prestazionale</a></li>
+    <li><a href="minikube-ctf-replicated-performance-evaluation.html">Valutazione prestazionale replicata</a></li>
+  </ul>
+</section>
+
+<footer>
+  Documento conclusivo costruito dagli artefatti del laboratorio al 12 agosto
+  2026. Il commit indicato identifica la base del prototipo; la directory locale
+  <code>k8s/</code> e la modifica a <code>.gitignore</code> risultavano ancora non
+  committate al momento della redazione.
+</footer>
+</main>
+</body>
+</html>

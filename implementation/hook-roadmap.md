@@ -67,7 +67,7 @@ Restano da valutare:
 ## Nota sul kernel target
 
 Il simbolo separato `security_task_fix_setgid` non risulta disponibile sul
-kernel Rocky Linux `4.18.0-553.109.1.el8_10.x86_64`. I cambi GID possono essere
+kernel Rocky Linux `4.18.0-553.137.1.el8_10.x86_64`. I cambi GID possono essere
 osservati attraverso le syscall `setgid`, `setregid`, `setresgid` e `setfsgid`,
 oppure tramite `commit_creds`, che mostra lo stato finale realmente applicato.
 

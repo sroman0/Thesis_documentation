@@ -455,7 +455,7 @@ usa comunque il kernel host.
 ## 2026-05-19 - Preferire hook target-specific quando il kernel e' noto
 
 **Contesto:** il progetto deve girare principalmente sulla VM Rocky/RHEL 8.10
-con kernel `4.18.0-553.109.1.el8_10.x86_64`. Tracee deve mantenere alta
+con kernel `4.18.0-553.137.1.el8_10.x86_64`. Tracee deve mantenere alta
 portabilita' su kernel molto diversi; questo progetto puo' invece sfruttare
 il target noto come elemento di semplificazione e ottimizzazione.
 

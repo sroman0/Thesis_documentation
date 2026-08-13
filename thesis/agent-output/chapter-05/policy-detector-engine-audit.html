@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 5 Policy, Detector and Local-Correlation Audit</title>
+  <style>
+    :root {
+      --ink: #17212b;
+      --muted: #56616d;
+      --line: #cbd3da;
+      --panel: #f4f7f8;
+      --accent: #0f5e75;
+      --soft: #e8f3f6;
+      --warn: #8a4b08;
+      --warn-soft: #fff4df;
+      --bad: #8b2430;
+      --bad-soft: #fff0f1;
+      --good: #24643d;
+      --good-soft: #eaf6ee;
+    }
+    * { box-sizing: border-box; }
+    body {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 2rem 1.3rem 5rem;
+      color: var(--ink);
+      font: 16px/1.56 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    h1, h2, h3 { line-height: 1.2; letter-spacing: 0; }
+    h1 { margin-top: 0; }
+    h2 { margin-top: 2.5rem; padding-bottom: .35rem; border-bottom: 2px solid var(--line); }
+    h3 { margin-top: 1.6rem; }
+    p, li { max-width: 90ch; }
+    code { background: #edf0f3; padding: .08rem .28rem; overflow-wrap: anywhere; }
+    pre { padding: 1rem; background: #f2f4f6; border: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; }
+    th, td { border: 1px solid var(--line); padding: .65rem; text-align: left; vertical-align: top; }
+    th { background: var(--panel); }
+    .callout { margin: 1rem 0; padding: .85rem 1rem; border-left: 5px solid var(--accent); background: var(--soft); }
+    .warning { border-left-color: var(--warn); background: var(--warn-soft); }
+    .critical { border-left-color: var(--bad); background: var(--bad-soft); }
+    .success { border-left-color: var(--good); background: var(--good-soft); }
+    .status { display: inline-block; margin-right: .35rem; padding: .12rem .5rem; border: 1px solid var(--line); border-radius: 999px; font-size: .86rem; }
+    .committed { color: var(--good); background: var(--good-soft); }
+    .dirty { color: var(--warn); background: var(--warn-soft); }
+    .unsupported { color: var(--bad); background: var(--bad-soft); }
+    .flow { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: .55rem; margin: 1rem 0; }
+    .flow div { padding: .75rem; border: 1px solid var(--line); background: var(--panel); }
+    .flow b { display: block; color: var(--accent); }
+    .small { color: var(--muted); font-size: .92rem; }
+    @media (max-width: 850px) { .flow { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <h1>Policy, Detector and Local-Correlation Implementation Audit</h1>
+  <p><strong>Chapter 5 Wave 1 technical handoff</strong></p>
+
+  <div class="callout">
+    <strong>Inspected revision.</strong> <code>demo_project</code> HEAD is
+    <code>ae653447d006b5952abfe9f57cbf0f67d94af673</code> (merge of PR 15,
+    30 July 2026). The working tree is dirty. This report treats committed code
+    as the baseline and labels later local behaviour explicitly.
+  </div>
+
+  <p>
+    Dirty paths relevant to this audit are <code>pkg/cmd/project.go</code>,
+    <code>pkg/cmd/project_test.go</code>, <code>pkg/ebpf/project.go</code>,
+    <code>pkg/policy/loader.go</code>, <code>pkg/policy/loader_test.go</code>,
+    <code>pkg/policy/policy.go</code>, the untracked
+    <code>pkg/policy/detector_selector.go</code> and its test, and the untracked
+    <code>rules/policies/mitre-privilege-collective.yaml</code>. Other dirty
+    files exist in the repository but are outside this report's analytical
+    scope.
+  </p>
+
+  <div class="callout critical">
+    <strong>Repository-state blocker.</strong> The committed version of
+    <code>pkg/ebpf/project.go</code> contains stale references to an undefined
+    <code>proj</code> variable in the runtime constructor. The dirty worktree
+    removes those references and the targeted current-tree tests pass. Chapter
+    5 must not cite the dirty fix or policy-driven detector selection as a
+    committed baseline until the work is reviewed and committed.
+  </div>
+
+  <h2>Executive Findings</h2>
+  <ol>
+    <li>The implemented analytical path is deterministic and rule based. No baseline learning, statistical score, contextual anomaly model or cluster-wide correlation is present.</li>
+    <li>Committed policies load and validate event scope, compile exact event allowlists when possible, and perform event-time admission. They do not select detector definitions in committed HEAD.</li>
+    <li>Policy-driven detector selection by ID, severity, tags, statefulness and ATT&amp;CK metadata exists only in the dirty worktree. It parses the whole catalogue first and instantiates only selected definitions.</li>
+    <li>The detector engine builds an event-name dispatch index. An event-time failure in one detector is isolated and does not stop other candidate detectors.</li>
+    <li>Collective detectors retain one partial sequence per detector and correlation key. State is bounded by a maximum five-second window and 4096 partial keys per detector.</li>
+    <li>Process, immediate-parent, file-resource, cgroup and conjunctive composite correlation are committed. <code>user_session</code> is recognised but rejected.</li>
+    <li><code>Flush()</code> can force expiry in tests and through the engine API, but the main runtime loop never invokes it. Idle stale state therefore disappears on later qualifying detector traffic or capacity eviction, not through a runtime timer.</li>
+    <li>Alert deduplication uses a fixed five-second processing-time window. Its cache is time-pruned but has no capacity bound; collective-alert identity uses only the first evidence event.</li>
+    <li>ATT&amp;CK identifier validation is syntactic only. Empty mappings are allowed, names and framework versions are not checked against a catalogue, and mapping quality remains an authoring and evaluation concern.</li>
+  </ol>
+
+  <h2>Evidence Status</h2>
+  <table>
+    <thead><tr><th>Capability</th><th>Status</th><th>Evidence and qualification</th></tr></thead>
+    <tbody>
+      <tr><td>Policy YAML loading, normalised model and runtime admission</td><td><span class="status committed">Committed</span></td><td><code>pkg/policy/loader.go</code>, <code>policy.go</code>, <code>manager.go</code> and tests.</td></tr>
+      <tr><td>Exact policy event scope compiled before probe selection</td><td><span class="status committed">Committed</span></td><td><code>Manager.EffectiveEventSelection</code> and runner integration. It is available only when every non-suppressive rule has an explicit include list.</td></tr>
+      <tr><td>Policy-driven detector catalogue selection</td><td><span class="status dirty">Dirty worktree</span></td><td>Untracked selector implementation plus dirty loader and runner integration. Do not present as committed until merged.</td></tr>
+      <tr><td>Point and collective YAML detectors</td><td><span class="status committed">Committed</span></td><td><code>pkg/detectors/yaml</code>, registry, dispatcher, engine and non-network rule examples.</td></tr>
+      <tr><td>Process, immediate-parent, resource, cgroup and composite correlation</td><td><span class="status committed">Committed</span></td><td>Commit history includes <code>35103ea</code>; current code and correlation tests confirm the behaviour.</td></tr>
+      <tr><td>Periodic runtime flush timer</td><td><span class="status unsupported">Not integrated</span></td><td>The API and tests exist, but no production call to <code>Engine.Flush</code> is present.</td></tr>
+      <tr><td>General contextual or cluster-wide correlation</td><td><span class="status unsupported">Out of scope</span></td><td>No global baseline, persistent process graph, Kubernetes identity or cross-node state exists.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Bootstrap Versus Event Time</h2>
+  <h3>Bootstrap pipeline</h3>
+  <div class="flow">
+    <div><b>1. Load</b>Read policy and detector YAML from explicit files or non-recursive directories.</div>
+    <div><b>2. Convert</b>Map external schemas to normalised policy and detector definitions.</div>
+    <div><b>3. Validate</b>Check modes, events, operators, windows, correlation plans and metadata syntax.</div>
+    <div><b>4. Compile</b>Compile exact event scope, conditions, steps, correlation components and dispatch indexes.</div>
+    <div><b>5. Construct</b>Create one policy manager and one shared detector engine with detector-local state.</div>
+  </div>
+  <p>
+    Policy directories are sorted lexically within each supplied policy path;
+    the outer path order is preserved. Detector files from all supplied paths
+    are globally sorted before parsing, and the registry subsequently orders
+    detector instances by ID. Directory traversal is non-recursive. Both YAML
+    loaders use ordinary <code>yaml.Unmarshal</code>, so unknown YAML keys are
+    silently ignored rather than rejected as schema errors.
+  </p>
+  <p>
+    Detector bootstrap compiles operators, comma-separated membership lists,
+    numeric constants, ordered steps and correlation strategy names. Event-time
+    processing therefore does not reparse YAML. In the dirty selector path, all
+    detector documents are still parsed and validated before selection; an
+    invalid detector outside the selected subset can therefore fail startup.
+  </p>
+
+  <h3>Event-time pipeline</h3>
+  <pre>decoded event
+  -&gt; configured event-name admission
+  -&gt; command-name admission
+  -&gt; policy manager (scope + rules; suppress wins)
+  -&gt; optional raw-event presentation
+  -&gt; event-indexed detector dispatch
+  -&gt; point predicates OR collective state transition
+  -&gt; alert evidence + ATT&amp;CK metadata
+  -&gt; five-second alert deduplication
+  -&gt; optional alert presentation</pre>
+  <p>
+    The same <code>bufferdecoder.Event</code> value is supplied to policy and
+    detector matching. Policy mode is not used to create separate event-time
+    branches: <code>monitor</code> and <code>detect</code> both admit matching
+    events, while any matching <code>suppress</code> policy rejects the event
+    before raw output and detector dispatch. Consequently, a detector can run
+    on an event admitted only by a monitor-mode policy.
+  </p>
+
+  <h2>Policy and Detector Responsibilities</h2>
+  <table>
+    <thead><tr><th>Concern</th><th>Policy layer</th><th>Detector layer</th></tr></thead>
+    <tbody>
+      <tr><td>Configuration input</td><td>Policy YAML: mode, intent, shared scope and rules.</td><td>Detector YAML: metadata, consumed events, predicates, sequence, output and threat metadata.</td></tr>
+      <tr><td>Bootstrap effect</td><td>May compile an exact event set. Dirty worktree may also select detector definitions.</td><td>Validates definitions, compiles predicates/correlation, allocates detector instances and builds event index.</td></tr>
+      <tr><td>Event-time decision</td><td>Admits or suppresses the complete event using event, comm, UID and argument predicates.</td><td>Determines whether admitted evidence satisfies a point rule or advances a sequence.</td></tr>
+      <tr><td>State</td><td>No per-event history; manager stores immutable active policies.</td><td>Collective detectors own short detector-local partial sequences; the engine owns deduplication and counters.</td></tr>
+      <tr><td>Output</td><td>Returns matched policies and mode flags internally; policy names are not attached to alerts.</td><td>Produces evidence-preserving alerts containing detector identity, severity, events and threat metadata.</td></tr>
+      <tr><td>Failure boundary</td><td>Load or validation errors are fatal at startup.</td><td>Load, construction and initialisation failures are fatal; individual <code>OnEvent</code> errors are isolated and reported while other candidates continue.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Policy semantics and validation details</h3>
+  <ul>
+    <li>Empty policy mode defaults to <code>monitor</code>; empty intent defaults to <code>threat_hunting</code>.</li>
+    <li>Empty scope lists mean no restriction. Policy rules compose through OR; fields inside one rule compose through AND.</li>
+    <li>An empty event include list means all events. Exclusion wins within a rule.</li>
+    <li>Allow policies compose through union. A matching suppress policy overrides all matching monitor or detect policies.</li>
+    <li>Argument filters support only <code>args.name=value</code> and <code>args.name!=value</code>, with simple leading or trailing wildcards. Malformed or non-<code>args.</code> filter strings are silently discarded by the loader.</li>
+    <li>Policy names need not be unique, rule names may be empty, and the package-level validator does not verify event names. The command bootstrap performs event-registry validation.</li>
+    <li>Exact early event selection is unavailable when any non-suppressive rule has an implicit all-events selector. In that case the broader configured collection scope is retained.</li>
+  </ul>
+
+  <h3>Dirty detector-selection semantics</h3>
+  <ul>
+    <li>Values within one metadata field use OR; different populated fields use AND.</li>
+    <li>Selections from multiple policies are unioned. Exclusion is local to one policy and cannot remove a detector selected by another policy.</li>
+    <li>An empty include criterion matches the whole available catalogue; an explicit selector matching nothing is an error.</li>
+    <li>Explicit include and exclude IDs are checked against the catalogue loaded from the CLI paths.</li>
+    <li>The event-consistency check uses <code>Definition.EventNames()</code>, so optional requirements are also required to be admitted by the selecting policy. This is stricter than the word “required” suggests.</li>
+    <li>If a policy contains a detector selector but no detector catalogue is configured, event-policy behaviour remains active and selection is skipped with a warning.</li>
+  </ul>
+
+  <h2>Point Detector Semantics</h2>
+  <p>
+    The dispatcher calls only detectors indexed for the current event, plus any
+    wildcard detector whose definition declares no events. A point detector
+    first applies all top-level conditions. If it declares steps, the current
+    event must also match one step and that step's conditions. A successful
+    match immediately creates one alert containing the source event.
+  </p>
+  <p>
+    Supported operators are equality, inequality, substring containment,
+    exact membership, prefix, suffix, existence, non-existence, greater-than
+    and less-than. Operators and expected numeric values are compiled at
+    construction. A non-numeric actual value supplied to a numeric comparison
+    produces a detector-local error rather than a no-match result.
+  </p>
+  <div class="callout warning">
+    <strong>Schema gap.</strong> The parser does not require a detector with
+    multiple steps to set <code>stateful: true</code>. A non-stateful multi-step
+    definition behaves as a point detector and may alert on any matching step.
+    Likewise, a stateful detector with zero or one step uses the stateless path.
+    Chapter 5 should describe the valid rule convention and record the missing
+    cross-field validation as a limitation.
+  </div>
+
+  <h2>Collective Detector State Machine</h2>
+  <ol>
+    <li><strong>Admission.</strong> The event must be indexed for the detector and satisfy every top-level condition.</li>
+    <li><strong>Key construction.</strong> The compiled correlation plan creates one or more candidate keys. Missing required components produce no key and therefore no state change.</li>
+    <li><strong>Expiry check.</strong> Global pruning runs only when its scheduled deadline is reached; the candidate state addressed by the event is checked directly on every lookup.</li>
+    <li><strong>Advance.</strong> For each lookup key, the event is compared with the next expected step. A match appends the event and advances exactly one step.</li>
+    <li><strong>Complete.</strong> Matching the final step removes the partial state and returns one alert containing the ordered evidence.</li>
+    <li><strong>Start or restart.</strong> If no state advances and the event matches the first step, one state is stored under the current-process/composite start key. A repeated first step for the same key replaces the previous partial sequence and resets its window.</li>
+    <li><strong>Ignore.</strong> A relevant event that matches neither the next step nor the first step leaves existing non-expired state unchanged. Sequence events need not be contiguous in the complete input stream.</li>
+  </ol>
+  <p>
+    There is one partial sequence per key, not a branching set of alternative
+    matches. Sequence time is measured from the first matched event using the
+    detector's processing clock, and expiry uses a strict greater-than check;
+    completion exactly at the configured window remains eligible. Arrival
+    order is used as received from the runtime. The engine does not reorder
+    events or infer causality across perf-buffer CPUs.
+  </p>
+
+  <h2>Correlation Strategy Matrix</h2>
+  <table>
+    <thead><tr><th>Strategy</th><th>Key and transition</th><th>Missing-data rule</th><th>Boundary</th></tr></thead>
+    <tbody>
+      <tr><td><code>process</code></td><td><code>HostPid:StartTime</code>. Legacy PID and host-PID aliases normalise to this strategy.</td><td>Either zero value prevents key construction.</td><td>Same stable local process lifetime only; PID reuse does not match.</td></tr>
+      <tr><td><code>process_tree</code></td><td>First step stores the current process identity. Later steps try current process, then immediate parent identity <code>HostPpid:ParentStartTime</code>.</td><td>A start requires current identity. Parent lookup is omitted if either parent field is zero.</td><td>Same process or one immediate parent-to-child transition; no ancestry graph or arbitrary descendants.</td></tr>
+      <tr><td><code>resource</code></td><td>Typed event arguments <code>dev:inode</code>; pathname is not part of identity.</td><td>Both arguments must exist at runtime. Parser rejects a sequence if any step's event schema lacks either argument. Numeric zero is accepted if present.</td><td>Local filesystem object identity within the short window; no cross-node or durable file identity.</td></tr>
+      <tr><td><code>cgroup</code></td><td>Common-context <code>CgroupID</code>, allowing different processes in one local cgroup to share state.</td><td>Zero means unavailable and produces no key. Event schemas are not checked for cgroup availability during parsing.</td><td>Node-local kernel cgroup identity, not a pod, container or Kubernetes workload identity.</td></tr>
+      <tr><td>Composite</td><td>Configured components are concatenated in order. Candidate expansion occurs only for <code>process_tree</code>.</td><td>If any component is unavailable, no composite key is produced.</td><td>Conjunctive matching: every configured dimension must agree.</td></tr>
+      <tr><td><code>user_session</code></td><td>Recognised name, deliberately unavailable.</td><td>Rejected during parsing because the event context has no stable local session ID.</td><td>UID is not used as a session approximation.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Condition and missing-field rules</h3>
+  <table>
+    <thead><tr><th>Mechanism</th><th>Present field</th><th>Missing field</th></tr></thead>
+    <tbody>
+      <tr><td>Positive policy argument filter</td><td>Must match at least one configured pattern.</td><td>Fails the rule.</td></tr>
+      <tr><td>Negated policy argument filter</td><td>Must differ from every configured pattern.</td><td>Passes that filter.</td></tr>
+      <tr><td>Detector <code>exists</code> / <code>not_exists</code></td><td><code>exists</code> matches; <code>not_exists</code> does not.</td><td><code>exists</code> fails; <code>not_exists</code> matches.</td></tr>
+      <tr><td>Other detector operators</td><td>Evaluate the compiled predicate.</td><td>No match, not an error.</td></tr>
+      <tr><td>Unknown detector field name</td><td colspan="2">Resolves as absent and follows the missing-field rule; field names are not validated against each event schema at bootstrap.</td></tr>
+      <tr><td>Context fields in detector predicates</td><td colspan="2">Supported numeric context fields always stringify their stored value, including zero; unlike correlation keys, zero is not treated as absent.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Expiry, Capacity, Flush and Deduplication</h2>
+  <table>
+    <thead><tr><th>Limit or rule</th><th>Current value</th><th>Primary source of truth</th><th>Implementation consequence</th></tr></thead>
+    <tbody>
+      <tr><td>Default collective window</td><td>2 seconds</td><td><code>pkg/detectors/definition.go</code>: <code>DefaultStateWindow</code></td><td>Used only when a stateful definition omits an explicit window.</td></tr>
+      <tr><td>Maximum collective window</td><td>5 seconds</td><td><code>pkg/detectors/definition.go</code>: <code>MaxStateWindow</code></td><td>Longer definitions fail validation; exactly five seconds is accepted.</td></tr>
+      <tr><td>Global state-prune interval</td><td><code>min(window/2, 1 second)</code></td><td><code>pkg/detectors/yaml/detector.go</code>: <code>statePruneInterval</code></td><td>Avoids scanning every partial state for each event.</td></tr>
+      <tr><td>Partial sequence capacity</td><td>4096 keys per detector</td><td><code>pkg/detectors/yaml/detector.go</code>: <code>maxSequenceStates</code></td><td>Adding a new key at capacity scans and evicts the oldest state. Replacing an existing key does not evict.</td></tr>
+      <tr><td>Alert deduplication window</td><td>5 seconds</td><td><code>pkg/detectors/engine.go</code>: <code>DefaultAlertDedupWindow</code></td><td>An equal key is suppressed only while elapsed time is strictly less than five seconds.</td></tr>
+      <tr><td>Dedup-cache age pruning</td><td>Older than 10 seconds</td><td><code>pkg/detectors/engine.go</code>: twice the dedup window</td><td>Pruned on each dedup pass; no independent capacity ceiling is implemented.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Collective expiry normally occurs while a stateful detector processes an
+    indexed event that passes its top-level conditions. Explicit
+    <code>Flush(now)</code> forces a full expiry scan and reschedules pruning,
+    but production runtime integration is absent. Timeouts do not generate
+    alerts.
+  </p>
+  <p>
+    The deduplication key includes detector ID, alert title, severity and fields
+    from the first evidence event: event name, namespace PID, UID, command and
+    ordered arguments. It ignores timestamps, thread IDs, process start time,
+    threat metadata, later collective events and the correlation key. Thus it
+    is an alert-noise control, not a uniqueness or causal-identity guarantee.
+  </p>
+
+  <h2>ATT&amp;CK Handling</h2>
+  <ul>
+    <li>Detector definitions may be unmapped; ATT&amp;CK metadata is optional.</li>
+    <li>Tactic IDs must match <code>TA</code> plus four digits. Technique IDs must match four digits with an optional three-digit sub-technique suffix.</li>
+    <li>Empty IDs inside tactic or technique entries are accepted. Framework, version, names, data sources and data components are not semantically validated.</li>
+    <li>A detector alert receives a copy of the complete threat metadata from its definition.</li>
+    <li>The dirty policy selector can match tactic and technique IDs after uppercase normalisation. It uses only local detector metadata and no downloaded ATT&amp;CK dataset.</li>
+    <li>Chapter 5 may describe metadata propagation and syntactic validation. Mapping correctness and coverage belong to Chapter 6.</li>
+  </ul>
+
+  <h2>Rule Catalogue Audit</h2>
+  <p>
+    Excluding networking, the committed catalogue contains four point
+    detectors and five collective detectors. The collective examples exercise
+    process-tree correlation and one resource-correlation case; no committed
+    example currently exercises cgroup or a composite key, although both are
+    covered by unit tests. The committed non-network policy catalogue contains
+    eight presets. The MITRE-focused selector policy is untracked.
+  </p>
+  <div class="callout warning">
+    <strong>Stale preset description.</strong> <code>full-demo.yaml</code>
+    claims to enable all current demo detector requirements but omits
+    <code>security_file_permission</code> and
+    <code>security_bprm_check</code>, which are required by
+    <code>temp-script-write-exec</code>. Legacy policies without a dirty
+    <code>detectors</code> selector load the complete configured detector
+    directory without validating that policy scope admits every detector input.
+  </div>
+
+  <h2>Claim-to-Code-and-Test Matrix</h2>
+  <table>
+    <thead><tr><th>Claim</th><th>Implementation owner</th><th>Test evidence</th><th>Safe Chapter 5 wording</th></tr></thead>
+    <tbody>
+      <tr><td>Rule directories load deterministically</td><td>Policy loader and command detector-file discovery</td><td><code>TestLoadFilesLoadsPolicyDirectoryInStableOrder</code>; detector sorting is directly visible in loader code</td><td>Directories are non-recursive and YAML files are processed in deterministic lexical order, with the policy outer-path qualification stated.</td></tr>
+      <tr><td>Exact policy event scope can shape bootstrap</td><td><code>Manager.EffectiveEventSelection</code> and <code>NewProjectRunner</code></td><td><code>TestEffectiveEventSelection*</code>, <code>TestNewProjectRunnerAppliesExactPolicyEventSelection</code></td><td>Explicit non-suppressive allowlists can narrow the requested logical event set before probe planning.</td></tr>
+      <tr><td>Detector dispatch is indexed and failures are isolated</td><td><code>Registry</code>, <code>Dispatcher</code>, <code>Engine</code></td><td><code>TestDispatcherRoutesEventToMatchingDetectors</code>, <code>TestDispatcherKeepsDetectorErrorsNonFatal</code>, metric tests</td><td>Only interested detectors are invoked; one event-time detector error does not stop the remaining candidates.</td></tr>
+      <tr><td>Collective evidence is ordered and bounded</td><td>YAML runtime detector</td><td>Sequence completion, expiry, periodic prune, forced flush and hard-bound tests</td><td>One detector-local partial sequence per key advances in arrival order within a maximum five-second window and a 4096-key capacity.</td></tr>
+      <tr><td>Stable process and immediate-parent matching</td><td>Compiled correlation plan</td><td>PID reuse and process-tree tests</td><td>Process keys combine host PID and start time; process-tree matching extends lookup only to the immediate parent.</td></tr>
+      <tr><td>Resource/cgroup/composite correlation</td><td>Compiled correlation plan</td><td>Resource identity, missing-field, cgroup and composite tests</td><td>Local keys may use device-inode, cgroup ID, or conjunctive combinations; missing components do not fall back to weaker identity.</td></tr>
+      <tr><td>User session is unsupported</td><td>Correlation parser</td><td><code>TestParseBytesRejectsUnavailableUserSessionCorrelation</code></td><td>The parser rejects user-session correlation rather than approximating it with UID.</td></tr>
+      <tr><td>Alert deduplication is implemented</td><td>Detector engine</td><td>Inside-window suppression and after-window emission tests</td><td>A fixed processing-time cache suppresses equivalent alert keys for five seconds; it has the limitations documented above.</td></tr>
+      <tr><td>ATT&amp;CK metadata reaches alerts</td><td>Definition validation and YAML alert construction</td><td>Definition validation and <code>TestDetectorPropagatesThreatMetadataToAlert</code></td><td>Syntax-checked local metadata is copied from detector definitions to matching alerts.</td></tr>
+      <tr><td>Policy metadata selects detectors</td><td>Dirty selector and dirty runner integration</td><td>Dirty selector, loader and command tests</td><td>Do not include as a committed implementation claim until the current worktree is committed and reviewed.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Validation performed</h3>
+  <p>
+    The current dirty worktree passed
+    <code>go test -count=1 ./pkg/cmd ./pkg/policy ./pkg/detectors/...</code>
+    with the repository's local libbpf build flags. The focused deferred-prune
+    microbenchmark also ran successfully for one and 1024 retained states. Its
+    timing is implementation evidence only and must not be reported as a
+    Chapter 5 performance result.
+  </p>
+
+  <h2>Paragraph Ownership Plan</h2>
+  <table>
+    <thead><tr><th>Primary location</th><th>Mechanism owned here</th><th>Material not to repeat</th></tr></thead>
+    <tbody>
+      <tr><td>Section 5.3, event admission</td><td>Policy YAML conversion, defaults, exact bootstrap scope, event-time matching and suppress precedence.</td><td>Do not re-explain detector predicates or correlation.</td></tr>
+      <tr><td>Section 5.4 opening</td><td>Detector-file discovery, definition validation, construction, registry ordering and event-indexed dispatch.</td><td>Do not repeat the complete end-to-end runtime pipeline from Chapter 3.</td></tr>
+      <tr><td>Section 5.4.1</td><td>External detector schema and bootstrap compilation of conditions, steps and metadata.</td><td>Avoid a field-by-field YAML manual; put a complete example in an appendix.</td></tr>
+      <tr><td>Section 5.4.2</td><td>Point matching and collective state transitions, including evidence creation and failure isolation.</td><td>Do not repeat the point/collective definitions already owned by Chapter 3.</td></tr>
+      <tr><td>Section 5.4.3</td><td>Concrete key construction, missing-data behaviour, expiry, capacity and runtime-flush limitation.</td><td>State the numerical limits once here, not in every detector example.</td></tr>
+      <tr><td>Section 5.4.4</td><td>ATT&amp;CK syntax validation and propagation to alerts; dirty selection only if committed before drafting.</td><td>Coverage quality and case-study outcomes belong to Chapter 6.</td></tr>
+      <tr><td>Section 5.5</td><td>Deduplication as post-detection alert handling, including its exact key and lack of capacity bound.</td><td>Do not present deduplication as correlation state or policy filtering.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Source-Listing Candidates</h2>
+  <ol>
+    <li><strong>Preferred: collective transition core.</strong> A 14-18 line excerpt from the stateful event path showing candidate-key lookup, next-step advancement, completion and first-step state creation. It replaces prose by making the single-state, ordered transition semantics visible. Omit pruning and alert-construction details.</li>
+    <li><strong>Optional: event-indexed dispatch with error isolation.</strong> An 8-12 line excerpt showing lookup of interested detectors, per-detector invocation and continue-on-error. Use only if the runtime/lifecycle audit does not already own an equivalent dispatcher listing.</li>
+  </ol>
+  <p>No dirty policy-selector listing should enter the thesis until that feature is committed.</p>
+
+  <h2>Redundancy Audit Against Chapter 3</h2>
+  <table>
+    <thead><tr><th>Chapter 3 already owns</th><th>Chapter 5 should add</th></tr></thead>
+    <tbody>
+      <tr><td>Why policy and detection are separate architectural responsibilities.</td><td>How policy files become normalised rules and how the manager composes matches and suppression.</td></tr>
+      <tr><td>Point versus collective as deterministic evidence structures.</td><td>The actual predicate compiler, dispatch index and sequence transition behaviour.</td></tr>
+      <tr><td>Conceptual process, parent, resource, cgroup and composite relationships.</td><td>Exact key fields, missing-value handling, aliases and one-state-per-key semantics.</td></tr>
+      <tr><td>The requirement for bounded state.</td><td>The single authoritative values, scheduled prune algorithm, oldest-state eviction and absent production flush timer.</td></tr>
+      <tr><td>Alerts preserve evidence and carry ATT&amp;CK metadata.</td><td>The alert object construction, syntax-only metadata checks and post-match deduplication key.</td></tr>
+      <tr><td>No cluster-wide or contextual correlation.</td><td>Only brief implementation consequences; do not restate the full scope argument.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Chapter 3 claims requiring correction or qualification</h3>
+  <ol>
+    <li>Policy selection of detector definitions is described as current architecture, but it is not committed at the inspected HEAD.</li>
+    <li>The statement that unsupported correlation dimensions are rejected at bootstrap is too broad. This is explicit for <code>user_session</code> and schema-checked for <code>resource</code>; missing process or cgroup identity is handled as a runtime no-match.</li>
+    <li>The statement that state expires when “detector state is flushed” is true at API level, but the production loop does not schedule flushes.</li>
+    <li>The alert-deduplication description should not imply complete collective equivalence: the key ignores all evidence after the first event.</li>
+    <li>“Selected detector requirements” should distinguish required and optional events. Dirty consistency validation currently checks the broad <code>EventNames()</code> set, including optional requirements.</li>
+  </ol>
+
+  <h2>Corrections to the Provisional Chapter 5 Outline</h2>
+  <ol>
+    <li>Keep policy loading and event admission primarily in Section 5.3. Repeating policy YAML in Section 5.4.1 would split ownership.</li>
+    <li>Rename 5.4.1 conceptually to “Detector Definitions and Bootstrap Compilation” unless the final synthesis deliberately merges Sections 5.3 and 5.4.</li>
+    <li>Keep point and collective transition mechanics together in 5.4.2 because they share one detector contract and dispatch path.</li>
+    <li>Make 5.4.3 own collective state and correlation. Move alert deduplication to output/alert handling in 5.5 because it happens after a detector has matched and does not affect sequence state.</li>
+    <li>Retain 5.4.4 for ATT&amp;CK propagation. Add policy-based ATT&amp;CK selection only if the dirty implementation becomes the accepted committed baseline.</li>
+    <li>Use one state-machine visual and one compact correlation matrix. Avoid separate diagrams for every strategy and avoid a catalogue of the nine rule files.</li>
+  </ol>
+
+  <h2>Unresolved Questions</h2>
+  <ol>
+    <li>Will policy-driven detector selection be committed before Chapter 5 is drafted, and will the broken committed runtime constructor be repaired in the same reviewed baseline?</li>
+    <li>Should detector YAML use strict known-field decoding so typographical errors cannot silently disable conditions or metadata?</li>
+    <li>Should schema validation reject non-stateful multi-step detectors and stateful definitions with fewer than two steps?</li>
+    <li>Should the production runtime invoke <code>Engine.Flush</code> on a timer and at shutdown, or should Chapter 5 explicitly present event-driven expiry as the only integrated cleanup path?</li>
+    <li>Should alert deduplication gain a capacity limit and include stable process start time plus the full collective evidence or correlation key?</li>
+    <li>Should dirty detector-policy consistency use only required events rather than <code>EventNames()</code>, which includes optional requirements?</li>
+    <li>Should policy mode affect detector dispatch, or are <code>monitor</code> and <code>detect</code> intentionally descriptive once an event is admitted?</li>
+    <li>Should malformed policy filter strings and unknown detector condition fields become bootstrap errors?</li>
+    <li>Should <code>full-demo.yaml</code> be corrected to include the resource-correlated detector inputs or renamed to avoid claiming complete catalogue coverage?</li>
+  </ol>
+
+  <h2>Scope and Acceptance Notes</h2>
+  <div class="callout success">
+    Networking rules and implementation, including <code>net_detector.yaml</code>
+    and <code>test_net.yaml</code>, were excluded from authored-contribution
+    claims. Functional demonstrations, attack scenarios, alert quality and
+    performance outcomes remain Chapter 6 material.
+  </div>
+  <p class="small">
+    This report is an implementation audit, not an editorial authorisation to
+    write uncommitted behaviour into the thesis. Wave 2 should resolve the
+    dirty-baseline decision before producing a binding Chapter 5 synthesis.
+  </p>
+</body>
+</html>

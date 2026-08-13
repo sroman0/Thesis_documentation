@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Step 6 - Visibilita eBPF del workload Kubernetes</title>
+<style>
+body{max-width:1050px;margin:36px auto;padding:0 24px 60px;color:#172033;font-family:system-ui,sans-serif;line-height:1.58}
+h1,h2{line-height:1.22}h2{margin-top:38px;border-bottom:1px solid #d8dee8;padding-bottom:7px}
+code,pre{font-family:Consolas,monospace}pre{overflow:auto;padding:14px;color:#edf2f8;background:#111827}
+table{width:100%;border-collapse:collapse}th,td{padding:9px 11px;border:1px solid #d8dee8;text-align:left;vertical-align:top}
+.ok,.note{padding:13px 16px;margin:16px 0}.ok{border-left:4px solid #16803c;background:#f0faf3}.note{border-left:4px solid #2457a6;background:#f3f7fc}
+</style>
+</head>
+<body>
+<h1>Step 6 - Visibilita eBPF del workload Kubernetes</h1>
+
+<p>Questa fase verifica che il monitor privilegiato osservi i processi del
+container target nello stesso Pod. La prova separa la visibilita del workload
+dallo scenario exploit, che produce molti eventi del runtime e rende difficile
+una verifica manuale.</p>
+
+<h2>Ambiente verificato</h2>
+<table>
+<tr><th>Elemento</th><th>Valore</th></tr>
+<tr><td>demo_project</td><td>commit <code>497da90f564c97fb9ffc38b264398150467173f5</code>, con artefatti del laboratorio non ancora committati</td></tr>
+<tr><td>Immagine monitor</td><td><code>sha256:d9f9f1b1b17bae56717ee1be9c48fa0709e107645d68615bf66cdda824e464f0</code></td></tr>
+<tr><td>Pod</td><td><code>aes-beta-lab</code>, tre container, <code>hostPID: false</code></td></tr>
+<tr><td>Identita target</td><td>UID/GID <code>10001</code>, UTS <code>aes-beta-lab</code></td></tr>
+</table>
+
+<p>L'immagine del monitor e stata ricostruita dall'attuale working tree. Il
+digest e risultato identico all'immagine gia presente, escludendo una differenza
+di codice tra build locale e Pod. Lo script di caricamento ora ricostruisce il
+monitor per impostazione predefinita; il riuso della cache richiede
+<code>REBUILD_MONITOR=0</code>.</p>
+
+<h2>Metodo di accettazione</h2>
+<p>Lo script <code>verify-workload-telemetry.sh</code> esegue un unico comando
+controllato nel target:</p>
+
+<pre><code>/bin/cat /opt/aes-beta/flag</code></pre>
+
+<p>Dopo l'esecuzione acquisisce i log del monitor e richiede tre evidenze con
+UID <code>10001</code>:</p>
+<ol>
+<li><code>sched_process_exec</code> con <code>comm=cat</code>;</li>
+<li><code>open</code> sul flag, comprensivo del valore di ritorno;</li>
+<li><code>security_file_open</code> sul percorso risolto del flag.</li>
+</ol>
+
+<pre><code>KUBECTL='sudo /usr/local/bin/minikube kubectl --' \
+  EVIDENCE_FILE=k8s/minikube-ctf/evidence/step6-workload-telemetry.jsonl \
+  ./k8s/minikube-ctf/scripts/verify-workload-telemetry.sh</code></pre>
+
+<h2>Risultato</h2>
+<div class="ok"><strong>Pass:</strong>
+<code>uid=10001 exec=1 open=1 resolved_open=1</code>.</div>
+
+<table>
+<tr><th>Evento</th><th>Evidenza rilevante</th></tr>
+<tr><td><code>execve</code></td><td>Richiesta <code>/bin/cat</code> con argomento <code>/opt/aes-beta/flag</code>.</td></tr>
+<tr><td><code>sched_process_exec</code></td><td>Transizione completata, <code>comm=cat</code>, UID 10001 e UTS del Pod.</td></tr>
+<tr><td><code>security_file_open</code></td><td>Percorso risolto, device e inode del Secret montato.</td></tr>
+<tr><td><code>open</code></td><td>Percorso richiesto e risultato <code>fd:3</code>, quindi apertura riuscita.</td></tr>
+</table>
+
+<div class="note">Il monitor osserva i workload senza condividere il namespace
+PID host. <code>hostPID: true</code> non e necessario e resta escluso dal
+manifest. PID namespace-relative e PID host presenti nell'evento consentono di
+distinguere il processo nel Pod dalla sua identita sul nodo.</div>
+
+<h2>Analisi del falso negativo precedente</h2>
+<p>La conclusione preliminare dello Step 5 derivava da ricerche manuali su un
+flusso molto rumoroso e da uno stimolo non isolato. La prova attuale mostra che
+non esiste una perdita sistematica negli hook, nel decoder o nella policy per
+UID 10001. Non sono quindi necessarie correzioni al percorso eBPF. Rimane utile
+conservare il controllo automatico come precondizione di ogni successivo run
+dell'esperimento.</p>
+
+<h2>Decisione e fase successiva</h2>
+<p>La visibilita del workload e accettata. Lo Step 7 ha successivamente usato
+questa evidenza per costruire e validare un detector collective basato sulle
+transizioni riuscite verso shell e <code>cat</code> e sull'apertura del flag.</p>
+
+<h2>Collegamenti</h2>
+<ul>
+<li><a href="../../demo_project/k8s/minikube-ctf/README.md">README operativo</a></li>
+<li><a href="minikube-ctf-kubernetes-deployment.html">Deployment Kubernetes</a></li>
+<li><a href="minikube-ctf-experiment-design.html">Disegno sperimentale</a></li>
+<li><a href="minikube-ctf-detector-validation.html">Step 7: detector collective</a></li>
+</ul>
+</body>
+</html>

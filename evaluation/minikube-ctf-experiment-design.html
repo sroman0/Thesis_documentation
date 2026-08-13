@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Specifica sperimentale del laboratorio Minikube CTF</title>
+<style>
+:root {
+  --ink: #172033;
+  --muted: #5f6b7d;
+  --line: #d8dee8;
+  --panel: #f7f9fc;
+  --blue: #2457a6;
+  --green: #1f704c;
+  --amber: #8a5b00;
+  --red: #9b2c2c;
+  --code: #101622;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  color: var(--ink);
+  background: #fff;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.62;
+}
+main { max-width: 1160px; margin: 0 auto; padding: 44px 32px 80px; }
+h1 { max-width: 900px; margin: 0 0 10px; font-size: 2.25rem; line-height: 1.16; }
+h2 { margin-top: 48px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+h3 { margin-top: 28px; }
+p, li { max-width: 100ch; }
+a { color: var(--blue); }
+code { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+pre {
+  overflow: auto;
+  padding: 15px 17px;
+  border-radius: 7px;
+  color: #e8edf5;
+  background: var(--code);
+  font-size: .88rem;
+  line-height: 1.45;
+}
+table { width: 100%; margin: 18px 0 28px; border-collapse: collapse; font-size: .94rem; }
+th, td { padding: 10px 12px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+th { background: #f1f4f8; }
+.subtitle { max-width: 920px; margin-bottom: 22px; color: var(--muted); font-size: 1.08rem; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 28px; }
+.tag { padding: 5px 9px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); font-size: .84rem; }
+.toc, .box { padding: 17px 21px; border: 1px solid var(--line); border-radius: 7px; background: #fbfcfe; }
+.toc ol { columns: 2; padding-left: 22px; }
+.toc a { text-decoration: none; }
+.note { border-left: 4px solid var(--blue); }
+.good { border-left: 4px solid var(--green); background: #f0f8f4; }
+.warn { border-left: 4px solid var(--amber); background: #fff9ec; }
+.risk { border-left: 4px solid var(--red); background: #fff5f5; }
+.architecture {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+}
+.pod { padding: 18px; border: 2px solid #8fa4c2; background: #fff; }
+.pod-title { margin-bottom: 14px; font-weight: 750; }
+.containers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.container { min-height: 150px; padding: 14px; border: 1px solid #bfc9d7; background: #fafcff; }
+.container strong { display: block; margin-bottom: 7px; }
+.flow { margin-top: 12px; color: var(--muted); text-align: center; font-size: .9rem; }
+.status { font-weight: 700; color: var(--green); }
+.pending { font-weight: 700; color: var(--amber); }
+.small { color: var(--muted); font-size: .9rem; }
+footer { margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+@media (max-width: 800px) {
+  main { padding: 28px 18px 52px; }
+  .toc ol { columns: 1; }
+  .containers { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Specifica sperimentale del laboratorio Minikube CTF</h1>
+  <p class="subtitle">
+    Step 1 della roadmap: definizione verificabile di un esperimento Kubernetes
+    multi-container per valutare la raccolta di eventi di processo e la
+    generazione di alert da parte del prototipo eBPF.
+  </p>
+  <div class="meta">
+    <span class="tag">Stato: specifica iniziale</span>
+    <span class="tag">Data: 12 agosto 2026</span>
+    <span class="tag">Ambiente: Rocky Linux 8.10 + Minikube</span>
+    <span class="tag">Topologia: un pod, tre container</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Indice">
+  <strong>Indice</strong>
+  <ol>
+    <li><a href="#purpose">Scopo dello step</a></li>
+    <li><a href="#objectives">Obiettivi di valutazione</a></li>
+    <li><a href="#topology">Topologia approvata</a></li>
+    <li><a href="#responsibilities">Responsabilità dei container</a></li>
+    <li><a href="#ctf">Scenario CTF</a></li>
+    <li><a href="#threat-model">Threat model</a></li>
+    <li><a href="#cases">Casi sperimentali</a></li>
+    <li><a href="#evidence">Evidenza attesa</a></li>
+    <li><a href="#success">Criteri di successo</a></li>
+    <li><a href="#controls">Variabili e controlli</a></li>
+    <li><a href="#artifacts">Artefatti da conservare</a></li>
+    <li><a href="#risks">Rischi e questioni aperte</a></li>
+    <li><a href="#chapter6">Materiale per il Chapter 6</a></li>
+    <li><a href="#gate">Gate per lo Step 2</a></li>
+  </ol>
+</nav>
+
+<section id="purpose">
+  <h2>1. Scopo dello step</h2>
+  <p>
+    Questo documento definisce il laboratorio prima della sua implementazione.
+    Non introduce ancora immagini Docker, manifest Kubernetes, policy o detector.
+    Stabilisce invece quali comportamenti devono essere osservati, quali prove
+    devono essere conservate e quali conclusioni potranno essere sostenute nella
+    tesi.
+  </p>
+  <div class="box note">
+    <strong>Principio metodologico.</strong> Il successo dell'exploit non coincide
+    automaticamente con il successo del monitor. Il laboratorio è valido solo
+    se collega in modo ripetibile l'azione nel container target agli eventi
+    decodificati e agli alert prodotti dal detector previsto.
+  </div>
+
+  <h3>Snapshot iniziale</h3>
+  <table>
+    <thead><tr><th>Componente</th><th>Revisione verificata</th><th>Stato rilevante</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Prototipo</td>
+        <td><code>497da90f564c97fb9ffc38b264398150467173f5</code></td>
+        <td>La directory locale <code>k8s/</code> è ancora non tracciata e appartiene al laboratorio preliminare.</td>
+      </tr>
+      <tr>
+        <td>openECSC-2024</td>
+        <td><code>2602f22c664eb98398413e6a7dfe03ea88b2d296</code></td>
+        <td>Revisione usata per analizzare AES-beta.</td>
+      </tr>
+      <tr>
+        <td>Vali-Cyber ebpf-attacks</td>
+        <td><code>446f5436c135a61f82dc0810d1fc4abfe4171fd5</code></td>
+        <td>Revisione candidata per il solo test complementare sul symlink.</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="small">
+    Lo snapshot documenta il punto di partenza, non congela le revisioni finali.
+    Ogni run dovrà registrare nuovamente commit, working tree e digest delle
+    immagini realmente impiegate.
+  </p>
+</section>
+
+<section id="objectives">
+  <h2>2. Obiettivi di valutazione</h2>
+  <ol>
+    <li>Verificare che il monitor eBPF possa essere eseguito in un container privilegiato sul nodo Minikube mantenendo il kernel Rocky Linux target.</li>
+    <li>Verificare che il monitor osservi processi eseguiti negli altri container dello stesso pod.</li>
+    <li>Riconoscere la differenza tra interazione legittima con la challenge e sfruttamento della vulnerabilità.</li>
+    <li>Ricostruire l'evidenza di processo prodotta dall'exploit: creazione dei figli, esecuzione della shell, comando finale e accesso al flag sintetico.</li>
+    <li>Dimostrare sia un match puntuale sia una sequenza collettiva locale, senza attribuire al sistema capacità di correlazione cluster-wide.</li>
+    <li>Preparare una procedura ripetibile e gli artefatti necessari alla successiva valutazione di CPU, memoria, perdita di eventi e latenza dell'alert.</li>
+  </ol>
+</section>
+
+<section id="topology">
+  <h2>3. Topologia approvata</h2>
+  <p>
+    Il laboratorio utilizza un singolo pod con tre container. Questa scelta crea
+    un'unità sperimentale compatta: target, trigger e monitor condividono il nodo
+    e il pod, mentre mantengono filesystem, processi applicativi, log e limiti di
+    risorse separati a livello di container.
+  </p>
+
+  <div class="architecture" role="img" aria-label="Pod singolo con container monitor, CTF target e attack trigger">
+    <div class="pod">
+      <div class="pod-title">Pod: <code>process-security-ctf-lab</code></div>
+      <div class="containers">
+        <div class="container">
+          <strong>monitor</strong>
+          Runtime Go, programmi eBPF, policy, detector, perf reader e output.
+          È l'unico container privilegiato.
+        </div>
+        <div class="container">
+          <strong>ctf-target</strong>
+          Servizio AES-beta adattato, listener TCP locale e flag sintetico.
+          Non privilegiato.
+        </div>
+        <div class="container">
+          <strong>attack-trigger</strong>
+          Client benigno, exploit riproducibile e marker di esecuzione.
+          Non privilegiato.
+        </div>
+      </div>
+      <div class="flow">
+        attack-trigger -- TCP 127.0.0.1:1337 --&gt; ctf-target -- kernel hooks --&gt; monitor
+      </div>
+    </div>
+  </div>
+
+  <p>
+    I container di un pod condividono il network namespace. Il trigger può quindi
+    raggiungere il servizio su <code>127.0.0.1:1337</code>, senza Service o
+    comunicazione cross-pod. Il test dimostra osservazione multi-container nello
+    stesso pod, non visibilità cluster-wide.
+  </p>
+
+  <div class="box warn">
+    <strong>Decisione su <code>hostPID</code>.</strong> La prima configurazione deve
+    usare <code>hostPID: false</code>. Se caricamento, attach o osservazione non
+    funzionano, verrà eseguita una prova diagnostica separata con
+    <code>hostPID: true</code>. Poiché il campo appartiene al pod, abilitarlo
+    esporrebbe il PID namespace del nodo anche a target e trigger; l'eventuale
+    necessità dovrà essere documentata come limite del setup.
+  </div>
+</section>
+
+<section id="responsibilities">
+  <h2>4. Responsabilità e isolamento dei container</h2>
+  <table>
+    <thead>
+      <tr><th>Container</th><th>Responsabilità</th><th>Privilegi e risorse</th><th>Output</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>monitor</code></td>
+        <td>Caricare l'oggetto eBPF, collegare i probe selezionati, decodificare gli eventi e valutare policy e detector.</td>
+        <td><code>privileged: true</code>; mount esclusivi di BTF, bpffs e tracefs. Nessun accesso al flag.</td>
+        <td>Eventi e alert su stdout; diagnostica Zap su stderr.</td>
+      </tr>
+      <tr>
+        <td><code>ctf-target</code></td>
+        <td>Eseguire AES-beta e produrre i processi generati dalle richieste legittime e dall'exploit.</td>
+        <td>Utente non root, nessuna capability aggiuntiva, filesystem limitato e flag sintetico montato solo qui.</td>
+        <td>Log del listener e risultato delle sessioni.</td>
+      </tr>
+      <tr>
+        <td><code>attack-trigger</code></td>
+        <td>Eseguire il controllo benigno, l'exploit e gli eventuali test complementari su comando dell'operatore.</td>
+        <td>Utente non root, nessun mount kernel, nessun accesso diretto al flag del target.</td>
+        <td>Run ID, orari di inizio/fine, esito del client e flag restituito dall'exploit.</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>
+    Il trigger resta attivo con un comando inattivo e non lancia automaticamente
+    l'exploit all'avvio. Le prove saranno invocate con <code>kubectl exec</code>.
+    In questo modo lo stesso pod può eseguire più run controllati senza riavvii
+    involontari del container.
+  </p>
+</section>
+
+<section id="ctf">
+  <h2>5. Scenario CTF primario</h2>
+  <p>
+    La challenge candidata è <strong>AES-beta</strong>, disponibile in
+    <a href="https://github.com/ECSC2024/openECSC-2024/tree/main/teamitaly-preselection-ctf/pwn01">openECSC-2024/teamitaly-preselection-ctf/pwn01</a>.
+    La revisione analizzata è
+    <code>2602f22c664eb98398413e6a7dfe03ea88b2d296</code>.
+  </p>
+  <p>
+    Il servizio crea processi figli per elaborare messaggi asincroni. L'exploit
+    pubblicato usa ripetutamente questa funzionalità durante la ricostruzione del
+    canary e conclude con una ROP chain che invoca un comando equivalente a
+    <code>cat flag</code>. Il comportamento è adatto al focus sui processi perché
+    genera sia attività legittima di fork sia una transizione finale verso shell,
+    comando e accesso al file sensibile.
+  </p>
+  <div class="box note">
+    <strong>Adattamento ammesso.</strong> Il laboratorio può sostituire il wrapper
+    originale <code>challenge-jail</code> e il proof-of-work con un listener TCP
+    minimale. Binario vulnerabile, loader, glibc e logica dell'exploit devono
+    rimanere tracciabili alla revisione originale. Ogni modifica sarà elencata e
+    motivata; il flag sarà un valore sintetico privo di segreti reali.
+  </div>
+</section>
+
+<section id="threat-model">
+  <h2>6. Threat model</h2>
+  <table>
+    <thead><tr><th>Elemento</th><th>Assunzione</th></tr></thead>
+    <tbody>
+      <tr><td>Attaccante</td><td>Controlla l'input inviato dal container trigger al servizio vulnerabile e conosce l'exploit pubblico.</td></tr>
+      <tr><td>Obiettivo</td><td>Ottenere esecuzione di comando nel container target e leggere il flag sintetico.</td></tr>
+      <tr><td>Componenti fidati</td><td>Kernel Rocky Linux, runtime Kubernetes/Minikube, oggetto eBPF, processo del monitor e configurazioni montate.</td></tr>
+      <tr><td>Confine osservato</td><td>Processi e file del nodo, con interpretazione limitata al pod e alle relazioni locali disponibili negli eventi.</td></tr>
+      <tr><td>Fuori scope</td><td>Compromissione del kernel, modifica del monitor, evasione tramite privilegi host, enforcement, correlazione tra nodi e attribuzione dell'identità Kubernetes completa.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="cases">
+  <h2>7. Casi sperimentali pianificati</h2>
+  <table>
+    <thead><tr><th>ID</th><th>Scenario</th><th>Azione</th><th>Risultato atteso</th></tr></thead>
+    <tbody>
+      <tr><td>E0</td><td>Bootstrap</td><td>Avvio del pod senza traffico applicativo.</td><td>Monitor caricato, probe collegati, target pronto, nessun errore fatale.</td></tr>
+      <tr><td>E1</td><td>Controllo benigno</td><td>Connessione e normale operazione di cifratura.</td><td>Eventi di processo previsti; nessun alert relativo a shell e flag.</td></tr>
+      <tr><td>E2</td><td>Exploit AES-beta</td><td>Esecuzione completa dell'exploit con Run ID univoco.</td><td>Fork ripetuti, comando finale, accesso al flag e alert con evidenza coerente.</td></tr>
+      <tr><td>E3</td><td>Ripetibilità</td><td>Ripetizione ordinata di E1 ed E2 dopo reset dello stato.</td><td>Esiti funzionali stabili e assenza di stato collettivo residuo tra i run.</td></tr>
+      <tr><td>E4</td><td>Symlink complementare</td><td>Accesso a un file sensibile mediante link simbolico, adattato dal repository ebpf-attacks.</td><td>Conservazione distinta di pathname richiesto e oggetto risolto.</td></tr>
+      <tr><td>E5</td><td>Profili prestazionali</td><td>Confronto tra raccolta, point detection e collective detection.</td><td>CPU, memoria, perdite e latenza documentate per profilo.</td></tr>
+    </tbody>
+  </table>
+  <p class="small">
+    E4 ed E5 appartengono a fasi successive. La loro presenza qui serve a evitare
+    che scelte di packaging o logging nello scenario primario ne impediscano la
+    misurazione.
+  </p>
+</section>
+
+<section id="evidence">
+  <h2>8. Evidenza di processo e detection attesa</h2>
+  <table>
+    <thead><tr><th>Livello</th><th>Evidenza prevista</th><th>Uso nella valutazione</th></tr></thead>
+    <tbody>
+      <tr><td>Lifecycle</td><td>Creazione dei figli della challenge e relativi identificatori host/processo.</td><td>Dimostrare che l'attività del target è visibile dal container monitor.</td></tr>
+      <tr><td>Executable transition</td><td>Esecuzione della shell e del comando finale, osservata tramite eventi di esecuzione riuscita.</td><td>Distinguere l'elaborazione legittima dalla fase di command execution.</td></tr>
+      <tr><td>File access</td><td>Apertura del pathname risolto del flag sintetico.</td><td>Produrre un point alert verificabile.</td></tr>
+      <tr><td>Collective evidence</td><td>Shell execution seguita dall'accesso al flag nello stesso processo o nella relazione parent-child immediata e nello stesso cgroup.</td><td>Produrre un alert con sequenza ordinata.</td></tr>
+      <tr><td>Container context</td><td>Cgroup locale e campi di processo sufficienti a separare target, trigger e monitor.</td><td>Verificare l'attribuzione locale senza chiamarla identità Kubernetes.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    I detector attuali non rappresentano direttamente la semantica di AES-beta.
+    Lo Step 7 della roadmap ha quindi introdotto un detector specifico del
+    laboratorio, mantenendoli separati dalle regole dimostrative generali. La
+    configurazione proposta dovrà essere validata contro gli eventi realmente
+    osservati prima di fissare condizioni e metadata MITRE ATT&amp;CK.
+  </p>
+</section>
+
+<section id="success">
+  <h2>9. Criteri di successo e fallimento</h2>
+  <table>
+    <thead><tr><th>Area</th><th>Criterio di successo</th><th>Esito negativo o inconclusivo</th></tr></thead>
+    <tbody>
+      <tr><td>Bootstrap</td><td>Oggetto caricato, probe collegati e perf reader attivo.</td><td>Errore di BTF, verifier, autoload, attach o apertura del perf buffer.</td></tr>
+      <tr><td>Visibilità</td><td>Il monitor riceve eventi attribuibili ai processi del target e del trigger.</td><td>Sono visibili soltanto processi del container monitor o del nodo non correlabili al test.</td></tr>
+      <tr><td>Controllo benigno</td><td>E1 completa l'operazione senza alert d'attacco.</td><td>Alert equivalente a E2 durante il comportamento legittimo.</td></tr>
+      <tr><td>Exploit</td><td>E2 restituisce il flag sintetico e produce almeno un alert con evidenza coerente.</td><td>Exploit riuscito senza eventi/alert attesi, oppure alert privo della sequenza che lo giustifica.</td></tr>
+      <tr><td>Trasporto</td><td>Nessuna perdita perf-buffer nel run funzionale principale.</td><td>Perdite presenti: il run è registrato ma non usato come prova di completezza.</td></tr>
+      <tr><td>Ripetibilità</td><td>Il risultato funzionale si ripete con la stessa configurazione.</td><td>Esito dipendente da stato precedente non controllato o da modifiche non registrate.</td></tr>
+      <tr><td>Prestazioni</td><td>Metriche raccolte con metodologia stabile; confronto con obiettivo del 5%.</td><td>Campionamento incompleto o profili non comparabili. Il 5% non è assunto come già raggiunto.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="controls">
+  <h2>10. Variabili controllate</h2>
+  <p>Ogni run dovrà registrare e, salvo il fattore in esame, mantenere costanti:</p>
+  <ul>
+    <li>release completa del kernel Rocky Linux;</li>
+    <li>versioni di Docker, Minikube, Kubernetes e container runtime;</li>
+    <li>commit del prototipo e stato della working tree;</li>
+    <li>commit delle sorgenti CTF e dell'eventuale scenario ebpf-attacks;</li>
+    <li>digest delle tre immagini container;</li>
+    <li>manifest applicato e valore di <code>hostPID</code>;</li>
+    <li>eventi, policy, detector e formati di output abilitati;</li>
+    <li>risorse assegnate al pod e ai singoli container;</li>
+    <li>numero di ripetizioni, warm-up, durata e intervallo di campionamento;</li>
+    <li>Run ID e timestamp UTC di inizio e fine.</li>
+  </ul>
+  <p>
+    Il benchmark non deve essere ricavato dal medesimo run usato per mostrare
+    output dettagliato: stampa estesa e log di debug altererebbero il profilo di
+    costo. I test funzionali e prestazionali useranno configurazioni dichiarate
+    separatamente.
+  </p>
+</section>
+
+<section id="artifacts">
+  <h2>11. Artefatti da conservare</h2>
+  <pre><code>documentation/evaluation/
+  minikube-ctf-experiment-design.html
+  minikube-ctf-lab.html                 # procedura operativa, fase successiva
+  results/
+    &lt;run-id&gt;/
+      environment.txt
+      revisions.txt
+      image-digests.txt
+      applied-manifest.yaml
+      monitor.stdout.log
+      monitor.stderr.log
+      target.log
+      trigger.log
+      events.jsonl
+      alerts.jsonl
+      perf-loss.log
+      cpu-memory.csv
+      outcome.txt
+      checksums.sha256</code></pre>
+  <p>
+    I log grezzi non devono essere copiati direttamente nella tesi. Serviranno a
+    costruire tabelle e figure sintetiche, mantenendo però una catena verificabile
+    tra risultato pubblicato e artefatto sperimentale.
+  </p>
+</section>
+
+<section id="risks">
+  <h2>12. Rischi e questioni aperte</h2>
+  <table>
+    <thead><tr><th>Questione</th><th>Rischio</th><th>Verifica prevista</th></tr></thead>
+    <tbody>
+      <tr><td>Wrapper CTF</td><td>Rimuovere challenge-jail o proof-of-work potrebbe alterare involontariamente il comportamento dell'exploit.</td><td>Confrontare binario, glibc e payload con le sorgenti originali e documentare il solo adattamento di trasporto.</td></tr>
+      <tr><td><code>hostPID</code></td><td>Se richiesto, riduce l'isolamento di tutti i container del pod.</td><td>Provare prima senza host PID e introdurlo soltanto con evidenza diagnostica.</td></tr>
+      <tr><td>Rumore del brute-force</td><td>L'exploit crea molti processi e può saturare output o perf buffer.</td><td>Separare run funzionale, alerts-only e benchmark; registrare sempre le perdite.</td></tr>
+      <tr><td>Relazione shell-file</td><td>La shell può creare un figlio oppure sostituire la propria immagine.</td><td>Osservare una prima esecuzione raw prima di fissare <code>group_by</code> e condizioni.</td></tr>
+      <tr><td>Cgroup nello stesso pod</td><td>I container condividono il pod ma non necessariamente lo stesso identificatore cgroup utile al detector.</td><td>Registrare gli ID reali di monitor, target e trigger e verificare la stabilità della chiave locale.</td></tr>
+      <tr><td>Falsi positivi</td><td>Processi infrastrutturali possono eseguire shell o aprire file.</td><td>Usare pathname sintetico, evidenza di processo e cgroup; confrontare E1 ed E2.</td></tr>
+      <tr><td>Misurazione</td><td>Metriche aggregate del pod possono nascondere il costo del monitor.</td><td>Raccogliere CPU e memoria per container e, quando necessario, dal relativo cgroup sul nodo.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="chapter6">
+  <h2>13. Materiale previsto per il Chapter 6</h2>
+  <table>
+    <thead><tr><th>Sezione futura</th><th>Materiale prodotto dal laboratorio</th></tr></thead>
+    <tbody>
+      <tr><td>Experimental environment</td><td>Kernel, Minikube, Kubernetes, runtime, immagini, risorse e topologia del pod.</td></tr>
+      <tr><td>CTF scenario and threat model</td><td>Vulnerabilità, attaccante, target, adattamenti e confini della valutazione.</td></tr>
+      <tr><td>Functional procedure</td><td>Controllo benigno, exploit, eventi attesi e detector attivati.</td></tr>
+      <tr><td>Functional results</td><td>Sequenza osservata, alert, evidenza conservata e confronto benign/attack.</td></tr>
+      <tr><td>Performance results</td><td>Profili CPU/memoria, volume, perdite e latenza.</td></tr>
+      <tr><td>Threats to validity</td><td>Pod unico, singolo nodo, challenge adattata, carico sintetico e limiti di generalizzazione.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="gate">
+  <h2>14. Gate per lo Step 2</h2>
+  <p>Lo Step 2, analisi e adattamento della CTF, può iniziare quando sono accettate le seguenti decisioni:</p>
+  <ul>
+    <li><span class="status">Approvato:</span> un solo pod con i tre container <code>monitor</code>, <code>ctf-target</code> e <code>attack-trigger</code>.</li>
+    <li><span class="status">Approvato:</span> AES-beta come scenario CTF primario.</li>
+    <li><span class="status">Approvato:</span> trigger manuale e ripetibile tramite <code>kubectl exec</code>.</li>
+    <li><span class="status">Approvato:</span> privilegi kernel concessi soltanto al container monitor.</li>
+    <li><span class="pending">Da verificare:</span> funzionamento iniziale con <code>hostPID: false</code>.</li>
+    <li><span class="pending">Da verificare:</span> adattamento minimo del wrapper e rimozione del proof-of-work.</li>
+    <li><span class="pending">Da verificare:</span> sequenza effettiva di shell, comando e accesso al flag prima di scrivere il detector definitivo.</li>
+  </ul>
+  <div class="box good">
+    <strong>Output dello Step 1.</strong> La topologia, gli obiettivi, i controlli,
+    i criteri di successo e la raccolta delle prove sono ora definiti. Nessuna
+    conclusione funzionale o prestazionale viene anticipata prima dei test.
+  </div>
+</section>
+
+<section>
+  <h2>15. Riferimenti operativi</h2>
+  <ul>
+    <li><a href="aes-beta-adaptation-specification.html">Step 2: analisi e specifica di adattamento di AES-beta</a>.</li>
+    <li><a href="minikube-ctf-container-design.html">Step 3: design dei container e del Pod</a>.</li>
+    <li><a href="minikube-ctf-container-implementation.html">Step 4: implementazione e validazione Docker</a>.</li>
+    <li><a href="../minkube_lab.html">Laboratorio Minikube preliminare</a>, da usare come esperienza tecnica e non come protocollo finale.</li>
+    <li><a href="../implementation/docker.md">Packaging Docker del prototipo</a>.</li>
+    <li><a href="https://github.com/ECSC2024/openECSC-2024">Repository openECSC 2024</a>.</li>
+    <li><a href="https://github.com/Vali-Cyber/ebpf-attacks">Repository Vali-Cyber ebpf-attacks</a>.</li>
+    <li><a href="https://kubernetes.io/docs/concepts/workloads/pods/">Documentazione Kubernetes sui Pod</a>.</li>
+  </ul>
+</section>
+
+<footer>
+  Documento di progettazione sperimentale. Le sezioni marcate "da verificare"
+  non devono essere trasformate in affermazioni della tesi prima della raccolta
+  dell'evidenza corrispondente.
+</footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Step 8 - Valutazione funzionale ripetuta del laboratorio AES-beta</title>
+<style>
+body{max-width:1080px;margin:36px auto;padding:0 24px 60px;color:#172033;font-family:system-ui,sans-serif;line-height:1.58}
+h1,h2{line-height:1.22}h2{margin-top:38px;border-bottom:1px solid #d8dee8;padding-bottom:7px}
+code{font-family:Consolas,monospace}table{width:100%;border-collapse:collapse}th,td{padding:9px 11px;border:1px solid #d8dee8;text-align:left;vertical-align:top}
+.ok,.warn,.note{padding:13px 16px;margin:16px 0}.ok{border-left:4px solid #16803c;background:#f0faf3}.warn{border-left:4px solid #b45309;background:#fff8eb}.note{border-left:4px solid #2457a6;background:#f3f7fc}
+</style>
+</head>
+<body>
+<h1>Step 8 - Valutazione funzionale ripetuta del laboratorio AES-beta</h1>
+
+<p>Il 12 agosto 2026 sono stati eseguiti tre workload benigni e tre exploit
+primari nello stesso Pod Kubernetes, senza riavviare il monitor tra i run. Un
+quarto exploit diagnostico e stato aggiunto dopo che il terzo client non aveva
+ricevuto il flag. Il commit base verificato e
+<code>497da90f564c97fb9ffc38b264398150467173f5</code>; detector e manifest del
+laboratorio erano presenti nel working tree.</p>
+
+<h2>Protocollo</h2>
+<ul>
+<li>un Pod con i container <code>ctf-target</code>, <code>attack-trigger</code> e <code>project-monitor</code>;</li>
+<li><code>hostPID: false</code> e filtro eBPF sull'UID effettivo <code>10001</code>;</li>
+<li>monitor in modalita <code>alerts-only</code> con il solo detector AES-beta;</li>
+<li>una finestra UTC distinta per ogni run e log separati dei tre container;</li>
+<li>conteggio di alert e diagnostiche di perdita, seguito da validazione strutturale con <code>jq</code>.</li>
+</ul>
+
+<h2>Risultati</h2>
+<table>
+<tr><th>Run</th><th>Esito workload</th><th>Durata interna</th><th>Worker</th><th>Alert</th><th>Perdite diagnosticate</th></tr>
+<tr><td>Benigno 1</td><td>Pass</td><td>17 ms</td><td>1</td><td>0</td><td>0</td></tr>
+<tr><td>Benigno 2</td><td>Pass</td><td>11 ms</td><td>1</td><td>0</td><td>0</td></tr>
+<tr><td>Benigno 3</td><td>Pass</td><td>11 ms</td><td>1</td><td>0</td><td>0</td></tr>
+<tr><td>Exploit 1</td><td>Pass, flag ricevuto</td><td>48.543 ms</td><td>1.793</td><td>1</td><td>0</td></tr>
+<tr><td>Exploit 2</td><td>Pass, flag ricevuto</td><td>51.584 ms</td><td>1.793</td><td>1</td><td>0</td></tr>
+<tr><td>Exploit 3</td><td>Client fail, flag non ricevuto</td><td>49.509 ms</td><td>1.793</td><td>1</td><td>0</td></tr>
+<tr><td>Exploit 4, diagnostico</td><td>Pass, flag ricevuto</td><td>49.548 ms</td><td>1.793</td><td>1</td><td>0</td></tr>
+</table>
+
+<div class="ok"><strong>Risultato del monitor:</strong> zero alert nei tre
+workload benigni e un alert valido in ognuna delle quattro esecuzioni che hanno
+raggiunto la sequenza malevola osservata.</div>
+
+<h2>Validazione degli alert</h2>
+<p>Ogni alert ha severita <code>high</code> e contiene esattamente quattro
+evidenze ordinate: esecuzione di <code>/bin/sh</code>, esecuzione di
+<code>/bin/cat</code>, mediazione di <code>/opt/aes-beta/flag</code> e apertura
+con file descriptor non negativo. Tutti gli eventi appartengono all'UID 10001.
+I metadata includono <code>TA0002/T1059.004</code> e
+<code>TA0009/T1005</code>.</p>
+
+<h2>Run divergente</h2>
+<p>Nel terzo exploit il client non ha restituito il flag e ha terminato con
+stato 1. La telemetria mostra tuttavia che la shell e <code>cat</code> sono stati
+eseguiti e che il file e stato aperto con successo. Il quarto run diagnostico ha
+nuovamente restituito il flag. Il caso non viene escluso dai risultati: indica
+che il successo della detection e il recapito end-to-end dell'output al client
+sono proprieta differenti.</p>
+
+<div class="warn"><strong>Interpretazione:</strong> questi run dimostrano
+riproducibilita funzionale nel laboratorio, non stimano ancora tassi generali di
+falsi positivi o falsi negativi. La challenge e il detector sono intenzionalmente
+specifici e il campione e ridotto.</div>
+
+<h2>Evidenze locali</h2>
+<p>Gli artefatti grezzi sono salvati in
+<code>demo_project/k8s/minikube-ctf/evidence/step8-repeated-runs-20260812/</code>.
+Ogni directory contiene output e stderr dello scenario, log temporizzati dei
+tre container e un riepilogo con stato, durata, conteggio alert e perdite. La
+directory principale conserva manifest, descrizione del Pod, versione
+Kubernetes, eventi del namespace e log completo del monitor.</p>
+
+<h2>Conclusione e prossimo gate</h2>
+<p>La detection funzionale e stabile nei run osservati e il Pod e rimasto
+<code>3/3 Running</code> senza restart. Il prossimo gate e la valutazione delle
+prestazioni, mantenendo separati baseline senza monitor, monitor senza filtro
+UID e monitor con filtro UID.</p>
+
+<h2>Collegamenti</h2>
+<ul>
+<li><a href="minikube-ctf-detector-validation.html">Step 7: implementazione del detector</a></li>
+<li><a href="minikube-ctf-ebpf-workload-visibility.html">Step 6: visibilita eBPF</a></li>
+<li><a href="../../demo_project/k8s/minikube-ctf/README.md">README operativo</a></li>
+</ul>
+</body>
+</html>

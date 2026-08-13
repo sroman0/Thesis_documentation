@@ -18,7 +18,7 @@ All active development happens in `demo_project/`. Tracee is used only as refere
 
 ## Project — demo_project/
 
-An eBPF-based runtime security monitoring tool. Target environment: **Rocky Linux 8.10**, kernel `4.18.0-553.109.1.el8_10.x86_64`.
+An eBPF-based runtime security monitoring tool. Target environment: **Rocky Linux 8.10**, kernel `4.18.0-553.137.1.el8_10.x86_64`.
 
 Go module: `github.com/V3suv1us/demo_project`  
 Key dependency: `github.com/aquasecurity/libbpfgo`, with CGO and the bundled

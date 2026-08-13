@@ -326,7 +326,7 @@ is not implemented or evaluated as a thesis contribution.
 ### NFR-01: Target-Kernel Compatibility
 
 The prototype shall be built and validated for Rocky Linux 8.10 with kernel
-`4.18.0-553.109.1.el8_10.x86_64`. Enterprise backports mean that capability
+`4.18.0-553.137.1.el8_10.x86_64`. Enterprise backports mean that capability
 decisions must be based on the actual target kernel rather than upstream
 version numbers alone.
 
@@ -391,7 +391,7 @@ individual eBPF programs.
 
 | Assumption or constraint | Current design consequence | Evidence |
 |---|---|---|
-| Rocky Linux 8.10, kernel `4.18.0-553.109.1.el8_10.x86_64` | Hook, helper, BTF and verifier compatibility must be tested on this kernel. | `documentation/report.md`; `documentation/implementation/overview.md` |
+| Rocky Linux 8.10, kernel `4.18.0-553.137.1.el8_10.x86_64` | Hook, helper, BTF and verifier compatibility must be tested on this kernel. | `documentation/report.md`; `documentation/implementation/overview.md` |
 | `/sys/kernel/btf/vmlinux` is normally available | This is the default BTF path, but it can be overridden by CLI or environment. | `pkg/config/config.go:Default`; `pkg/cmd/initialize/bpfobject.go:BPFObject` |
 | Root or equivalent capabilities are available | Loading eBPF, opening perf events and attaching kprobes/tracepoints require elevated privileges. | runtime commands in `README.md`; `pkg/ebpf/project.go:Init` |
 | Vendor backports are possible | Upstream kernel version alone is insufficient evidence for a feature. | Chapter 2 compatibility discussion; `documentation/report.md` |
@@ -626,7 +626,7 @@ traceability from a detector to the behaviour it is intended to represent.
 
 > The system was designed for a constrained and explicitly identified
 > execution environment: Rocky Linux 8.10 with the enterprise kernel
-> 4.18.0-553.109.1.el8_10.x86_64. This target combines an older upstream kernel
+> 4.18.0-553.137.1.el8_10.x86_64. This target combines an older upstream kernel
 > lineage with vendor backports; consequently, compatibility cannot be inferred
 > from the version number alone. The availability of BTF, individual hooks,
 > eBPF helpers, attachment mechanisms and verifier behaviour must be established

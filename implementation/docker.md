@@ -287,7 +287,7 @@ make docker-image DOCKER_BUILD_NETWORK=default
 Docker non rende più moderno il kernel. Se il nodo usa:
 
 ```text
-Linux 4.18.0-553.109.1.el8_10.x86_64
+Linux 4.18.0-553.137.1.el8_10.x86_64
 ```
 
 il tool continuerà a dipendere da quel kernel anche dentro il container.

@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dossier Capitolo 4 - System Implementation</title>
+  <title>Dossier Capitolo 4 - Kernel-Space Event Collection Implementation</title>
   <style>
     body { max-width: 980px; margin: 2rem auto; padding: 0 1rem; font: 16px/1.55 system-ui, sans-serif; color: #202124; }
-    h1, h2, h3 { line-height: 1.2; }
+    h1, h2 { line-height: 1.2; }
     table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
     th, td { border: 1px solid #c8cdd2; padding: .55rem; text-align: left; vertical-align: top; }
     th { background: #f2f4f6; }
@@ -15,98 +15,63 @@
   </style>
 </head>
 <body>
-  <h1>Dossier Capitolo 4 - System Implementation</h1>
+  <h1>Dossier Capitolo 4 - Kernel-Space Event Collection Implementation</h1>
 
   <h2>Obiettivo</h2>
   <p>
-    Il Capitolo 4 deve spiegare come il design definito nel Capitolo 3 e'
-    realizzato nel codice. Deve collegare componenti, contratti e meccanismi
-    concreti senza trasformarsi in un walkthrough riga per riga o in un
-    catalogo completo degli hook.
+    Il Capitolo 4 spiega come il componente kernel-space raccoglie, costruisce,
+    filtra e trasporta gli eventi sul kernel Rocky Linux target. Il capitolo
+    termina al confine perf-buffer e non sviluppa il runtime Go, le policy o i
+    detector, ora appartenenti al Capitolo 5.
   </p>
 
   <div class="constraint">
-    <strong>Vincolo editoriale principale:</strong> ogni concetto deve essere
-    sviluppato una sola volta. Il Capitolo 4 non ridefinisce eBPF, CO-RE,
-    policy, detector, anomalie point/collective o MITRE ATT&amp;CK; mostra
-    invece come tali concetti sono implementati. Quando un meccanismo e' gia'
-    spiegato in una sezione precedente, le sezioni successive devono usare un
-    rimando breve.
+    <strong>Vincolo editoriale:</strong> gli hook sono organizzati per famiglia
+    e stadio osservato. Richiesta, mediazione LSM, stato committed e risultato
+    di ritorno non devono essere presentati come equivalenti. Il catalogo
+    esaustivo resta materiale da appendice.
   </div>
-
-  <h2>Confini con gli altri capitoli</h2>
-  <table>
-    <thead><tr><th>Capitolo</th><th>Responsabilita'</th><th>Da non ripetere nel Capitolo 4</th></tr></thead>
-    <tbody>
-      <tr><td>1</td><td>Motivazione, problema e obiettivi.</td><td>Motivazione generale del monitoraggio runtime.</td></tr>
-      <tr><td>2</td><td>Background, teoria e related work.</td><td>Definizioni generali di hook, verifier, BTF, CO-RE, policy, detector e ATT&amp;CK.</td></tr>
-      <tr><td>3</td><td>Requisiti, architettura e ragioni progettuali.</td><td>Responsibility split, lifecycle end-to-end e giustificazione delle scelte.</td></tr>
-      <tr><td>4</td><td>Meccanismi implementativi e loro integrazione.</td><td>Nessun risultato sperimentale anticipato.</td></tr>
-      <tr><td>5</td><td>Validazione funzionale e prestazionale.</td><td>Benchmark, copertura dimostrata e conclusioni sui risultati.</td></tr>
-    </tbody>
-  </table>
 
   <h2>Struttura canonica</h2>
   <ol>
-    <li><strong>4.1 Build Toolchain and Project Organization</strong></li>
+    <li><strong>4.1 Build Toolchain and Project Organisation</strong></li>
     <li><strong>4.2 eBPF Program Implementation</strong>
       <ol>
-        <li>4.2.1 Process Lifecycle and Execution Hooks</li>
-        <li>4.2.2 Credentials and Privilege Hooks</li>
-        <li>4.2.3 Filesystem, Memory and Namespace Hooks</li>
-        <li>4.2.4 Kernel Integrity and eBPF Activity Hooks</li>
+        <li>Shared Event-Construction Framework</li>
+        <li>Process Lifecycle and Executable Transitions</li>
+        <li>Identity, Credentials, Process Control and Limits</li>
+        <li>File and Filesystem Security</li>
+        <li>Memory, Namespace and Cgroup Transitions</li>
+        <li>Kernel Integrity and Kernel-Facing Activity</li>
       </ol>
     </li>
-    <li><strong>4.3 Loader, Probe Registry and Attachment Lifecycle</strong></li>
-    <li><strong>4.4 Binary Event Contract and Kernel Transport</strong></li>
-    <li><strong>4.5 Userspace Decoder and Event Registry</strong></li>
-    <li><strong>4.6 Event Selection and Kernel-Side Filtering</strong></li>
-    <li><strong>4.7 Policy and Detector Engine</strong>
-      <ol>
-        <li>4.7.1 YAML Policy and Detector Definitions</li>
-        <li>4.7.2 Point and Collective Detection</li>
-        <li>4.7.3 Local Correlation Strategies and Deduplication</li>
-        <li>4.7.4 MITRE ATT&amp;CK Metadata Propagation</li>
-      </ol>
-    </li>
-    <li><strong>4.8 Output and Structured Logging</strong></li>
-    <li><strong>4.9 Containerization and Deployment Considerations</strong></li>
-    <li><strong>4.10 Compatibility and Verifier Challenges</strong></li>
+    <li><strong>4.3 Binary Event Contract and Kernel Transport</strong></li>
+    <li><strong>4.4 Kernel-Side UID Filtering</strong></li>
+    <li><strong>4.5 Compatibility and Verifier Challenges</strong></li>
+    <li><strong>4.6 Kernel-Space Implementation Summary</strong></li>
   </ol>
 
-  <h2>Ownership delle sezioni</h2>
+  <h2>Confini</h2>
   <table>
-    <thead><tr><th>Agente</th><th>Sezioni primarie</th><th>Responsabilita' esclusiva</th></tr></thead>
+    <thead><tr><th>Materiale</th><th>Proprietario</th></tr></thead>
     <tbody>
-      <tr><td>1 - Kernel Implementation</td><td>4.2, 4.10</td><td>Programmi C/eBPF, helper comuni, pattern di hook e workaround del kernel target.</td></tr>
-      <tr><td>2 - Runtime Plumbing</td><td>4.3-4.6</td><td>Loader, probe registry, contratto binario, transport, decoder, event registry e filtri.</td></tr>
-      <tr><td>3 - Detection Engine</td><td>4.7</td><td>Policy, detector, correlazione, deduplica e metadata ATT&amp;CK.</td></tr>
-      <tr><td>4 - Operational Integration</td><td>4.1, 4.8, 4.9</td><td>Toolchain, organizzazione, output, Zap, embedding e containerizzazione.</td></tr>
+      <tr><td>Background eBPF, verifier, BTF e CO-RE</td><td>Capitolo 2</td></tr>
+      <tr><td>Requisiti e motivazioni architetturali</td><td>Capitolo 3</td></tr>
+      <tr><td>Programmi eBPF, helper, hook, serializzazione, perf buffer e compatibilita'</td><td>Capitolo 4</td></tr>
+      <tr><td>Loader, registry, decoder, policy, detector, output e packaging</td><td>Capitolo 5</td></tr>
+      <tr><td>Test funzionali, benchmark e risultati</td><td>Capitolo 6</td></tr>
     </tbody>
   </table>
 
   <h2>Regole di contenuto</h2>
   <ul>
-    <li>Usare il codice e i test correnti come fonte primaria per il comportamento implementato.</li>
-    <li>Registrare commit e stato della working tree analizzati; distinguere modifiche committed e non committed.</li>
-    <li>Presentare hook rappresentativi per pattern implementativo; spostare il catalogo esaustivo in appendice.</li>
-    <li>Descrivere relazioni tra moduli e dati, non successioni di funzioni.</li>
-    <li>Citare nomi di file, tipi, mappe e limiti numerici solo quando chiariscono un meccanismo concreto.</li>
-    <li>Non mostrare lunghi blocchi di codice sorgente nel corpo del capitolo.</li>
-    <li>Non usare il nome interno del progetto nel testo accademico.</li>
-    <li>Non presentare Kubernetes come funzionalita' implementata o valutata.</li>
-    <li>Non descrivere il BPF ring buffer come transport attivo.</li>
-    <li>Non trasformare l'obiettivo del 5% di CPU in un risultato gia' dimostrato.</li>
+    <li>Usare codice e test correnti come fonte primaria del comportamento implementato.</li>
+    <li>Distinguere sempre hook fisico ed evento logico.</li>
+    <li>Descrivere il valore specifico di ogni famiglia, non limitarsi a elencare hook.</li>
+    <li>Usare pochi listing rappresentativi e rimandare ai meccanismi condivisi.</li>
+    <li>Descrivere il perf buffer come transport attivo e il ring buffer solo come background.</li>
+    <li>Limitare le claim di portabilita' al kernel target verificato.</li>
+    <li>Non anticipare benchmark, alert quality o copertura dimostrata.</li>
   </ul>
-
-  <h2>Controllo anti-ridondanza</h2>
-  <p>Ogni contributo degli agenti deve includere:</p>
-  <ol>
-    <li>claim di cui l'agente e' proprietario;</li>
-    <li>claim che appartengono ad altre sezioni e non devono essere sviluppati;</li>
-    <li>possibili sovrapposizioni con i Capitoli 2 e 3;</li>
-    <li>matrice claim-evidenza con codice e test;</li>
-    <li>proposta di rimandi interni al posto di spiegazioni duplicate.</li>
-  </ol>
 </body>
 </html>

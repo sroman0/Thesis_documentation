@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 5 Binding Editorial Synthesis</title>
+  <style>
+    :root {
+      --ink: #17232d;
+      --muted: #596875;
+      --line: #c8d1d8;
+      --panel: #f3f6f8;
+      --accent: #0d6075;
+      --soft: #e8f3f6;
+      --warn: #fff3dc;
+      --risk: #fbeaea;
+      --ok: #e9f6ed;
+    }
+    * { box-sizing: border-box; }
+    body {
+      max-width: 1220px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 5rem;
+      color: var(--ink);
+      font: 16px/1.56 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    h1, h2, h3 { line-height: 1.2; letter-spacing: 0; }
+    h1 { margin-top: 0; }
+    h2 { margin-top: 2.5rem; padding-bottom: .35rem; border-bottom: 2px solid var(--line); }
+    h3 { margin-top: 1.6rem; }
+    p, li { max-width: 96ch; }
+    code { padding: .08rem .28rem; background: #edf1f3; overflow-wrap: anywhere; }
+    table { width: 100%; margin: 1rem 0 1.5rem; border-collapse: collapse; }
+    th, td { padding: .62rem .7rem; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--panel); }
+    pre { overflow-x: auto; padding: 1rem; color: #f3f7f8; background: #18262e; }
+    .callout { margin: 1rem 0; padding: .85rem 1rem; border-left: 5px solid var(--accent); background: var(--soft); }
+    .warning { border-left-color: #98600a; background: var(--warn); }
+    .risk { border-left-color: #a33a3a; background: var(--risk); }
+    .ok { border-left-color: #2c7047; background: var(--ok); }
+    .muted { color: var(--muted); }
+    .status { font-weight: 700; white-space: nowrap; }
+    .committed { color: #27643d; }
+    .local { color: #875500; }
+    .rejected { color: #922e2e; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
+    .card { padding: .8rem 1rem; border: 1px solid var(--line); background: var(--panel); }
+    .card h3 { margin: 0 0 .35rem; }
+    @media (max-width: 820px) {
+      .grid { grid-template-columns: 1fr; }
+      table { display: block; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Chapter 5 Binding Editorial Synthesis</h1>
+    <p><strong>User-Space Runtime and Detection Implementation</strong></p>
+    <div class="callout">
+      This document is the binding editorial specification for the controlled
+      Chapter 5 rewrite. It is based on the current source and tests, not on
+      unverified claims in earlier agent reports. It authorises prose planning;
+      it does not itself modify the thesis.
+    </div>
+    <table>
+      <tbody>
+        <tr><th>Repository</th><td><code>/home/simone/project/demo_project</code></td></tr>
+        <tr><th>Verified committed baseline</th><td><code>d916df707be2a0392c2431c66a30913ab1cd2dab</code>, 7 August 2026, merge of the composite collective-correlation branch.</td></tr>
+        <tr><th>Working tree</th><td>Dirty in <code>pkg/cmd/project.go</code>, <code>pkg/cmd/project_test.go</code> and <code>pkg/ebpf/probes/probes.go</code>.</td></tr>
+        <tr><th>Verification</th><td>With the repository-local libbpf CGO paths, the current worktree passed <code>go test ./...</code>; <code>make build</code> also completed. The passing state includes uncommitted corrections and must not be described as the committed baseline.</td></tr>
+      </tbody>
+    </table>
+  </header>
+
+  <h2>1. Binding Editorial Position</h2>
+  <p>
+    Chapter 5 begins when a perf-buffer record produced by the kernel-side
+    implementation is delivered to Go. It explains how the user-space runtime
+    resolves inputs, plans physical probes, decodes the binary record, admits
+    the resulting event, evaluates policies and detectors, renders alerts and
+    diagnostics, and packages the executable. Chapter 4 remains the owner of
+    hook programs, event construction, the binary writer, perf submission and
+    kernel compatibility branches. Chapter 6 remains the owner of observed
+    behaviour, coverage, performance and functional results.
+  </p>
+  <p>
+    The central implementation claim is deliberately narrow: one
+    schema-directed decoder produces a typed <code>bufferdecoder.Event</code>
+    that is shared by policy matching, detector dispatch and output adapters.
+    Admission gates then decide whether the event is presented or analysed.
+    This is deterministic rule evaluation, not baseline learning, statistical
+    anomaly scoring, contextual anomaly inference or cluster-wide correlation.
+  </p>
+  <div class="callout risk">
+    <strong>Baseline rule.</strong> The selector for detector definitions and
+    the corrected project constructor are present in <code>d916df7</code>.
+    The local corrections that classify <code>raw_sys_enter</code> and
+    <code>security_socket_sendmsg</code> as internal, reject an empty
+    policy/CLI event intersection, and surface cleanup errors are not yet in
+    that commit. They may be described as final behaviour only after they are
+    committed; before then they belong in a limitation or implementation note.
+  </div>
+
+  <h2>2. Resolved Conflicts and Rejected Claims</h2>
+  <table>
+    <thead><tr><th>Earlier claim or conflict</th><th>Resolution for Chapter 5</th><th>Evidence status</th></tr></thead>
+    <tbody>
+      <tr><td>The detector selector is only a dirty-worktree feature.</td><td>Rejected as stale. Policy metadata can select detector definitions before engine construction in the committed baseline.</td><td class="status committed">Committed</td></tr>
+      <tr><td>The committed runtime constructor still references an undefined project variable.</td><td>Rejected as stale. The constructor correction is in <code>d916df7</code>; do not attribute the old defect to the current baseline.</td><td class="status committed">Committed</td></tr>
+      <tr><td>Every public probe name necessarily has a decoder event.</td><td>Qualify the invariant. Public ordinary probes are checked against event schemas, while directional networking selectors and support probes are exceptions; the current local tree also repairs two wrongly exposed support probes.</td><td class="status local">Commit-sensitive</td></tr>
+      <tr><td>Policy and detector loading automatically expands the eBPF event scope.</td><td>Reject. Exact policy event scope can narrow the requested event set; detector loading does not independently add omitted events to the probe plan.</td><td class="status committed">Implemented</td></tr>
+      <tr><td>The decoder creates a second normalisation object in <code>pkg/output</code>.</td><td>Reject. <code>DecodeEvent</code> is the normalisation boundary for host events. Output creates a presentation model after admission.</td><td class="status committed">Implemented</td></tr>
+      <tr><td>Malformed input is always canonicalised or strictly framed.</td><td>Reject. Unknown IDs, invalid indexes, truncation and configured size violations fail; sparse arguments are allowed, while duplicate indexes, trailing bytes and some count mismatches remain permissive.</td><td class="status committed">Code-verified</td></tr>
+      <tr><td>Collective state is flushed periodically by the production runtime.</td><td>Reject. <code>Engine.Flush</code> exists and is tested, but the main event loop does not call it on a timer. Normal cleanup occurs on later qualifying traffic or capacity eviction.</td><td class="status committed">Limitation</td></tr>
+      <tr><td>Alert deduplication identifies complete collective sequences.</td><td>Reject. The key uses detector metadata and the first evidence event, ignoring later evidence, the correlation key and several stable identities.</td><td class="status committed">Limitation</td></tr>
+      <tr><td>The container implements a Kubernetes deployment.</td><td>Reject. The repository has a privileged Docker path only. No Kubernetes manifest, least-privilege profile or validated DaemonSet exists.</td><td class="status rejected">Unsupported</td></tr>
+      <tr><td>The image contains policies and detectors.</td><td>Reject. The runtime image receives the executable; YAML catalogues remain external inputs.</td><td class="status committed">Source-verified</td></tr>
+      <tr><td>All fatal post-bootstrap errors are structured Zap records.</td><td>Qualify. Record-local errors, loss and detector/output errors use Zap; some fatal returns and logger-sync failures still bypass or discard structured diagnostics.</td><td class="status committed">Partial</td></tr>
+      <tr><td>The active runtime supports both perf buffer and BPF ring buffer.</td><td>Reject. The current runtime creates one perf reader. Ring buffer is background or future work.</td><td class="status committed">Implemented</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Final Chapter Structure and Label Migration</h2>
+  <p>
+    Keep the current chapter and section labels wherever possible. The main
+    editorial change is ownership, not an unnecessary relabelling exercise.
+    Add labels to the four existing subsections so that later references can
+    target mechanisms without changing any established cross-reference.
+  </p>
+  <table>
+    <thead><tr><th>Order</th><th>Final heading</th><th>Primary owner</th><th>Label action</th></tr></thead>
+    <tbody>
+      <tr><td>5.1</td><td>Loader, Probe Registry and Attachment Lifecycle</td><td>Go bootstrap, object/BTF inputs, policy-derived scope, probe plan, autoload, attach and cleanup.</td><td>Keep <code>sec:implementation-loader-registry</code>.</td></tr>
+      <tr><td>5.2</td><td>User-Space Decoder and Event Registry</td><td>136-byte context mirror, indexed arguments, schema-directed decoding and malformed-record boundary.</td><td>Keep <code>sec:implementation-decoder-registry</code>.</td></tr>
+      <tr><td>5.3</td><td>User-Space Event Selection and Admission</td><td>CLI selection, command filter, policy matching, suppression precedence and admission short circuit.</td><td>Keep <code>sec:userspace-event-selection</code>; do not rename only for style.</td></tr>
+      <tr><td>5.4</td><td>Policy and Detector Engine</td><td>Detector bootstrap, dispatch, point/collective evaluation, bounded local state and alert metadata.</td><td>Keep <code>sec:implementation-policy-detector</code>.</td></tr>
+      <tr><td>5.4.1</td><td>YAML Policy and Detector Definitions</td><td>External schemas, defaults, deterministic loading, validation and committed policy metadata selection.</td><td>Add <code>subsec:implementation-yaml-definitions</code>.</td></tr>
+      <tr><td>5.4.2</td><td>Point and Collective Detection</td><td>Compiled predicates, event-indexed dispatch, ordered state transitions and isolated detector errors.</td><td>Add <code>subsec:implementation-point-collective</code>.</td></tr>
+      <tr><td>5.4.3</td><td>Local Correlation Strategies, State Bounds and Alert Deduplication</td><td>Process, parent, resource, cgroup and composite keys; expiry/eviction; post-match deduplication.</td><td>Add <code>subsec:implementation-correlation-deduplication</code>.</td></tr>
+      <tr><td>5.4.4</td><td>MITRE ATT&amp;CK Metadata Propagation</td><td>Syntactic validation and copying of local metadata into alerts; no coverage claim.</td><td>Add <code>subsec:implementation-attack-metadata</code>.</td></tr>
+      <tr><td>5.5</td><td>Output and Structured Logging</td><td>Presentation adapters, stdout data paths, stderr diagnostics, Zap and failure routing.</td><td>Keep <code>sec:implementation-output-logging</code>.</td></tr>
+      <tr><td>5.6</td><td>Containerisation and Deployment Considerations</td><td>Builder/runtime image boundary, embedded object, external catalogues and host dependencies.</td><td>Keep <code>sec:implementation-containerisation</code>.</td></tr>
+      <tr><td>5.7</td><td>User-Space Implementation Summary</td><td>Short handoff from implementation to evaluation.</td><td>Keep <code>sec:user-space-implementation-summary</code>.</td></tr>
+    </tbody>
+  </table>
+  <div class="callout ok">
+    No existing label must be migrated. If a later writer changes a heading,
+    preserve the current label or add an alias rather than silently breaking
+    references. Do not add a separate section for networking, benchmark
+    results or a package catalogue.
+  </div>
+
+  <h2>4. Paragraph-Level Narrative Plan</h2>
+  <table>
+    <thead><tr><th>Location</th><th>Paragraph purpose</th><th>Mechanism owned here</th><th>Must not repeat</th></tr></thead>
+    <tbody>
+      <tr><td>5.1 opening</td><td>Cross the Chapter 4 boundary and establish the Go control plane.</td><td>Input configuration becomes a runtime object with explicit ownership.</td><td>General eBPF loading theory or the C-side event writer.</td></tr>
+      <tr><td>5.1 bootstrap</td><td>Follow CLI normalisation, validation, object/BTF resolution and policy/detector preparation.</td><td>Embedded object precedence, external override, policy scope and detector catalogue selection.</td><td>Exhaustive flags or YAML fields.</td></tr>
+      <tr><td>5.1 probe plan</td><td>Explain why logical event names become a physical attachment plan.</td><td>Public producers, repeated producers, internal dependencies and registry-bounded selective autoload.</td><td>Hook-family payloads from Chapter 4.</td></tr>
+      <tr><td>5.1 resources</td><td>Explain load, map update, perf reader, attachment and reverse cleanup.</td><td>Ownership of module, links, conditional cgroup mount, channels and perf buffer; fatal setup versus cancellation.</td><td>Performance or target-kernel success claims.</td></tr>
+      <tr><td>5.2 context</td><td>Show how raw bytes become a Go event without relying on Go struct padding.</td><td>Explicit 136-byte offsets and common context fields.</td><td>Re-describing the C layout and serialisation.</td></tr>
+      <tr><td>5.2 arguments</td><td>Explain the event registry as the type authority for an indexed wire stream.</td><td>Schema lookup, typed payload families, sparse arguments and UTF-8/size checks.</td><td>Every event schema or hook catalogue.</td></tr>
+      <tr><td>5.2 boundary</td><td>State exactly what malformed input does.</td><td>Rejection of structural errors and the deliberate permissiveness around absent, duplicate and trailing arguments.</td><td>Calling permissiveness canonical or secure framing.</td></tr>
+      <tr><td>5.3 admission</td><td>Describe the short-circuit sequence after decoding.</td><td>Event selection, exact command filter, policy match and suppress-wins semantics.</td><td>Detector predicates and correlation.</td></tr>
+      <tr><td>5.3 fan-out</td><td>Clarify consumer boundaries.</td><td>Admitted event to presentation unless <code>alerts-only</code>, and to detector engine regardless of that presentation flag.</td><td>Output-format details owned by 5.5.</td></tr>
+      <tr><td>5.4.1</td><td>Describe how detector definitions become executable objects.</td><td>Deterministic file discovery, parse/validate, condition compilation, registry ordering and policy metadata selection.</td><td>Policy event-time theory from 5.3.</td></tr>
+      <tr><td>5.4.2</td><td>Contrast point and collective execution using one dispatch contract.</td><td>Event-indexed candidates, compiled operators, ordered sequence advancement and detector-local error isolation.</td><td>Conceptual definitions already established in Chapter 3.</td></tr>
+      <tr><td>5.4.3</td><td>Explain local relationships and bounded state.</td><td>Stable process identity, immediate parent fallback, device/inode, local cgroup ID and composite conjunction; expiry and capacity.</td><td>Kubernetes workload identity, persistent process graphs and contextual correlation.</td></tr>
+      <tr><td>5.4.3 end</td><td>Separate collective state from alert repetition control.</td><td>Five-second deduplication based on first evidence, its key omissions and unbounded cache.</td><td>Calling deduplication correlation or evidence completeness.</td></tr>
+      <tr><td>5.4.4</td><td>Explain threat metadata as alert context.</td><td>Syntax checks and propagation of tactics/techniques; local metadata is not validated against a downloaded catalogue.</td><td>MITRE coverage or detection-quality results.</td></tr>
+      <tr><td>5.5</td><td>Describe the presentation boundary.</td><td>Decoder model to event/alert records, JSON versus compact text, shared stdout and independent stderr Zap diagnostics.</td><td>Repeating why the architecture separates data and diagnostics.</td></tr>
+      <tr><td>5.5 end</td><td>Describe operational failure routing.</td><td>Loss, decode, detector and write errors; fatal setup returns; local cleanup-error correction; ignored logger sync.</td><td>Measured loss or reliability outcomes.</td></tr>
+      <tr><td>5.6</td><td>Describe what the image does and does not contain.</td><td>Multi-stage builder/runtime image, embedded eBPF object, declared dynamic libraries, host BTF/BPF resources and external YAML inputs.</td><td>Kubernetes implementation or complete dependency validation.</td></tr>
+      <tr><td>5.7</td><td>Close the implementation chapter.</td><td>One concise ownership recap and explicit transition to Chapter 6.</td><td>New claims or results.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Bridges</h3>
+  <ul>
+    <li><strong>From Chapter 4:</strong> “Chapter 4 ended at the perf-event boundary. The following sections describe how the Go runtime consumes the resulting byte record and turns it into a controlled analysis and presentation path.”</li>
+    <li><strong>Within Chapter 5:</strong> 5.1 owns which programs are loaded; 5.2 owns what a delivered record means; 5.3 owns whether it is admitted; 5.4 owns whether admitted evidence matches a detector; 5.5 owns how the result is presented.</li>
+    <li><strong>Towards Chapter 6:</strong> “The implementation establishes the mechanisms and their limits; the next chapter evaluates functional behaviour, detector evidence, coverage and resource cost on the target environment.”</li>
+  </ul>
+
+  <h2>5. No-Repetition Matrix</h2>
+  <table>
+    <thead><tr><th>Existing owner</th><th>Already covered there</th><th>Chapter 5 addition</th></tr></thead>
+    <tbody>
+      <tr><td>Chapter 2</td><td>eBPF execution, verifier/JIT, object loading theory, attachment kinds, maps/helpers, perf transport and BTF/CO-RE.</td><td>Concrete Go call order, precedence and ownership only; cite <code>\cite{aquasecurity_libbpfgo}</code> only where the binding itself needs external context.</td></tr>
+      <tr><td>Chapter 3</td><td>Requirements, architecture, logical event/probe distinction, policy rationale, point/collective concepts, bounded local correlation, output rationale and scope.</td><td>Concrete conversion and short-circuit mechanics, state representation, exact limits, test-backed semantics and implementation qualifications.</td></tr>
+      <tr><td>Chapter 4</td><td>C/eBPF producers, hook families, shared construction, binary contract, perf submission, UID filter and verifier compatibility.</td><td>Start from delivered bytes; mention the 136-byte boundary only to explain the Go decoder. Do not reproduce C listings or hook catalogues.</td></tr>
+      <tr><td>Chapter 6</td><td>Functional validation, alert scenarios, event coverage, MITRE analysis, CPU/memory/loss measurements and threats to validity.</td><td>Use tests as evidence that mechanisms exist, never as workload results or proof of detection quality.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>6. Source-Listing Budget</h2>
+  <p><strong>Hard limit: six body listings; preferred total: five.</strong> Each should normally be 8–18 lines, faithful to current committed code, and replace prose rather than repeat it. Do not include generated code, networking code, complete catalogues or uncommitted-only corrections.</p>
+  <table>
+    <thead><tr><th>Listing</th><th>Owner</th><th>Candidate source</th><th>Length</th><th>Question answered</th></tr></thead>
+    <tbody>
+      <tr><td>1. Logical selection and dependency expansion</td><td>5.1</td><td><code>pkg/ebpf/probes/probes.go</code>, selection loop</td><td>11–16 lines</td><td>How can one logical event select several physical producers or an internal support probe?</td></tr>
+      <tr><td>2. Schema-directed argument decoding</td><td>5.2</td><td><code>pkg/bufferdecoder</code>, event-spec lookup and indexed decoding</td><td>12–18 lines</td><td>How does an index become a typed argument without a wire type tag?</td></tr>
+      <tr><td>3. Admission and fan-out</td><td>5.3</td><td><code>pkg/ebpf/project.go</code>, abridged <code>handleRawEvent</code></td><td>14–18 lines</td><td>Which gates prevent output and detector evaluation, and what does <code>alerts-only</code> change?</td></tr>
+      <tr><td>4. Event-indexed detector dispatch</td><td>5.4.2</td><td><code>pkg/detectors/dispatch.go</code></td><td>8–14 lines</td><td>How are only interested detectors invoked and how are individual errors isolated?</td></tr>
+      <tr><td>5. Collective state advancement</td><td>5.4.2/5.4.3</td><td><code>pkg/detectors/yaml/detector.go</code>, abridged state path</td><td>14–18 lines</td><td>How does a bounded ordered sequence advance, complete or start again?</td></tr>
+      <tr><td>6. Optional printer boundary</td><td>5.5</td><td><code>pkg/output/printer.go</code></td><td>8–14 lines</td><td>How are event and alert rendering kept format-independent?</td></tr>
+    </tbody>
+  </table>
+  <p>The sixth listing is optional. If it is included, remove any second bootstrap or logging listing. Do not list the complete decoder context, Zap callback, Dockerfile, YAML schema or detector catalogue; use the approved visuals and prose instead.</p>
+
+  <h2>7. Figure and Table Budget</h2>
+  <p><strong>Recommended maximum: three figures and four tables.</strong> Every visual must answer one implementation question and be referenced in prose; no visual is decorative.</p>
+  <table>
+    <thead><tr><th>Visual</th><th>Form</th><th>Exact question answered</th><th>Owner</th></tr></thead>
+    <tbody>
+      <tr><td>Go runtime bootstrap and ownership</td><td>Figure</td><td>In what order do configuration, object resolution, probe planning, loading, reader creation, attachment and cleanup occur?</td><td>5.1</td></tr>
+      <tr><td>Decoded-event admission and fan-out</td><td>Figure</td><td>Where does decoding end, where do event/policy filters short-circuit, and where do output and detectors diverge?</td><td>5.2–5.3</td></tr>
+      <tr><td>Collective detector state machine</td><td>Figure</td><td>How does one detector-local key move from first evidence to completion, expiry or bounded eviction?</td><td>5.4.2–5.4.3</td></tr>
+      <tr><td>Runtime ownership matrix</td><td>Table</td><td>Which component owns each Go object and which failure boundary applies?</td><td>5.1</td></tr>
+      <tr><td>Decoder acceptance matrix</td><td>Table</td><td>Which malformed conditions are rejected, tolerated or not independently detectable?</td><td>5.2</td></tr>
+      <tr><td>Correlation and numerical limits</td><td>Table</td><td>Which local identity is used, what happens when it is unavailable, and where are time/capacity bounds enforced?</td><td>5.4.3</td></tr>
+      <tr><td>Output and error channels</td><td>Table</td><td>Which data or diagnostic class reaches stdout, stderr or the process exit path?</td><td>5.5</td></tr>
+    </tbody>
+  </table>
+
+  <h2>8. Numerical Limits and Primary Owners</h2>
+  <table>
+    <thead><tr><th>Limit</th><th>Current value</th><th>Primary owner</th><th>Required wording</th></tr></thead>
+    <tbody>
+      <tr><td>Common event context</td><td>136 bytes</td><td><code>pkg/bufferdecoder</code> explicit offsets and Chapter 4 binary contract</td><td>Fixed cross-language boundary; no claim of generated ABI synchronisation.</td></tr>
+      <tr><td>Perf reader pages</td><td>1,024 pages</td><td><code>pkg/ebpf/project.go</code>, <code>InitPerfBuf</code></td><td>Configured transport capacity; loss measurement belongs to Chapter 6.</td></tr>
+      <tr><td>Default collective window</td><td>2 seconds</td><td><code>pkg/detectors/definition.go</code></td><td>Short default for stateful detectors.</td></tr>
+      <tr><td>Maximum collective window</td><td>5 seconds</td><td><code>pkg/detectors/definition.go</code></td><td>Hard validation bound; exactly five seconds is valid.</td></tr>
+      <tr><td>State prune interval</td><td><code>min(window/2, 1 second)</code></td><td><code>pkg/detectors/yaml/detector.go</code></td><td>Periodic cleanup occurs during qualifying stateful traffic, not via a runtime timer.</td></tr>
+      <tr><td>Partial sequence capacity</td><td>4,096 keys per detector</td><td><code>pkg/detectors/yaml/detector.go</code></td><td>Oldest state is evicted only when a new key arrives at capacity.</td></tr>
+      <tr><td>Alert deduplication window</td><td>5 seconds</td><td><code>pkg/detectors/engine.go</code></td><td>Processing-time suppression of equivalent keys; not sequence correlation.</td></tr>
+      <tr><td>Deduplication age pruning</td><td>Older than 10 seconds</td><td><code>pkg/detectors/engine.go</code></td><td>Cache has no independent capacity bound.</td></tr>
+      <tr><td>Compact collective alert text</td><td>1,024 bytes plus ellipsis</td><td><code>pkg/output/alert.go</code> tests</td><td>Presentation bound only; JSON retains the evidence array.</td></tr>
+      <tr><td>Decoder variable-value bounds</td><td>String 4,096 bytes; bytes 65,536; string-array 64 elements; compact-array 8,192 payload bytes and 1,024 reported values</td><td><code>pkg/bufferdecoder</code> decoder constants</td><td>Decoder admission bounds; do not conflate them with eBPF producer limits.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>9. Claim-to-Code, Test and Citation Evidence</h2>
+  <table>
+    <thead><tr><th>Claim authorised in Chapter 5</th><th>Code evidence</th><th>Test evidence</th><th>Citation or cross-reference</th></tr></thead>
+    <tbody>
+      <tr><td>Configuration normalises derived alert/detector toggles and validates formats.</td><td><code>pkg/config/config.go</code>, <code>pkg/cmd/cobra/cobra.go</code></td><td><code>config_test.go</code></td><td>Implementation claim; refer to Chapter 3 design, no new external citation.</td></tr>
+      <tr><td>Embedded object and BTF have independent override precedence.</td><td><code>pkg/cmd/initialize/bpfobject.go</code></td><td>No direct initialiser test.</td><td>Refer to Chapter 4 build/embedding; do not call precedence test-verified.</td></tr>
+      <tr><td>Policy event scope can narrow the requested probe plan.</td><td><code>policy.Manager.EffectiveEventSelection</code>, <code>NewProjectRunner</code></td><td><code>TestEffectiveEventSelection*</code>, <code>TestNewProjectRunnerAppliesExactPolicyEventSelection</code></td><td>Refer to Section 3.6 and 5.1; no external citation.</td></tr>
+      <tr><td>Policy metadata can select detector definitions before engine construction.</td><td><code>policy.SelectDetectorIDs</code>, detector loader and runner</td><td><code>TestSelectDetectorIDs*</code>, <code>TestNewRuntimeExtensionsSelectsDetectorsFromPolicyMetadata</code></td><td>Implementation claim; do not confuse with automatic event-scope expansion.</td></tr>
+      <tr><td>Probe registry separates public logical names from internal dependencies and repeated producers.</td><td><code>pkg/ebpf/probes/probes.go</code></td><td><code>TestSelectAttachesImpliedProbesWithoutExposingInternalEvents</code>, family-selection tests</td><td>Refer to Chapter 3 logical-event design and Chapter 4 producers.</td></tr>
+      <tr><td>Schema-directed decoding produces the shared typed event.</td><td><code>pkg/bufferdecoder/eventsreader.go</code>, <code>pkg/events/spec.go</code></td><td><code>TestDecodeEventPreservesContextAndArguments</code>, schema consistency tests, payload tests</td><td>Refer to Chapter 4 binary contract; no new external citation.</td></tr>
+      <tr><td>Malformed records are bounded but not strictly canonical.</td><td><code>pkg/bufferdecoder</code> readers and payload decoders</td><td>Truncation, UTF-8 and credential tests; gaps for duplicate/trailing/count cases</td><td>Present as a code limitation, not as a general parser property.</td></tr>
+      <tr><td>Policy admission precedes output and detector dispatch.</td><td><code>pkg/ebpf/project.go</code>, <code>handleRawEvent</code></td><td>No direct integration test for complete ordering.</td><td>Refer to Chapter 3 lifecycle; mark hot-path ordering as code-inspected.</td></tr>
+      <tr><td>Point and collective detectors use compiled conditions and bounded local state.</td><td><code>pkg/detectors/dispatch.go</code>, <code>pkg/detectors/yaml/detector.go</code></td><td>Dispatcher, point, sequence, correlation and hard-bound tests</td><td>Refer to Section 3.6; no anomaly-learning claim.</td></tr>
+      <tr><td>ATT&amp;CK metadata is syntax-checked and copied to alerts.</td><td><code>detectors.Definition</code>, YAML detector alert construction</td><td><code>TestDetectorPropagatesThreatMetadataToAlert</code>, definition validation tests</td><td>Use <code>\cite{strom2020attack}</code> for ATT&amp;CK concepts; repository code supports propagation only.</td></tr>
+      <tr><td>Output adapters and Zap diagnostics are separate paths.</td><td><code>pkg/output</code>, <code>pkg/logging</code>, runtime error routes</td><td>JSON/table/alert and logger tests</td><td>Use <code>\cite{uber_zap}</code> only for Zap background; implementation details are source claims.</td></tr>
+      <tr><td>The runtime image contains the executable and embedded object but external YAML inputs remain required.</td><td><code>Dockerfile</code>, <code>Makefile</code>, object initialiser</td><td>No image build or execution validation in the audit.</td><td>Refer to Chapter 4 embedding; state image claims as source-verified, not deployment-validated.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>10. Material Explicitly Excluded</h2>
+  <div class="grid">
+    <div class="card"><h3>Networking</h3><p>Exclude packet paths, network enrichment, network detectors, cgroup-skb semantics and socket-specific analysis. The runtime may mention an adjacent event gate only as an ownership dependency.</p></div>
+    <div class="card"><h3>Evaluation</h3><p>Move commands, observed alerts, event coverage, false positives, perf-buffer losses, CPU, memory, threads, throughput and filtering impact to Chapter 6.</p></div>
+    <div class="card"><h3>Appendices</h3><p>Move complete flags, event/hook catalogues, YAML policies and detectors, full JSON examples, label mappings, Docker recipes and reproducibility commands to Appendices A–C.</p></div>
+    <div class="card"><h3>Future work</h3><p>Keep Kubernetes manifests, least-privilege deployment, homogeneous stream framing, schema versioning, central correlation, general contextual anomalies, strict YAML decoding, complete object-registry discovery and logger-sync reporting as future work or limitations.</p></div>
+  </div>
+
+  <h2>11. Terminology and British-English Rules</h2>
+  <ul>
+    <li>Use “the proposed tool”, “the prototype” or “the monitoring agent”; never use the internal project name in thesis prose.</li>
+    <li>Use <em>user space</em> as a noun and <em>user-space</em> as an adjective. Use <em>normalised</em>, <em>catalogue</em>, <em>behaviour</em> and <em>containerisation</em>.</li>
+    <li>Reserve <em>normalised event</em> for <code>bufferdecoder.Event</code>. Call the output-layer object a presentation or serialisation model.</li>
+    <li>Keep event, policy, detector, alert, logical event, physical probe and internal support probe distinct. Do not use hook and event as synonyms.</li>
+    <li>Use <em>perf buffer</em> for the active transport and <em>BPF ring buffer</em> only for background or future work.</li>
+    <li>Say <em>point detector</em> and <em>collective detector</em>; use <em>point anomaly</em> or <em>collective anomaly</em> only when discussing the observation taxonomy.</li>
+    <li>Describe local cgroup and file identities as kernel-local correlation keys, never as Kubernetes workload identities.</li>
+    <li>Use “MITRE ATT&amp;CK tactics and techniques”. Metadata classifies alert intent and improves traceability; it does not establish correctness, coverage or novelty.</li>
+    <li>Use “compact text output” in prose; retain “table” only when quoting the CLI format name.</li>
+  </ul>
+
+  <h2>12. Ordered Writing Checklist</h2>
+  <ol>
+    <li>Update the writer's source baseline to a commit that includes the three local corrections, or mark every affected sentence explicitly as pending.</li>
+    <li>Write the opening bridge from Chapter 4 and the one-paragraph implementation scope.</li>
+    <li>Write 5.1 from configuration through cleanup, using the bootstrap figure and one probe-plan listing.</li>
+    <li>Write 5.2 from fixed context through malformed-record semantics, using the decoder figure/table and one decoder listing.</li>
+    <li>Write 5.3 as the admission short-circuit, using one fan-out listing; do not repeat policy theory.</li>
+    <li>Write 5.4.1 and 5.4.2, keeping external definitions and dispatch separate from correlation.</li>
+    <li>Write 5.4.3 with the correlation visual and the single numerical-limits table. Include the absent production flush timer and deduplication limitations.</li>
+    <li>Write 5.4.4 with one short ATT&amp;CK metadata paragraph and the existing citation.</li>
+    <li>Write 5.5 using the output/error table; add the printer listing only if the total remains within budget.</li>
+    <li>Write 5.6 as source-verified packaging, with no Kubernetes implementation claim.</li>
+    <li>Write 5.7 and the bridge to Chapter 6.</li>
+    <li>Run an internal repetition pass against the matrix, remove catalogues and ensure every visual/listing is interpreted architecturally.</li>
+  </ol>
+
+  <h2>13. Acceptance Checklist</h2>
+  <ul>
+    <li>All existing chapter, section and cross-reference labels remain valid; new subsection labels are unique.</li>
+    <li>The chapter contains no more than six body listings and no more than three figures/four tables under this specification.</li>
+    <li>Every listing is 8–18 lines where practical, abridged transparently, faithful to committed code and followed by architectural explanation.</li>
+    <li>Chapter 5 starts at the perf-buffer handoff and does not repeat Chapter 4 hook implementation or binary construction.</li>
+    <li>Normalisation is attributed to decoding, while output adaptation is described separately.</li>
+    <li>Policy scope, event admission, detector selection, detector evaluation, correlation and alert rendering have one clear owner each.</li>
+    <li>All numerical limits appear primarily in 5.4.3 or the decoder table, not repeatedly in detector examples.</li>
+    <li>The text states that collective expiry is event-driven in the integrated loop because no runtime flush timer is wired.</li>
+    <li>The text distinguishes committed code from the three local corrections until those corrections are committed.</li>
+    <li>No cluster-wide, contextual-anomaly, enforcement, Kubernetes-deployment or performance-result claim appears in the chapter.</li>
+    <li>Networking content is excluded except for a narrowly scoped lifecycle dependency.</li>
+    <li>Chapter 6 receives the evaluation handoff and Chapter 7 receives conclusions/future work, with no results hidden in the implementation summary.</li>
+    <li>LaTeX is checked for syntax, unresolved references and listing/figure placement after writing; build warnings are recorded for the final review.</li>
+  </ul>
+
+  <footer class="callout ok">
+    <strong>Decision.</strong> Proceed with the structure above. The chapter is
+    strongest when it tells one continuous ownership story: configuration and
+    probe planning acquire the runtime, decoding gives the record meaning,
+    admission controls its consumers, detectors preserve local evidence, and
+    output/logging expose separate results. Everything measured or operationally
+    validated belongs in the following evaluation chapter.
+  </footer>
+</body>
+</html>

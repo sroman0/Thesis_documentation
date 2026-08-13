@@ -3,7 +3,7 @@
 ## Stato del documento
 
 Questo documento sostituisce la precedente struttura a nove capitoli proposta
-in `thesis-outline.md` e allinea la documentazione alla struttura a sei capitoli
+in `thesis-outline.md` e allinea la documentazione alla struttura a sette capitoli
 gia' anticipata nell'introduzione LaTeX.
 
 L'indice e' considerato stabile a livello di capitoli. Section e subsection
@@ -41,7 +41,7 @@ monitor locale.
 Definisce l'obiettivo complessivo di progettare, implementare e valutare un
 runtime security monitor eBPF per processi e segnali security-related.
 
-Presenta quindi i Capitoli 2-6 con una lista sintetica, indicando per ciascuno
+Presenta quindi i Capitoli 2-7 con una lista sintetica, indicando per ciascuno
 contenuto e focus. Il Capitolo 1 non contiene research questions, una sezione
 autonoma sui contributi, una sezione di scope o una metodologia separata:
 questi elementi vengono sviluppati nei capitoli tecnici e sperimentali.
@@ -54,30 +54,27 @@ questi elementi vengono sviluppati nei capitoli tecnici e sperimentali.
 
 #### 2.2.1 Execution Model, Verifier and JIT Compilation
 
-#### 2.2.2 Program Types, Hooks and Attachment Mechanisms
+#### 2.2.2 Object Files, Loading and Attachment Lifecycle
 
-#### 2.2.3 Maps, Helpers and Kernel-to-Userspace Transport
+#### 2.2.3 Hook Selection and Event Semantics
 
-#### 2.2.4 BTF and CO-RE Portability
+#### 2.2.4 Maps, Helpers and Kernel-to-Userspace Transport
 
-### 2.3 Runtime Security and Anomaly Detection
+#### 2.2.5 BTF and CO-RE Portability
 
-#### 2.3.1 Point, Contextual and Collective Anomalies
+### 2.3 Related eBPF Runtime Security Tools
 
-#### 2.3.2 Policies, Detectors and Alert Generation
+#### 2.3.1 Tracee
 
-#### 2.3.3 MITRE ATT&CK as a Classification Framework
+#### 2.3.2 Other Relevant eBPF Security Tools
 
-### 2.4 Related Runtime Security Tools
+### 2.4 Positioning of the Proposed Work
 
-#### 2.4.1 Tracee
-
-#### 2.4.2 Other Relevant eBPF Security Tools
-
-### 2.5 Positioning of the Proposed Work
-
-Il Capitolo 2 spiega tecnologie e stato dell'arte. Non descrive nel dettaglio
-come il sistema proposto le implementa.
+Il Capitolo 2 e' centrato sul percorso eBPF, dalla compilazione all'attachment e
+al trasporto verso user space, e sullo stato dell'arte. Policy, detector,
+correlazione e classificazione ATT&CK del sistema proposto appartengono al
+Capitolo 3; il Capitolo 2 li menziona solo quando sono necessari per confrontare
+strumenti esistenti.
 
 ## Chapter 3 - Requirements and System Design
 
@@ -128,89 +125,125 @@ come il sistema proposto le implementa.
 ### 3.7 Design Decisions and Scope Boundaries
 
 Il Capitolo 3 spiega cosa deve fare il sistema e perche' e' stato progettato in
-quel modo. Nomi di funzioni e dettagli riga per riga appartengono al Capitolo 4.
+quel modo. I dettagli kernel-space appartengono al Capitolo 4; runtime Go,
+policy, detector e presentazione appartengono al Capitolo 5.
 
-## Chapter 4 - System Implementation
+## Chapter 4 - Kernel-Space Event Collection Implementation
 
 ### 4.1 Build Toolchain and Project Organization
 
 ### 4.2 eBPF Program Implementation
 
-#### 4.2.1 Process Lifecycle and Execution Hooks
+#### 4.2.1 Shared Event-Construction Framework
 
-#### 4.2.2 Credentials and Privilege Hooks
+#### 4.2.2 Process Lifecycle and Executable Transitions
 
-#### 4.2.3 Filesystem, Memory and Namespace Hooks
+#### 4.2.3 Identity, Credentials, Process Control and Limits
 
-#### 4.2.4 Kernel Integrity and eBPF Activity Hooks
+#### 4.2.4 File and Filesystem Security
 
-### 4.3 Loader, Probe Registry and Attachment Lifecycle
+#### 4.2.5 Memory, Namespace and Cgroup Transitions
 
-### 4.4 Binary Event Contract and Kernel Transport
+#### 4.2.6 Kernel Integrity and Kernel-Facing Activity
 
-### 4.5 Userspace Decoder and Event Registry
+### 4.3 Binary Event Contract and Kernel Transport
 
-### 4.6 Event Selection and Kernel-Side Filtering
+### 4.4 Kernel-Side UID Filtering
 
-### 4.7 Policy and Detector Engine
+### 4.5 Compatibility and Verifier Challenges
 
-#### 4.7.1 YAML Policy and Detector Definitions
+### 4.6 Kernel-Space Implementation Summary
 
-#### 4.7.2 Point and Collective Detection
+Il Capitolo 4 termina al confine kernel-to-userspace. Documenta i produttori,
+il contratto binario, il transport e i vincoli del kernel target, senza
+anticipare decoder, policy, detector o risultati sperimentali.
 
-#### 4.7.3 Local Correlation Strategies and Deduplication
+## Chapter 5 - User-Space Runtime and Detection Implementation
 
-#### 4.7.4 MITRE ATT&CK Metadata Propagation
+### 5.1 Loader, Probe Registry and Attachment Lifecycle
 
-### 4.8 Output and Structured Logging
+### 5.2 User-Space Decoder and Event Registry
 
-### 4.9 Containerization and Deployment Considerations
+### 5.3 User-Space Event Selection and Admission
 
-### 4.10 Compatibility and Verifier Challenges
+### 5.4 Policy and Detector Engine
 
-Il Capitolo 4 documenta il comportamento realmente implementato. Gli elenchi
-esaustivi di eventi e comandi possono essere spostati in appendice.
+#### 5.4.1 YAML Policy and Detector Definitions
 
-## Chapter 5 - Experimental Evaluation
+#### 5.4.2 Point and Collective Detection
 
-### 5.1 Evaluation Goals and Methodology
+#### 5.4.3 Local Correlation Strategies and Deduplication
 
-### 5.2 Experimental Environment
+#### 5.4.4 MITRE ATT&CK Metadata Propagation
 
-### 5.3 Functional Validation and Event Coverage
+### 5.5 Output and Structured Logging
 
-### 5.4 Detector Case Studies
+### 5.6 Containerization and Deployment Considerations
 
-#### 5.4.1 Point Anomaly Detection
+### 5.7 User-Space Implementation Summary
 
-#### 5.4.2 Collective Anomaly Detection
+Il Capitolo 5 documenta il runtime Go e il livello di detection realmente
+implementati. Gli elenchi esaustivi di eventi, flag e regole restano materiale
+da appendice.
 
-### 5.5 MITRE ATT&CK Coverage Analysis
+La prosa del capitolo e' stata azzerata prima del nuovo audit agentico. La
+struttura sopra e' una baseline provvisoria: il workflow HTML in
+`chapter-05-agent-workflow.html` puo' proporre accorpamenti motivati, purche'
+preservi i confini con i Capitoli 2, 3, 4 e 6 e mantenga stabili o migri
+esplicitamente le label usate dai riferimenti LaTeX.
 
-### 5.6 Performance Evaluation
+## Chapter 6 - Experimental Evaluation
 
-#### 5.6.1 Benchmark Profiles and Workloads
+### 6.1 Evaluation Objectives and Experimental Protocol
 
-#### 5.6.2 CPU, Memory and Thread Measurements
+### 6.2 Minikube Environment and Three-Container Testbed
 
-#### 5.6.3 Impact of Kernel-Side Filtering
+### 6.3 AES-beta Workload and Controlled Attack Scenario
 
-### 5.7 Discussion of Results
+### 6.4 Functional Evaluation
 
-### 5.8 Threats to Validity and Current Limitations
+#### 6.4.1 Cross-Container Event Visibility
 
-Il Capitolo 5 contiene risultati riproducibili e distingue misure concluse da
-benchmark esplorativi o interrotti.
+#### 6.4.2 Collective Detector Validation
 
-## Chapter 6 - Conclusions and Future Work
+#### 6.4.3 Benign Control and Repeated Runs
 
-### 6.1 Summary of the Work
+### 6.5 Performance Evaluation
 
-### 6.2 Main Results
+#### 6.5.1 Metrics, Sampling and Benchmark Profiles
 
-### 6.3 Limitations
+#### 6.5.2 Resource Consumption and Workload Duration
 
-### 6.4 Future Work
+#### 6.5.3 Effect of Kernel-Side UID Filtering
+
+### 6.6 Discussion of Results
+
+### 6.7 Threats to Validity and Current Limitations
+
+### 6.8 Evaluation Summary
+
+Il Capitolo 6 usa la challenge AES-beta in un Pod Minikube con target, trigger e
+monitor per valutare la visibilita' eBPF tra container e il detector collective
+costruito sulla sequenza shell, comando e accesso al flag. Il controllo benigno
+e i run ripetuti restano separati dal caso offensivo. ATT&CK viene riportato
+come classificazione dell'alert, non come analisi autonoma di copertura.
+
+Il capitolo distingue rigorosamente risultati funzionali conclusi, calibrazione
+prestazionale esplorativa e benchmark replicati. Le cinque repliche per profilo
+supportano il risultato inferiore al 5% per la CPU user-space del monitor
+filtered. Questo risultato non deve essere trasformato in una dichiarazione di
+overhead totale, poiche' il lavoro eBPF non e' interamente attribuito al cgroup
+del monitor e il nodo rimane quasi saturo dal workload.
+
+## Chapter 7 - Conclusions and Future Work
+
+### 7.1 Summary of the Work
+
+### 7.2 Main Results
+
+### 7.3 Limitations
+
+### 7.4 Future Work
 
 ## Appendices
 

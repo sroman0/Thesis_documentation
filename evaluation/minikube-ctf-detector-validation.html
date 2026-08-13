@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Step 7 - Detector collective per AES-beta</title>
+<style>
+body{max-width:1050px;margin:36px auto;padding:0 24px 60px;color:#172033;font-family:system-ui,sans-serif;line-height:1.58}
+h1,h2{line-height:1.22}h2{margin-top:38px;border-bottom:1px solid #d8dee8;padding-bottom:7px}
+code,pre{font-family:Consolas,monospace}pre{overflow:auto;padding:14px;color:#edf2f8;background:#111827}
+table{width:100%;border-collapse:collapse}th,td{padding:9px 11px;border:1px solid #d8dee8;text-align:left;vertical-align:top}
+.ok,.warn,.decision{padding:13px 16px;margin:16px 0}.ok{border-left:4px solid #16803c;background:#f0faf3}.warn{border-left:4px solid #b45309;background:#fff8eb}.decision{border-left:4px solid #2457a6;background:#f3f7fc}
+</style>
+</head>
+<body>
+<h1>Step 7 - Detector collective per AES-beta</h1>
+
+<p>Questa fase trasforma la telemetria verificata nello Step 6 in una detection
+riproducibile per la challenge AES-beta. Il detector non identifica genericamente
+un exploit di memoria: riconosce la fase finale osservabile in cui il processo
+compromesso esegue una shell, avvia <code>cat</code> e apre con successo il flag.</p>
+
+<h2>Baseline osservata</h2>
+<table>
+<tr><th>Scenario</th><th>Comportamento</th><th>Elemento discriminante</th></tr>
+<tr><td>Benigno</td><td>Avvio di AES-beta e creazione di un worker per la cifratura.</td><td>Nessuna esecuzione di shell o accesso al flag.</td></tr>
+<tr><td>Exploit</td><td>1.793 worker usati dall'oracolo del canary, seguiti dal payload finale.</td><td>Transizione <code>sh</code> -&gt; <code>cat</code> e apertura di <code>flag</code>.</td></tr>
+</table>
+
+<p>I fork e i crash dell'oracolo non sono usati come firma primaria: sono
+numerosi, dipendono dall'implementazione dell'exploit e non dimostrano da soli
+l'esecuzione del comando finale.</p>
+
+<h2>Sequenza implementata</h2>
+<p>Il detector <code>aes-beta-command-execution</code> mantiene una sequenza
+locale di massimo cinque secondi, correlata con <code>process_tree</code> e
+ristretta all'UID target 10001:</p>
+<ol>
+<li><code>sched_process_exec</code> conferma l'esecuzione di <code>/bin/sh</code>;</li>
+<li>un secondo <code>sched_process_exec</code> conferma <code>/bin/cat</code>;</li>
+<li><code>security_file_open</code> identifica il percorso risolto <code>/opt/aes-beta/flag</code>;</li>
+<li><code>open</code> conserva il pathname richiesto <code>flag</code> e richiede un file descriptor non negativo.</li>
+</ol>
+
+<p>La sequenza usa eventi di effetto e risultato, non soltanto richieste. Nel run
+iniziale l'evento <code>execve</code> della shell conteneva un elemento argv non
+UTF-8, coerente con lo stato di memoria corrotto dalla challenge, ed e stato
+rifiutato dal decoder. Basare il detector su <code>sched_process_exec</code> evita
+che quel record malformato diventi una dipendenza necessaria.</p>
+
+<h2>Riduzione del rumore</h2>
+<p>Il monitor applica <code>--kernel-filter-uid-enabled</code> e
+<code>--kernel-filter-uid 10001</code>. Il filtro avviene prima dell'arricchimento
+e della perf submission, mentre la policy carica soltanto
+<code>sched_process_exec</code>, <code>security_file_open</code> e
+<code>open</code>. Il detector ripete il vincolo UID in user space come parte
+della propria semantica.</p>
+
+<div class="warn"><strong>Confine sperimentale:</strong> con eventi grezzi e
+alert sullo stesso stdout, il carico dell'exploit ha rallentato il percorso
+sincrono e la sequenza non ha prodotto l'alert. Il profilo finale usa
+<code>--alerts-only</code>. La raccolta grezza dello Step 6 e la validazione della
+detection sono pertanto due run distinti.</div>
+
+<h2>MITRE ATT&amp;CK</h2>
+<table>
+<tr><th>Tattica</th><th>Tecnica</th><th>Motivazione</th></tr>
+<tr><td>TA0002 Execution</td><td>T1059.004 Unix Shell</td><td>La challenge compromessa completa una transizione verso la shell Unix.</td></tr>
+<tr><td>TA0009 Collection</td><td>T1005 Data from Local System</td><td>Il comando apre e restituisce il flag memorizzato localmente.</td></tr>
+</table>
+
+<h2>Risultati di accettazione</h2>
+<p>La validazione e stata eseguita sul commit base
+<code>497da90f564c97fb9ffc38b264398150467173f5</code>, con gli artefatti del
+laboratorio presenti nel working tree.</p>
+<table>
+<tr><th>Test</th><th>Risultato</th></tr>
+<tr><td>Test Go del detector</td><td>Sequenza positiva: un alert con quattro eventi; flusso benigno: zero alert.</td></tr>
+<tr><td>Benigno Kubernetes</td><td>Pass in 21 ms; zero alert.</td></tr>
+<tr><td>Exploit Kubernetes, alerts-only</td><td>Pass in 50.015 ms, 1.793 worker, flag sintetico recuperato e un alert.</td></tr>
+<tr><td>Trigger sintetico finale</td><td>Un alert con quattro eventi ordinati, UID 10001 e UTS <code>aes-beta-lab</code>.</td></tr>
+</table>
+
+<div class="warn"><strong>Controllo globale:</strong> i test del detector e dei
+package condivisi interessati passano. <code>go test ./...</code> raggiunge anche
+il nuovo package, ma la suite completa segnala una deriva preesistente e non
+correlata nel registry networking: il probe pubblico
+<code>security_socket_sendmsg</code> non ha uno schema decoder.</div>
+
+<div class="ok"><strong>Gate superato:</strong> il benigno non genera alert e
+l'exploit genera un alert high con evidenza completa e metadata MITRE ATT&amp;CK.</div>
+
+<h2>Artefatti</h2>
+<ul>
+<li><code>k8s/minikube-ctf/detectors/aes-beta-command-execution.yaml</code>;</li>
+<li><code>k8s/minikube-ctf/detectors/aes_beta_command_execution_test.go</code>;</li>
+<li><code>k8s/minikube-ctf/manifests/monitor-policy.yaml</code>;</li>
+<li><code>k8s/minikube-ctf/manifests/pod.yaml</code>;</li>
+<li><code>k8s/minikube-ctf/scripts/deploy-lab.sh</code>.</li>
+</ul>
+
+<h2>Limiti</h2>
+<p>Il detector e intenzionalmente specifico del laboratorio: UID, eseguibili e
+percorso del flag sono controllati. Non dimostra copertura generale di command
+execution, non classifica i crash intermedi e non effettua correlazione tra
+nodi. La valutazione misura la capacita del prototipo di raccogliere e correlare
+questa sequenza nota in un Pod locale.</p>
+
+<h2>Collegamenti</h2>
+<ul>
+<li><a href="minikube-ctf-repeated-functional-evaluation.html">Step 8: valutazione funzionale ripetuta</a></li>
+<li><a href="minikube-ctf-ebpf-workload-visibility.html">Step 6: visibilita del workload</a></li>
+<li><a href="minikube-ctf-kubernetes-deployment.html">Step 5: deployment Kubernetes</a></li>
+<li><a href="../../demo_project/k8s/minikube-ctf/README.md">README operativo</a></li>
+</ul>
+</body>
+</html>

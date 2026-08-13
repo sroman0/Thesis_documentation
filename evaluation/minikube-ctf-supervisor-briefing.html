@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Briefing per il supervisor: valutazione Kubernetes del monitor eBPF</title>
+<style>
+:root {
+  --ink:#18202a; --muted:#5b6572; --line:#cbd2d9; --paper:#fff;
+  --panel:#f5f7f9; --blue:#0f5e75; --blue-soft:#e8f3f6;
+  --green:#23633d; --green-soft:#eaf6ee; --amber:#8a4b08;
+  --amber-soft:#fff4df; --red:#8a3030; --red-soft:#fff2f2;
+}
+* { box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body {
+  margin:0; color:var(--ink); background:var(--paper);
+  font:16px/1.62 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+.layout {
+  display:grid; grid-template-columns:minmax(215px,270px) minmax(0,960px);
+  gap:2rem; max-width:1290px; margin:0 auto; padding:2rem 1.25rem 5rem;
+}
+nav {
+  position:sticky; top:1rem; align-self:start; padding:1rem;
+  border:1px solid var(--line); background:var(--panel);
+}
+nav strong { display:block; margin-bottom:.65rem; }
+nav a { display:block; padding:.27rem 0; color:var(--blue); text-decoration:none; }
+nav a:hover { text-decoration:underline; }
+main { min-width:0; }
+h1,h2,h3 { line-height:1.2; letter-spacing:0; }
+h1 { max-width:850px; margin:.15rem 0 .6rem; font-size:2.25rem; }
+h2 { margin-top:2.8rem; padding-bottom:.4rem; border-bottom:2px solid var(--line); }
+h3 { margin-top:1.7rem; }
+p,li { max-width:88ch; }
+code { padding:.06rem .28rem; background:#edf0f3; overflow-wrap:anywhere; }
+table { width:100%; margin:1.2rem 0 1.7rem; border-collapse:collapse; font-size:.94rem; }
+th,td { padding:.7rem; border:1px solid var(--line); text-align:left; vertical-align:top; }
+th { background:var(--panel); }
+.subtitle { max-width:850px; color:var(--muted); font-size:1.08rem; }
+.meta { display:flex; flex-wrap:wrap; gap:.45rem; margin:1rem 0 1.7rem; }
+.pill { padding:.2rem .55rem; border:1px solid var(--line); background:var(--panel); font-size:.86rem; }
+.box { margin:1rem 0; padding:.9rem 1rem; border-left:5px solid var(--blue); background:var(--blue-soft); }
+.success { border-left-color:var(--green); background:var(--green-soft); }
+.warning { border-left-color:var(--amber); background:var(--amber-soft); }
+.risk { border-left-color:var(--red); background:var(--red-soft); }
+.headline-result {
+  display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.75rem;
+  margin:1.4rem 0;
+}
+.metric { padding:1rem; border:1px solid var(--line); background:var(--panel); }
+.metric strong { display:block; margin-bottom:.2rem; color:var(--blue); font-size:1.55rem; }
+.pod { margin:1.3rem 0; padding:1.1rem; border:2px solid #8798ab; background:#f8fafc; }
+.pod-title { margin-bottom:.8rem; font-weight:750; }
+.containers { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.7rem; }
+.container { min-height:165px; padding:.85rem; border:1px solid #b9c5d2; background:#fff; }
+.container strong { display:block; margin-bottom:.4rem; color:var(--blue); }
+.flow { margin-top:.8rem; padding:.65rem; background:#eaf0f7; text-align:center; font-family:monospace; }
+.sequence { display:grid; grid-template-columns:repeat(7,auto); gap:.5rem; align-items:center; margin:1.25rem 0; }
+.step { padding:.75rem; border:1px solid #b9c5d2; background:#fff; text-align:center; }
+.arrow { color:var(--blue); font-size:1.2rem; font-weight:800; text-align:center; }
+.talk { margin-top:.7rem; padding:.8rem 1rem; border:1px dashed #8fa1b4; background:#fcfdff; }
+.talk::before { content:"Come spiegarlo a voce"; display:block; margin-bottom:.35rem; color:var(--blue); font-weight:750; }
+.bar-chart { margin:1.2rem 0; padding:1rem; border:1px solid var(--line); }
+.bar-row { display:grid; grid-template-columns:105px 1fr 75px; gap:.65rem; align-items:center; margin:.7rem 0; }
+.bar-track { height:24px; background:#edf0f3; }
+.bar { height:100%; min-width:2px; background:var(--blue); }
+.bar.filtered { width:7.8%; background:var(--green); }
+.bar.unfiltered { width:97.4%; }
+.bar.threshold { width:100%; border-right:4px solid var(--red); }
+.caption { color:var(--muted); font-size:.88rem; }
+.agenda li { margin:.4rem 0; }
+footer { margin-top:3rem; padding-top:1rem; border-top:1px solid var(--line); color:var(--muted); font-size:.9rem; }
+@media(max-width:900px) {
+  .layout { grid-template-columns:1fr; }
+  nav { position:static; }
+  .headline-result,.containers { grid-template-columns:1fr; }
+  .sequence { grid-template-columns:1fr; }
+  .arrow { transform:rotate(90deg); }
+}
+@media print {
+  nav { display:none; }
+  .layout { display:block; max-width:none; padding:0; }
+  h2 { break-after:avoid; }
+  table,.pod,.bar-chart,.box { break-inside:avoid; }
+  a { color:inherit; text-decoration:none; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav aria-label="Indice">
+  <strong>Briefing supervisor</strong>
+  <a href="#summary">Riassunto in un minuto</a>
+  <a href="#question">Domanda sperimentale</a>
+  <a href="#scenario">Scenario CTF</a>
+  <a href="#kubernetes">Setup Kubernetes</a>
+  <a href="#visibility">Perché eBPF vede il target</a>
+  <a href="#detector">Cosa rileva il detector</a>
+  <a href="#method">Metodo sperimentale</a>
+  <a href="#functional">Risultati funzionali</a>
+  <a href="#performance">Risultati prestazionali</a>
+  <a href="#interpretation">Interpretazione</a>
+  <a href="#limits">Limiti</a>
+  <a href="#thesis">Uso nella tesi</a>
+  <a href="#agenda">Scaletta della call</a>
+</nav>
+
+<main>
+<header>
+  <h1>Valutazione Kubernetes del monitor eBPF</h1>
+  <p class="subtitle">
+    Documento di briefing per spiegare come una challenge CTF vulnerabile sia
+    stata trasformata in un esperimento controllato di runtime security:
+    dall'attacco nel container target agli eventi kernel, all'alert collective
+    e alla misura delle prestazioni.
+  </p>
+  <div class="meta">
+    <span class="pill">Minikube</span>
+    <span class="pill">un Pod, tre container</span>
+    <span class="pill">AES-beta CTF</span>
+    <span class="pill">detector collective</span>
+    <span class="pill">15 benchmark run</span>
+    <span class="pill">13 agosto 2026</span>
+  </div>
+</header>
+
+<section id="summary">
+  <h2>1. Riassunto in un minuto</h2>
+  <p>
+    È stato costruito un laboratorio Minikube nel quale una challenge CTF
+    vulnerabile viene attaccata da un secondo container mentre il prototipo eBPF,
+    eseguito in un terzo container privilegiato, osserva ciò che accade nel
+    kernel del nodo. L'exploit porta il servizio compromesso a eseguire una shell,
+    avviare <code>cat</code> e aprire un flag sintetico. Un detector stateful
+    correla questi quattro passaggi e produce un alert di severità alta.
+  </p>
+  <div class="headline-result">
+    <div class="metric"><strong>3/3</strong>run benigni senza alert</div>
+    <div class="metric"><strong>4/4</strong>sequenze offensive rilevate</div>
+    <div class="metric"><strong>0,39%</strong>CPU media del monitor filtered</div>
+  </div>
+  <p>
+    La fase prestazionale ha poi confrontato cinque repliche con filtro UID,
+    cinque senza filtro e cinque senza monitor. Il profilo operativo è rimasto
+    sotto il 5% di un core in tutte le repliche e ha ridotto del 91,99% la CPU
+    user-space rispetto allo stesso monitor senza filtro.
+  </p>
+  <div class="talk">
+    Non abbiamo semplicemente “messo il tool in Kubernetes”. Abbiamo costruito
+    un esperimento end-to-end in cui conosciamo l'input offensivo, osserviamo la
+    catena prodotta nel target, verifichiamo l'alert e misuriamo il costo del
+    monitor mantenendo un controllo benigno e un profilo senza monitor.
+  </div>
+</section>
+
+<section id="question">
+  <h2>2. Quale domanda volevamo affrontare</h2>
+  <p>
+    Le unit test dimostrano che singoli componenti rispettano il comportamento
+    atteso, ma non mostrano che il sistema completo funzioni in un ambiente
+    containerizzato. L'esperimento è stato progettato per verificare insieme
+    quattro proprietà:
+  </p>
+  <ol>
+    <li>il monitor può essere avviato in un container e caricare i programmi eBPF sul kernel del nodo;</li>
+    <li>può osservare processi generati in un altro container senza condividere il PID namespace host;</li>
+    <li>gli eventi raccolti possono essere correlati in un alert coerente con l'attacco;</li>
+    <li>il profilo operativo mantiene un consumo CPU user-space inferiore al 5% di un core.</li>
+  </ol>
+  <div class="box">
+    <strong>Unità della prova:</strong> input controllato → comportamento reale
+    nel target → eventi eBPF → evento normalizzato → detector → alert → misura
+    delle risorse.
+  </div>
+</section>
+
+<section id="scenario">
+  <h2>3. Perché una challenge CTF</h2>
+  <p>
+    È stata scelta AES-beta, una challenge pubblicata in openECSC-2024. Non è
+    stato creato un programma artificiale che eseguisse direttamente una shell:
+    è stato conservato il binario vulnerabile originale insieme al loader e alla
+    glibc necessari all'exploit. Sono stati rimossi soltanto il jail privilegiato
+    della competizione e il proof of work, che appartenevano all'infrastruttura e
+    non alla vulnerabilità.
+  </p>
+  <p>
+    L'exploit sfrutta una format string, ricostruisce il canary del processo e
+    usa una ROP chain per invocare <code>system("cat flag")</code>. Questa catena
+    è interessante per la tesi perché produce un comportamento osservabile e
+    semanticamente leggibile:
+  </p>
+  <div class="sequence" aria-label="Catena offensiva">
+    <div class="step">AES-beta<br>compromesso</div><div class="arrow">→</div>
+    <div class="step"><code>/bin/sh</code></div><div class="arrow">→</div>
+    <div class="step"><code>/bin/cat</code></div><div class="arrow">→</div>
+    <div class="step"><code>/opt/aes-beta/flag</code></div>
+  </div>
+  <p>
+    Durante il brute force vengono creati 1.793 worker (processi figli), quindi l'esperimento
+    esercita anche il monitor durante un burst intenso di process creation. Il
+    controllo benigno usa lo stesso servizio e lo stesso protocollo, ma crea un
+    solo worker(processo figlio) e non raggiunge shell, <code>cat</code> o flag.
+  </p>
+  <div class="talk">
+    La CTF fornisce ground truth: conosciamo esattamente quale comportamento
+    offensivo deve comparire. Inoltre il confronto benigno non usa un'applicazione
+    diversa, ma lo stesso target senza sfruttamento, rendendo il confronto più
+    pulito.
+  </div>
+</section>
+
+<section id="kubernetes">
+  <h2>4. Il setup Kubernetes</h2>
+  <div class="pod" role="img" aria-label="Pod con target, trigger e monitor">
+    <div class="pod-title">Pod <code>aes-beta-lab</code> sul nodo Minikube</div>
+    <div class="containers">
+      <div class="container">
+        <strong>ctf-target</strong>
+        Esegue AES-beta come UID 10001. È non root, senza capability e possiede
+        il solo flag sintetico.
+      </div>
+      <div class="container">
+        <strong>attack-trigger</strong>
+        Esegue il client benigno o l'exploit su comando dell'operatore. Non può
+        leggere direttamente il flag.
+      </div>
+      <div class="container">
+        <strong>project-monitor</strong>
+        Carica eBPF, decodifica gli eventi e valuta il detector. È l'unico
+        container privilegiato.
+      </div>
+    </div>
+    <div class="flow">trigger → TCP 127.0.0.1:1337 → target → kernel del nodo → monitor</div>
+  </div>
+  <p>
+    I tre container sono nello stesso Pod perché devono formare una singola unità
+    sperimentale e condividere il network namespace. Il trigger raggiunge il
+    target su loopback senza esporre un Service. Non condividono il filesystem:
+    il flag è montato esclusivamente nel target come Secret sintetico.
+  </p>
+  <p>
+    Il manifest mantiene <code>hostPID: false</code> e
+    <code>shareProcessNamespace: false</code>. Questo dettaglio è deliberato: il
+    test non concede al monitor una vista dei processi del target attraverso il
+    namespace del Pod. La visibilità deriva dagli hook eBPF caricati nel kernel
+    condiviso dal nodo.
+  </p>
+  <div class="box warning">
+    Il monitor è privilegiato e monta BTF, bpffs e tracefs dal nodo. Il test
+    dimostra fattibilità e visibilità, non ancora un profilo Kubernetes di minimo
+    privilegio pronto per produzione.
+  </div>
+</section>
+
+<section id="visibility">
+  <h2>5. Perché il monitor vede un altro container</h2>
+  <p>
+    I container isolano la vista dei processi e il filesystem, ma condividono il
+    kernel del nodo. I programmi eBPF sono collegati a hook kernel attraversati
+    anche dai processi del target. Quando AES-beta esegue un figlio, quando una
+    shell sostituisce la propria immagine o quando <code>cat</code> apre il flag,
+    il kernel attiva gli stessi hook indipendentemente dal container da cui
+    proviene il processo.
+  </p>
+  <p>
+    Una prova preliminare ha isolato questa proprietà dall'exploit completo:
+    un comando controllato nel target ha prodotto <code>sched_process_exec</code>,
+    l'evento syscall <code>open</code> e <code>security_file_open</code> con UID
+    10001. In questo modo è stato verificato prima il confine di visibilità e solo
+    dopo è stato introdotto il detector collective.
+  </p>
+  <div class="talk">
+    Il monitor non “entra” nel container target. Osserva il kernel comune al
+    nodo. Questo è il motivo per cui hostPID può rimanere disattivato pur
+    mantenendo la telemetria necessaria.
+  </div>
+</section>
+
+<section id="detector">
+  <h2>6. Che cosa considera significativo il detector</h2>
+  <p>
+    La policy seleziona soltanto gli eventi necessari allo scenario. Il detector
+    collective richiede che, entro cinque secondi e nello stesso albero locale di
+    processi, compaiano quattro evidenze ordinate:
+  </p>
+  <table>
+    <thead><tr><th>Passaggio</th><th>Evento</th><th>Cosa dimostra</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>sched_process_exec</code> su <code>/bin/sh</code></td><td>La shell ha completato la transizione eseguibile.</td></tr>
+      <tr><td>2</td><td><code>sched_process_exec</code> su <code>/bin/cat</code></td><td>Il comando usato per leggere il flag è stato eseguito.</td></tr>
+      <tr><td>3</td><td><code>security_file_open</code> sul flag</td><td>Il VFS ha risolto l'oggetto <code>/opt/aes-beta/flag</code> alla mediazione LSM.</td></tr>
+      <tr><td>4</td><td><code>open</code> con return value non negativo</td><td>La richiesta relativa <code>flag</code> ha restituito un file descriptor valido.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    L'uso congiunto degli ultimi due eventi evita di confondere una mediazione
+    LSM con una prova definitiva di apertura riuscita. Il primo identifica il
+    file risolto dal kernel; il secondo conserva l'esito della syscall. L'alert
+    include tutte le evidenze e i metadati MITRE ATT&amp;CK per Unix Shell
+    (<code>T1059.004</code>) e Data from Local System (<code>T1005</code>).
+  </p>
+  <div class="talk">
+    Il contributo non è un semplice matching sul nome “cat”. Il detector combina
+    process execution, relazione tra processi, identità del file risolto e
+    successo dell'apertura in una finestra temporale limitata.
+  </div>
+</section>
+
+<section id="method">
+  <h2>7. Come è stato organizzato l'esperimento</h2>
+  <h3>Validazione funzionale</h3>
+  <p>
+    Ogni run ha un identificatore e una finestra UTC. Sono stati conservati
+    output del client, log dei tre container, manifest applicato, stato del Pod,
+    alert e diagnostiche di perdita. Prima sono stati eseguiti tre controlli
+    benigni, poi tre exploit e un quarto run diagnostico per approfondire un
+    risultato applicativo divergente.
+  </p>
+  <h3>Valutazione prestazionale</h3>
+  <p>
+    Sono stati confrontati tre profili: monitor con filtro UID nel kernel,
+    monitor senza filtro e workload senza monitor. Per ciascun profilo sono state
+    eseguite cinque repliche. L'ordine è stato ruotato tra le tornate per ridurre
+    il bias dovuto alla posizione del run. Ogni replica ricrea il Pod e i cgroup,
+    usa dieci secondi di warm-up e misura soltanto la finestra dell'exploit.
+  </p>
+  <p>
+    Poiché Metrics Server non era disponibile, un sampler sul nodo ha letto
+    simultaneamente <code>cpuacct.usage</code> dei container e
+    <code>/proc/stat</code>. Sono stati raccolti CPU media, P95, picco, memoria
+    cgroup, RSS, PID, durata, alert e diagnostiche di perdita.
+  </p>
+  <div class="box">
+    L'obiettivo prestazionale concordato è una CPU user-space media del monitor
+    inferiore al 5% di un singolo core nel profilo operativo. Questa definizione
+    è più precisa di una generica promessa di “overhead sotto il 5%”.
+  </div>
+</section>
+
+<section id="functional">
+  <h2>8. Risultati funzionali</h2>
+  <table>
+    <thead><tr><th>Scenario</th><th>Run</th><th>Risultato workload</th><th>Alert</th><th>Perdite diagnosticate</th></tr></thead>
+    <tbody>
+      <tr><td>Benigno</td><td>3</td><td>3 pass; un worker per run</td><td>0/3</td><td>0</td></tr>
+      <tr><td>Exploit</td><td>4</td><td>3 flag ricevuti; 1 output client non ricevuto</td><td>4/4</td><td>0</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Ogni alert offensivo contiene esattamente le quattro evidenze attese e ha
+    severità alta. Nel terzo exploit il client non ha ricevuto il flag, ma gli
+    eventi mostrano che shell e <code>cat</code> erano stati eseguiti e il flag
+    aperto con successo. Un quarto run ha nuovamente restituito il flag.
+  </p>
+  <div class="box success">
+    <strong>Interpretazione del run divergente:</strong> il successo del canale
+    applicativo e la detection del comportamento host sono proprietà diverse.
+    Il monitor può rilevare l'azione anche se il risultato non ritorna
+    correttamente al client.
+  </div>
+  <p>
+    Il Pod è rimasto <code>3/3 Running</code> senza restart durante la validazione.
+    L'assenza di diagnostiche di perdita significa che il runtime non ha
+    segnalato perdite perf nei run osservati; non costituisce una prova assoluta
+    che nessun record possa essere perso in ogni condizione.
+  </p>
+</section>
+
+<section id="performance">
+  <h2>9. Risultati prestazionali</h2>
+  <div class="bar-chart" role="img" aria-label="CPU media del monitor rispetto alla soglia del cinque per cento">
+    <div class="bar-row"><strong>Filtered</strong><div class="bar-track"><div class="bar filtered"></div></div><span>0,39%</span></div>
+    <div class="bar-row"><strong>Unfiltered</strong><div class="bar-track"><div class="bar unfiltered"></div></div><span>4,87%</span></div>
+    <div class="bar-row"><strong>Soglia</strong><div class="bar-track"><div class="bar threshold"></div></div><span>5,00%</span></div>
+    <p class="caption">CPU user-space media del container monitor, normalizzata su un singolo core.</p>
+  </div>
+  <table>
+    <thead><tr><th>Profilo</th><th>CPU media</th><th>Deviazione</th><th>Intervallo</th><th>P95 medio</th><th>Alert</th></tr></thead>
+    <tbody>
+      <tr><td>Filtered</td><td><strong>0,39%</strong></td><td>0,02</td><td>0,36-0,41%</td><td>0,92%</td><td>5/5</td></tr>
+      <tr><td>Unfiltered</td><td>4,87%</td><td>0,11</td><td>4,73-4,98%</td><td>7,72%</td><td>5/5</td></tr>
+      <tr><td>No monitor</td><td>34,80% target</td><td>3,57</td><td>28,66-37,74%</td><td>67,72% target</td><td>Non applicabile</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Tutte le cinque medie filtered sono sotto la soglia; anche il P95 medio resta
+    sotto l'1%. Il profilo unfiltered rimane appena sotto il 5% nelle medie, ma
+    ha un P95 medio del 7,72%, quindi non offre lo stesso margine. Il filtro UID
+    riduce del <strong>91,99%</strong> la CPU user-space media del monitor.
+  </p>
+  <p>
+    La memoria massima osservata è 100,51 MiB nel cgroup filtered, con RSS massima
+    di 39,36 MiB. Le durate medie dell'exploit sono 54,85 s filtered, 61,33 s
+    unfiltered e 56,27 s senza monitor. La variabilità della challenge e il
+    campione ridotto non permettono di attribuire in modo generale queste
+    differenze temporali al monitor.
+  </p>
+  <div class="talk">
+    Il risultato più robusto non è una differenza di durata dell'exploit, ma la
+    stabilità della CPU del processo monitor: 0,36-0,41% con filtro contro
+    4,73-4,98% senza filtro, mantenendo lo stesso alert in ogni run.
+  </div>
+</section>
+
+<section id="interpretation">
+  <h2>10. Qual è il risultato scientificamente difendibile</h2>
+  <div class="box success">
+    Nel laboratorio valutato, il profilo operativo del monitor ha osservato la
+    catena offensiva in tutti i run, non ha prodotto alert nei controlli benigni
+    e ha mantenuto la propria CPU user-space media sotto il 5% di un core in
+    tutte le cinque repliche prestazionali.
+  </div>
+  <p>
+    I risultati supportano inoltre l'utilità dell'early filtering: scartare nel
+    kernel gli eventi con effective UID diverso da quello del target riduce
+    drasticamente il carico trasferito ed elaborato in user space. Il confronto
+    filtered/unfiltered usa lo stesso detector e lo stesso scenario, quindi
+    l'effetto non deriva dalla rimozione della detection.
+  </p>
+  <p>
+    Il nodo Minikube era quasi saturo dal brute force in tutti i profili, con CPU
+    media complessiva intorno al 95%. Questo conferma che la CTF è un workload
+    gravoso, ma rende la metrica del nodo inadatta a isolare differenze molto
+    piccole. Per questo il claim principale usa il cgroup del monitor e non la
+    CPU complessiva del nodo.
+  </p>
+</section>
+
+<section id="limits">
+  <h2>11. Limiti da dichiarare apertamente</h2>
+  <ul>
+    <li><strong>Overhead totale.</strong> Lo 0,39% riguarda il processo user-space del monitor. Il lavoro eBPF eseguito nel contesto dei task osservati non è necessariamente attribuito allo stesso cgroup.</li>
+    <li><strong>Generalizzazione.</strong> È stato valutato un detector specifico su una challenge e su un solo nodo Minikube, non la detection generale di ogni attacco.</li>
+    <li><strong>Sample size.</strong> Cinque repliche per profilo permettono un confronto controllato, ma non una caratterizzazione universale delle prestazioni.</li>
+    <li><strong>Kubernetes.</strong> Il test dimostra osservazione multi-container sullo stesso kernel, non correlazione cluster-wide né identificazione semantica dei workload Kubernetes.</li>
+    <li><strong>Privilegi.</strong> Il monitor usa un container privilegiato; il profilo minimo di capability resta lavoro futuro.</li>
+    <li><strong>Enforcement.</strong> Il prototipo osserva e segnala. Non blocca l'exploit.</li>
+  </ul>
+  <div class="talk">
+    Questi limiti non annullano il risultato. Ne definiscono precisamente il
+    perimetro: prototipo host-level, correlazione locale, scenario controllato e
+    costo user-space misurato sul target Rocky Linux/Minikube.
+  </div>
+</section>
+
+<section id="thesis">
+  <h2>12. Come confluisce nella tesi</h2>
+  <p>
+    Il laboratorio fornisce il contenuto centrale del Capitolo 6. La narrazione
+    prevista parte dagli obiettivi e dal protocollo, descrive il testbed
+    Minikube, introduce AES-beta e la catena offensiva, presenta la validazione
+    funzionale, confronta i tre profili prestazionali e termina con discussione
+    e threats to validity.
+  </p>
+  <p>
+    Il capitolo non ripeterà l'implementazione eBPF o il motore dei detector,
+    già descritti nei Capitoli 4 e 5. Userà soltanto i dettagli necessari a
+    interpretare l'evidenza. Manifest completi, comandi e payload JSON resteranno
+    nella documentazione o in appendice.
+  </p>
+  <table>
+    <thead><tr><th>Messaggio del Capitolo 6</th><th>Evidenza</th></tr></thead>
+    <tbody>
+      <tr><td>Visibilità tra container sul kernel condiviso</td><td>Prova dedicata con <code>hostPID: false</code>.</td></tr>
+      <tr><td>Detection della sequenza offensiva</td><td>Quattro alert su quattro sequenze osservate.</td></tr>
+      <tr><td>Controllo negativo</td><td>Zero alert in tre interazioni benigne.</td></tr>
+      <tr><td>Gate prestazionale user-space</td><td>0,39 ± 0,02% su cinque repliche filtered.</td></tr>
+      <tr><td>Effetto dell'early filtering</td><td>Riduzione del 91,99% rispetto a unfiltered.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="agenda">
+  <div class="box">
+    <strong>Domande utili da porre al supervisor:</strong>
+    è sufficiente presentare il 5% come gate della CPU user-space del monitor?
+    Vuole che la tesi includa anche una prova di stabilità più lunga? Preferisce
+    che manifest e comandi completi siano in appendice o solo nel repository?
+  </div>
+</section>
+
+<section id="references">
+  <h2>13. Documenti di supporto</h2>
+  <ul>
+    <li><a href="minikube-ctf-final-report.html">Relazione tecnica completa del laboratorio</a></li>
+    <li><a href="minikube-ctf-repeated-functional-evaluation.html">Valutazione funzionale ripetuta</a></li>
+    <li><a href="minikube-ctf-replicated-performance-evaluation.html">Valutazione prestazionale replicata</a></li>
+    <li><a href="aes-beta-adaptation-specification.html">Analisi e adattamento della challenge AES-beta</a></li>
+    <li><a href="minikube-ctf-ebpf-workload-visibility.html">Verifica della visibilità cross-container</a></li>
+  </ul>
+</section>
+
+<footer>
+  Briefing costruito dagli artefatti sperimentali verificati il 12 agosto 2026.
+  I numeri prestazionali derivano da cinque repliche per profilo conservate in
+  <code>step10-replicated-performance-20260812T072832Z</code>.
+</footer>
+</main>
+</div>
+</body>
+</html>

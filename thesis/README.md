@@ -31,11 +31,17 @@ qui fino alla loro risoluzione.
 - [Dossier preparatorio del Capitolo 4](chapters/chapter-04-system-implementation.html)
 - [Workflow e prompt degli agenti per il Capitolo 4](chapter-04-agent-workflow.html)
 - [Output intermedi degli agenti per il Capitolo 4](agent-output/chapter-04/index.html)
+- [Dossier preparatorio del Capitolo 5](chapters/chapter-05-userspace-detection-implementation.html)
+- [Workflow HTML degli agenti per il Capitolo 5](chapter-05-agent-workflow.html)
+- [Output HTML degli agenti per il Capitolo 5](agent-output/chapter-05/index.html)
+- [Dossier preparatorio del Capitolo 6](chapters/chapter-06-experimental-evaluation.html)
+- [Workflow HTML degli agenti per il Capitolo 6](chapter-06-agent-workflow.html)
+- [Output HTML degli agenti per il Capitolo 6](agent-output/chapter-06/index.html)
 - [Spunti di scrittura storici](writing-notes.md)
 
 ## Regole operative
 
-- La tesi viene scritta in ordine, dal Capitolo 1 al Capitolo 6.
+- La tesi viene scritta in ordine, dal Capitolo 1 al Capitolo 7.
 - Prima di modificare un capitolo LaTeX deve esistere il relativo dossier.
 - Gli agenti di ricerca producono evidenze e proposte, non modificano tutti lo
   stesso file `.tex`.

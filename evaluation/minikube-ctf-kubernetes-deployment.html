@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Step 5 - Deployment Kubernetes del laboratorio AES-beta</title>
+<style>
+body{max-width:1050px;margin:36px auto;padding:0 24px 60px;color:#172033;font-family:system-ui,sans-serif;line-height:1.58}
+h1,h2,h3{line-height:1.22}h2{margin-top:38px;border-bottom:1px solid #d8dee8;padding-bottom:7px}
+code,pre{font-family:Consolas,monospace}pre{overflow:auto;padding:14px;color:#edf2f8;background:#111827}
+table{width:100%;border-collapse:collapse}th,td{padding:9px 11px;border:1px solid #d8dee8;text-align:left;vertical-align:top}
+.ok,.warn,.decision{padding:13px 16px;margin:16px 0}.ok{border-left:4px solid #16803c;background:#f0faf3}.warn{border-left:4px solid #b45309;background:#fff8eb}.decision{border-left:4px solid #2457a6;background:#f3f7fc}
+</style>
+</head>
+<body>
+<h1>Step 5 - Deployment Kubernetes del laboratorio AES-beta</h1>
+
+<p>Questa fase trasforma le due immagini Docker validate nello Step 4 in un
+esperimento Kubernetes riproducibile. Il risultato è un singolo Pod con target,
+trigger e monitor eBPF, accompagnato da policy, gestione del Secret, automazione
+degli scenari e raccolta delle evidenze.</p>
+
+<h2>Stato verificato</h2>
+<table>
+<tr><th>Elemento</th><th>Valore</th></tr>
+<tr><td>Host</td><td>Rocky Linux 8.10, kernel <code>4.18.0-553.137.1.el8_10.x86_64</code></td></tr>
+<tr><td>Minikube</td><td><code>v1.38.1</code>, driver Docker</td></tr>
+<tr><td>Kubernetes</td><td><code>v1.30.0</code></td></tr>
+<tr><td>Risorse del nodo</td><td>2 CPU, 4096 MiB</td></tr>
+<tr><td>demo_project</td><td>commit <code>497da90f564c97fb9ffc38b264398150467173f5</code>; working tree modificato dagli artefatti del laboratorio</td></tr>
+</table>
+
+<p>Il primo tentativo con Kubernetes <code>v1.35.1</code> ha riutilizzato un
+container Minikube abbandonato e non ha inizializzato correttamente etcd e il
+kubelet. Il profilo incompleto è stato rimosso e ricreato pulito con
+<code>v1.30.0</code>. Questa è una correzione dell'ambiente, non del Pod.</p>
+
+<h2>Topologia implementata</h2>
+<table>
+<tr><th>Container</th><th>Identità e privilegi</th><th>Responsabilità</th></tr>
+<tr><td><code>ctf-target</code></td><td>UID/GID 10001, non-root, capability rimosse, filesystem read-only</td><td>Listener e challenge AES-beta su <code>127.0.0.1:1337</code>.</td></tr>
+<tr><td><code>attack-trigger</code></td><td>UID/GID 10002, non-root, capability rimosse, filesystem read-only</td><td>Esecuzione esplicita degli scenari benigno ed exploit.</td></tr>
+<tr><td><code>project-monitor</code></td><td>root privilegiato, seccomp unconfined, filesystem read-only</td><td>Caricamento e attachment eBPF, decoding e output JSON.</td></tr>
+</table>
+
+<p>Il Pod mantiene <code>hostPID: false</code>, <code>hostNetwork: false</code> e
+<code>shareProcessNamespace: false</code>. Target e trigger comunicano tramite il
+loopback condiviso del Pod. Solo il monitor monta BTF, bpffs e tracefs del nodo.</p>
+
+<div class="decision">Il flag non è versionato. Lo script di deploy genera il
+Secret <code>aes-beta-flag</code> e lo monta unicamente nel target. La modalità è
+<code>0444</code> perché il processo AES-beta è non-root; isolamento e sola lettura
+sono garantiti dalla mancata condivisione del volume e dal mount read-only.</div>
+
+<h2>Policy iniziale</h2>
+<p>La ConfigMap contiene una policy <code>monitor</code> con include esplicito per
+<code>fork</code>, <code>clone</code>, <code>sched_process_fork</code>,
+<code>execve</code>, <code>sched_process_exec</code>,
+<code>process_execute_failed</code>, <code>open</code> e
+<code>security_file_open</code>. Questa fase raccoglie eventi normalizzati e non
+carica detector: il detector CTF-specifico deve essere progettato solo dopo aver
+stabilito la sequenza osservabile reale.</p>
+
+<h2>Artefatti</h2>
+<table>
+<tr><th>Percorso</th><th>Funzione</th></tr>
+<tr><td><code>manifests/namespace.yaml</code></td><td>Namespace isolato e Pod Security privilegiata per il monitor.</td></tr>
+<tr><td><code>manifests/monitor-policy.yaml</code></td><td>ConfigMap della policy di osservazione.</td></tr>
+<tr><td><code>manifests/pod.yaml</code></td><td>Pod a tre container e relativi volumi/security context.</td></tr>
+<tr><td><code>scripts/start-minikube.sh</code></td><td>Cluster riproducibile con versione e risorse esplicite.</td></tr>
+<tr><td><code>scripts/load-minikube-images.sh</code></td><td>Build condizionale e caricamento delle tre immagini.</td></tr>
+<tr><td><code>scripts/deploy-lab.sh</code></td><td>Namespace, ConfigMap, Secret, Pod e attesa della readiness.</td></tr>
+<tr><td><code>scripts/run-scenario.sh</code></td><td>Esecuzione nominata del caso benigno o dell'exploit.</td></tr>
+<tr><td><code>scripts/collect-evidence.sh</code></td><td>Versioni, manifest effettivo, describe, eventi e log per container.</td></tr>
+<tr><td><code>scripts/cleanup-lab.sh</code></td><td>Rimozione del Namespace del laboratorio.</td></tr>
+</table>
+
+<h2>Validazione</h2>
+<div class="ok"><strong>Pass:</strong> manifest validati dall'API server; Pod
+<code>3/3 Running</code> senza riavvii; scenario benigno completato in 22 ms;
+exploit completato in 59.700 ms con 1.793 worker e recupero del flag sintetico
+<code>THESIS{controlled_process_monitoring_test}</code>.</div>
+
+<p>Il primo exploit Kubernetes ha restituito un flag vuoto perché il Secret era
+inizialmente <code>0400</code>. Il passaggio a <code>0444</code> ha corretto il
+contratto tra volume Kubernetes e UID non-root, senza esporre il Secret agli
+altri container.</p>
+
+<h2>Risultato di telemetria</h2>
+<div class="ok"><strong>Risolto nello Step 6:</strong> una prova di accettazione
+isolata ha osservato <code>execve</code>, <code>sched_process_exec</code>,
+<code>security_file_open</code> e <code>open</code> per
+<code>/bin/cat /opt/aes-beta/flag</code>, con UID 10001 e UTS del Pod.</div>
+
+<p>La precedente assenza era un falso negativo della ricerca manuale su log
+rumorosi, non una perdita sistematica del collector. Il monitor osserva il
+workload mantenendo <code>hostPID: false</code>; l'esperimento diagnostico con
+<code>hostPID: true</code> non è quindi necessario e il manifest ufficiale resta
+più isolato.</p>
+
+<h2>Evidenze locali</h2>
+<p>Gli snapshot sono esclusi da Git e disponibili localmente in:</p>
+<ul>
+<li><code>k8s/minikube-ctf/evidence/step5-hostpid-false</code>;</li>
+<li><code>k8s/minikube-ctf/evidence/step5-hostpid-true</code>.</li>
+</ul>
+<p>Ogni directory contiene versione Kubernetes, manifest effettivo, descrizione
+del Pod, eventi del Namespace e log separati dei tre container.</p>
+
+<h2>Conclusione e prossimo step</h2>
+<p>Lo Step 5 completa packaging, deployment e riproducibilità degli scenari. La
+successiva prova di visibilità ha soddisfatto anche il criterio di telemetria del
+workload. Il prossimo step deve ora confrontare i trace minimali degli scenari
+benigno ed exploit e identificare la sequenza su cui costruire il detector
+specifico per AES-beta.</p>
+
+<h2>Collegamenti</h2>
+<ul>
+<li><a href="../../demo_project/k8s/minikube-ctf/README.md">README operativo</a></li>
+<li><a href="minikube-ctf-container-implementation.html">Implementazione Docker</a></li>
+<li><a href="minikube-ctf-container-design.html">Design dei container</a></li>
+<li><a href="minikube-ctf-experiment-design.html">Disegno sperimentale</a></li>
+<li><a href="minikube-ctf-ebpf-workload-visibility.html">Verifica della telemetria del workload</a></li>
+<li><a href="minikube-ctf-detector-validation.html">Validazione del detector collective</a></li>
+</ul>
+</body>
+</html>

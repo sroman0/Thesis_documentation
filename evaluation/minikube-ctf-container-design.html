@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design dei container per il laboratorio Minikube CTF</title>
+<style>
+:root {
+  --ink:#172033; --muted:#5f6b7d; --line:#d8dee8; --panel:#f7f9fc;
+  --blue:#2457a6; --green:#1f704c; --amber:#8a5b00; --red:#9b2c2c;
+  --code:#101622;
+}
+* { box-sizing:border-box; }
+body { margin:0; color:var(--ink); font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.62; }
+main { max-width:1160px; margin:0 auto; padding:44px 32px 80px; }
+h1 { max-width:900px; margin:0 0 10px; font-size:2.25rem; line-height:1.16; }
+h2 { margin-top:48px; padding-bottom:8px; border-bottom:1px solid var(--line); }
+h3 { margin-top:28px; }
+p,li { max-width:100ch; }
+a { color:var(--blue); }
+code { font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace; }
+pre { overflow:auto; padding:15px 17px; border-radius:7px; color:#e8edf5; background:var(--code); font-size:.88rem; line-height:1.45; }
+table { width:100%; margin:18px 0 28px; border-collapse:collapse; font-size:.94rem; }
+th,td { padding:10px 12px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+th { background:#f1f4f8; }
+.subtitle { max-width:920px; margin-bottom:22px; color:var(--muted); font-size:1.08rem; }
+.meta { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0 28px; }
+.tag { padding:5px 9px; border:1px solid var(--line); border-radius:5px; background:var(--panel); font-size:.84rem; }
+.toc,.box { padding:17px 21px; border:1px solid var(--line); border-radius:7px; background:#fbfcfe; }
+.toc ol { columns:2; padding-left:22px; }
+.toc a { text-decoration:none; }
+.good { border-left:4px solid var(--green); background:#f0f8f4; }
+.warn { border-left:4px solid var(--amber); background:#fff9ec; }
+.risk { border-left:4px solid var(--red); background:#fff5f5; }
+.status { color:var(--green); font-weight:700; }
+.pending { color:var(--amber); font-weight:700; }
+.small { color:var(--muted); font-size:.9rem; }
+.pod { margin:22px 0; padding:18px; border:2px solid #7b8ca5; background:#f8faff; }
+.containers { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.container { min-height:175px; padding:14px; border:1px solid #bdc8d7; background:white; }
+.container strong { display:block; margin-bottom:7px; }
+.flow { margin-top:15px; padding:12px; background:#eef3fa; text-align:center; font-family:monospace; }
+footer { margin-top:56px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); font-size:.9rem; }
+@media(max-width:800px) {
+  main { padding:28px 18px 52px; }
+  .toc ol { columns:1; }
+  .containers { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Design dei container per il laboratorio Minikube CTF</h1>
+  <p class="subtitle">
+    Step 3 della roadmap: traduzione della specifica AES-beta in un Pod a tre
+    container, con isolamento esplicito, lifecycle ripetibile e raccolta delle
+    evidenze adatta alla successiva valutazione sperimentale.
+  </p>
+  <div class="meta">
+    <span class="tag">Stato: design completato</span>
+    <span class="tag">Data: 12 agosto 2026</span>
+    <span class="tag">Topologia: un Pod, tre container</span>
+    <span class="tag">Implementazione completata: Step 4</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Indice">
+  <strong>Indice</strong>
+  <ol>
+    <li><a href="#decisions">Decisioni principali</a></li>
+    <li><a href="#topology">Topologia del Pod</a></li>
+    <li><a href="#target">Container CTF target</a></li>
+    <li><a href="#listener">Listener e sessioni</a></li>
+    <li><a href="#trigger">Container attack trigger</a></li>
+    <li><a href="#monitor">Container monitor</a></li>
+    <li><a href="#mounts">Volumi e mount</a></li>
+    <li><a href="#security">Security context</a></li>
+    <li><a href="#resources">Risorse e limiti</a></li>
+    <li><a href="#lifecycle">Lifecycle del test</a></li>
+    <li><a href="#evidence">Evidenze e log</a></li>
+    <li><a href="#artifacts">Artefatti dello Step 4</a></li>
+    <li><a href="#risks">Verifiche residue</a></li>
+    <li><a href="#gate">Gate per lo Step 4</a></li>
+  </ol>
+</nav>
+
+<section id="decisions">
+  <h2>1. Decisioni principali</h2>
+  <table>
+    <thead><tr><th>Area</th><th>Decisione</th><th>Motivazione</th></tr></thead>
+    <tbody>
+      <tr><td>Unità Kubernetes</td><td>Un singolo Pod con tre container.</td><td>Conserva lo scenario richiesto e permette al trigger di usare il loopback condiviso.</td></tr>
+      <tr><td>PID namespace</td><td><code>hostPID: false</code> nel profilo primario.</td><td>Il monitor raccoglie dal kernel host senza esporre automaticamente il PID namespace del nodo a target e trigger.</td></tr>
+      <tr><td>Listener</td><td>Wrapper TCP statico scritto in Go.</td><td>Offre timeout, reaping e log controllati senza introdurre una shell o un servizio generico nella catena di processo.</td></tr>
+      <tr><td>Target runtime</td><td>Immagine finale <code>scratch</code> con loader, libc, BusyBox statico, listener e binario originali.</td><td>Riduce il rumore di processo e mantiene il binario AES-beta byte-identico.</td></tr>
+      <tr><td>Avvio AES-beta</td><td>Esecuzione diretta di <code>/opt/aes-beta/aes-beta</code>.</td><td>L'interprete ELF è installato nel path richiesto; gli exec event identificano il target e non un comando <code>ld-linux</code>.</td></tr>
+      <tr><td>Esposizione di rete</td><td>Nessun Service Kubernetes.</td><td>Il trigger raggiunge il target su <code>127.0.0.1:1337</code> nello stesso network namespace.</td></tr>
+      <tr><td>Avvio attacco</td><td>Manuale tramite <code>kubectl exec</code>.</td><td>Separa warm-up, test benigno ed exploit e rende identificabile ogni finestra sperimentale.</td></tr>
+      <tr><td>Privilegi</td><td>Solo il monitor è privilegiato.</td><td>La challenge deve riuscire senza capability o accesso a risorse kernel del nodo.</td></tr>
+    </tbody>
+  </table>
+  <div class="box good">
+    Il listener dedicato risolve le due questioni lasciate aperte nello Step 2:
+    elimina <code>socat</code> dal processo osservato e consente un'immagine
+    finale minimale senza cambiare binario, libc o exploit.
+  </div>
+</section>
+
+<section id="topology">
+  <h2>2. Topologia del Pod</h2>
+  <div class="pod" role="img" aria-label="Pod con monitor, CTF target e attack trigger">
+    <strong>Pod: runtime-security-ctf</strong>
+    <div class="containers">
+      <div class="container">
+        <strong>monitor</strong>
+        Tool eBPF privilegiato, BTF e filesystem kernel montati dal nodo,
+        policy e detector del laboratorio montati in sola lettura.
+      </div>
+      <div class="container">
+        <strong>ctf-target</strong>
+        Listener statico e AES-beta non root. Possiede il solo flag sintetico e
+        genera la process tree offensiva.
+      </div>
+      <div class="container">
+        <strong>attack-trigger</strong>
+        Client benigno ed exploit controllato. Rimane inattivo fino
+        all'invocazione esplicita dell'operatore.
+      </div>
+    </div>
+    <div class="flow">attack-trigger -- TCP 127.0.0.1:1337 --&gt; ctf-target -- kernel events --&gt; monitor</div>
+  </div>
+  <p>
+    I tre container condividono indirizzo IP e porte, ma mantengono filesystem,
+    process namespace e cgroup separati secondo il runtime Kubernetes. La catena
+    offensiva si sviluppa interamente nel target: il trigger invia input, ma non
+    esegue direttamente shell o <code>cat</code> nel container vulnerabile.
+  </p>
+</section>
+
+<section id="target">
+  <h2>3. Container CTF target</h2>
+  <h3>3.1 Layout dell'immagine</h3>
+  <pre><code>/listener
+/opt/aes-beta/aes-beta
+/opt/aes-beta/flag                 # volume Secret, non incluso nell'immagine
+/lib64/ld-linux-x86-64.so.2
+/lib/x86_64-linux-gnu/libc.so.6
+/bin/sh                            # BusyBox statico
+/bin/cat                           # BusyBox statico</code></pre>
+  <p>
+    Il loader e la libc provengono dalla revisione openECSC verificata. AES-beta
+    richiede soltanto <code>libc.so.6</code> e dichiara
+    <code>/lib64/ld-linux-x86-64.so.2</code> come interprete. Installare gli
+    artefatti nei path attesi permette di avviare direttamente il programma e
+    preservare il nome dell'eseguibile negli eventi <code>execve</code> e
+    <code>sched_process_exec</code>.
+  </p>
+  <p>
+    BusyBox deve essere una build statica e fornire <code>/bin/sh</code> e
+    <code>/bin/cat</code>, richiesti dalla chiamata finale
+    <code>system("cat flag")</code>. Versione e digest dell'immagine sorgente
+    saranno fissati nello Step 4. Il filesystem root resta in sola lettura; un
+    eventuale <code>emptyDir</code> per <code>/tmp</code> sarà aggiunto soltanto
+    se un test dimostra che è necessario.
+  </p>
+
+  <h3>3.2 Provenienza verificabile</h3>
+  <p>
+    La build non modifica il checkout openECSC. Copia i tre artefatti upstream
+    dal percorso locale documentato e verifica i relativi SHA-256 prima di
+    costruire l'immagine. Il flag è sintetico e separato dall'immagine tramite
+    un Secret Kubernetes montato esclusivamente nel target.
+  </p>
+</section>
+
+<section id="listener">
+  <h2>4. Listener e gestione delle sessioni</h2>
+  <p>
+    Il listener è un piccolo eseguibile Go compilato staticamente. Ascolta su
+    <code>0.0.0.0:1337</code>, accetta una sessione alla volta e avvia
+    <code>/opt/aes-beta/aes-beta</code> direttamente, con directory corrente
+    <code>/opt/aes-beta</code>. Il socket viene collegato a standard input,
+    output ed error del figlio senza usare <code>/bin/sh -c</code>.
+  </p>
+  <ol>
+    <li>Accetta una connessione e assegna un identificatore progressivo alla sessione.</li>
+    <li>Avvia AES-beta come processo figlio con gli stessi UID e GID non privilegiati del listener.</li>
+    <li>Imposta un timeout di 900 secondi e conserva il limite originale <code>RLIMIT_NOFILE=1024</code>, se applicabile nel processo figlio.</li>
+    <li>Alla chiusura, timeout o disconnessione termina l'intero gruppo della sessione e attende i figli per evitare processi zombie.</li>
+    <li>Scrive soltanto timestamp, session ID, PID figlio, durata e stato finale; non registra payload, flag o output sensibile.</li>
+  </ol>
+  <p>
+    La serializzazione delle sessioni rende ripetibile il conteggio dei processi
+    e impedisce che un controllo benigno si sovrapponga al brute-force. Il
+    listener costituisce un padre infrastrutturale noto nella process tree e
+    deve essere escluso dall'interpretazione come comportamento della challenge.
+  </p>
+  <div class="box warn">
+    Non verranno configurate readiness o liveness probe basate su
+    <code>exec</code> o su connessioni TCP: produrrebbero processi o sessioni
+    aggiuntivi proprio durante la misura. La disponibilità sarà verificata dal
+    log di startup del listener e da retry limitati nel client.
+  </div>
+</section>
+
+<section id="trigger">
+  <h2>5. Container attack trigger</h2>
+  <p>
+    Il trigger usa una base Python minimale con una versione fissata di
+    pwntools. L'immagine contiene il client benigno, l'exploit adattato e un
+    wrapper che registra in UTC l'inizio, la fine e l'esito di ogni run. Il
+    container parte con un processo inattivo e non esegue automaticamente alcuna
+    azione offensiva.
+  </p>
+  <table>
+    <thead><tr><th>Comando previsto</th><th>Scopo</th><th>Esito atteso</th></tr></thead>
+    <tbody>
+      <tr><td><code>run-benign</code></td><td>Invia una richiesta valida e attende un solo worker.</td><td>Ciphertext corretto, nessuna shell e nessuna lettura del flag.</td></tr>
+      <tr><td><code>run-exploit</code></td><td>Esegue leak, brute-force del canary e ROP originale.</td><td>Recupero del flag sintetico attraverso il servizio.</td></tr>
+      <tr><td><code>run-idle-window</code></td><td>Non genera traffico per una durata fissata.</td><td>Baseline del rumore del Pod e del nodo.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    I nomi distinti degli script e le finestre temporali permettono di separare
+    il controllo benigno dall'exploit nei process event. Il trigger non monta il
+    Secret del flag, BTF, bpffs, tracefs, socket del runtime o directory host.
+  </p>
+</section>
+
+<section id="monitor">
+  <h2>6. Container monitor</h2>
+  <p>
+    Il monitor riusa l'immagine <code>demo-project-ebpf</code>. È l'unico
+    container privilegiato e carica il programma eBPF embedded. Policy e
+    detector vengono montati da un ConfigMap in sola lettura, così il profilo
+    sperimentale è versionabile separatamente dall'immagine.
+  </p>
+  <p>
+    Il primo profilo funzionale deve raccogliere almeno
+    <code>fork</code>, <code>clone</code>, <code>sched_process_fork</code>,
+    <code>execve</code>, <code>sched_process_exec</code>,
+    <code>process_execute_failed</code>, <code>open</code> e
+    <code>security_file_open</code>. Questo insieme distingue richiesta,
+    creazione del task, transizione eseguibile e accesso al flag. La selezione
+    definitiva sarà validata sul target Rocky Linux prima di creare detector
+    specifici della challenge.
+  </p>
+  <p>
+    Il filtro UID kernel-side non viene abilitato nel primo run: target e
+    trigger hanno UID differenti e il monitor deve prima verificare
+    l'attribuzione completa. Dopo questa baseline sarà possibile creare un
+    profilo target-only basato sull'UID 10001 e confrontarne il traffico, senza
+    confondere il confronto con la correttezza funzionale.
+  </p>
+  <div class="box warn">
+    I detector correnti non rappresentano direttamente la catena AES-beta:
+    quelli di escalation dipendono da transizioni UID che l'exploit non
+    richiede, mentre il detector dei file sensibili non include il flag del
+    laboratorio. Lo Step dedicato alla detection dovrà costruire regole
+    specifiche soltanto dopo aver osservato la sequenza reale.
+  </div>
+</section>
+
+<section id="mounts">
+  <h2>7. Volumi e mount</h2>
+  <table>
+    <thead><tr><th>Volume</th><th>Container</th><th>Modalità</th><th>Uso</th></tr></thead>
+    <tbody>
+      <tr><td><code>host-btf</code>: <code>/sys/kernel/btf</code></td><td>monitor</td><td>read-only</td><td>BTF host per CO-RE.</td></tr>
+      <tr><td><code>host-bpffs</code>: <code>/sys/fs/bpf</code></td><td>monitor</td><td>read-write</td><td>Accesso al filesystem BPF del nodo.</td></tr>
+      <tr><td><code>host-tracefs</code>: <code>/sys/kernel/tracing</code></td><td>monitor</td><td>read-write</td><td>Attach ai punti di tracing richiesti.</td></tr>
+      <tr><td><code>monitor-rules</code>: ConfigMap</td><td>monitor</td><td>read-only</td><td>Policy e detector del laboratorio.</td></tr>
+      <tr><td><code>synthetic-flag</code>: Secret</td><td>ctf-target</td><td>read-only, file singolo</td><td>Flag fittizio letto dall'exploit.</td></tr>
+      <tr><td><code>trigger-tmp</code>: emptyDir</td><td>attack-trigger</td><td>read-write</td><td>Artefatti temporanei del client, non risultati finali.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    <code>/sys/kernel/debug</code> non è previsto nel profilo iniziale. Sarà
+    aggiunto soltanto se un errore di attach sul kernel target dimostra una
+    dipendenza concreta. Nessun volume host viene montato in target o trigger.
+  </p>
+</section>
+
+<section id="security">
+  <h2>8. Security context</h2>
+  <table>
+    <thead><tr><th>Impostazione</th><th>monitor</th><th>ctf-target</th><th>attack-trigger</th></tr></thead>
+    <tbody>
+      <tr><td>Utente</td><td>root</td><td>UID/GID 10001</td><td>UID/GID 10002</td></tr>
+      <tr><td><code>privileged</code></td><td><code>true</code></td><td><code>false</code></td><td><code>false</code></td></tr>
+      <tr><td><code>allowPrivilegeEscalation</code></td><td>implicito nel profilo privilegiato</td><td><code>false</code></td><td><code>false</code></td></tr>
+      <tr><td>Capability</td><td>profilo privilegiato del prototipo</td><td>drop <code>ALL</code></td><td>drop <code>ALL</code></td></tr>
+      <tr><td>Root filesystem</td><td>read-only da verificare con libbpf</td><td>read-only</td><td>read-only</td></tr>
+      <tr><td><code>hostPID</code></td><td colspan="3"><code>false</code>, perché è una proprietà dell'intero Pod.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Se il monitor non funziona senza <code>hostPID</code>, il fallimento deve
+    essere conservato come evidenza. Un secondo manifest diagnostico potrà
+    impostare <code>hostPID: true</code>, ma non sostituirà silenziosamente il
+    profilo primario perché ridurrebbe l'isolamento anche dei container CTF.
+  </p>
+</section>
+
+<section id="resources">
+  <h2>9. Risorse e limiti</h2>
+  <p>
+    I test funzionali e quelli prestazionali devono usare profili distinti. Nel
+    test funzionale il monitor riceve una richiesta CPU ma non un limite CPU,
+    così il throttling non viene confuso con perdita di eventi. Target e trigger
+    ricevono richieste e limiti riproducibili, da calibrare dopo il primo run
+    dell'exploit.
+  </p>
+  <table>
+    <thead><tr><th>Controllo</th><th>Valore iniziale</th><th>Nota</th></tr></thead>
+    <tbody>
+      <tr><td>Timeout sessione</td><td>900 s</td><td>Conserva il limite operativo upstream durante il brute-force.</td></tr>
+      <tr><td><code>RLIMIT_NOFILE</code> target</td><td>1024</td><td>Riproduce il limite del jail originale.</td></tr>
+      <tr><td>Pod PID limit Minikube</td><td>4096, se configurabile</td><td>Il brute-force crea fino a circa 1792 worker nel caso peggiore, principalmente in sequenza.</td></tr>
+      <tr><td>Sessioni simultanee</td><td>1</td><td>Evita sovrapposizione delle process tree.</td></tr>
+      <tr><td>Monitor CPU limit</td><td>nessuno nel profilo funzionale</td><td>Le prestazioni saranno valutate in un profilo dedicato.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Il limite PID è una configurazione del nodo/kubelet e non un campo standard
+    per singolo container. Deve quindi essere registrato insieme alla
+    configurazione Minikube e verificato prima dell'exploit completo.
+  </p>
+</section>
+
+<section id="lifecycle">
+  <h2>10. Lifecycle del test</h2>
+  <ol>
+    <li>Costruire le tre immagini, caricarle in Minikube e registrare digest e checksum.</li>
+    <li>Applicare Namespace, Secret, ConfigMap e Pod; attendere che i tre processi principali siano avviati.</li>
+    <li>Verificare attach e reader del monitor dai log diagnostici, senza generare traffico CTF.</li>
+    <li>Registrare una finestra idle dopo il warm-up.</li>
+    <li>Eseguire <code>run-benign</code>, attendere il completo reaping e salvare esito e log.</li>
+    <li>Eseguire <code>run-exploit</code> con un nuovo run ID e verificare il flag sintetico.</li>
+    <li>Attendere la chiusura della sessione e salvare log, eventi, alert, metriche e descrizione del Pod.</li>
+    <li>Ricreare il Pod tra repliche indipendenti per ripristinare stato e cache del runtime.</li>
+  </ol>
+  <p>
+    L'ordine impedisce che lo startup del Pod o l'installazione dei probe vengano
+    interpretati come parte dell'attacco. Ogni run deve avere timestamp UTC e
+    una finestra separata, anche se il protocollo binario non trasporta il run ID.
+  </p>
+</section>
+
+<section id="evidence">
+  <h2>11. Evidenze e log</h2>
+  <table>
+    <thead><tr><th>Sorgente</th><th>Evidenza</th><th>Uso</th></tr></thead>
+    <tbody>
+      <tr><td>attack-trigger</td><td>Run ID, start/end UTC, esito, flag atteso/ricevuto redatto.</td><td>Delimita la finestra causale del test.</td></tr>
+      <tr><td>ctf-target</td><td>Session ID, PID AES-beta, durata, exit status, timeout.</td><td>Collega la connessione alla process tree del target.</td></tr>
+      <tr><td>monitor stdout</td><td>Eventi e alert JSON.</td><td>Analisi automatica e figure per il capitolo sperimentale.</td></tr>
+      <tr><td>monitor stderr</td><td>Log Zap JSON e loss notification.</td><td>Distingue problemi runtime da osservazioni di sicurezza.</td></tr>
+      <tr><td>Kubernetes</td><td>Pod YAML effettivo, describe, event, restart count.</td><td>Dimostra la configurazione realmente eseguita.</td></tr>
+      <tr><td>Minikube/node</td><td>Versioni, kernel, runtime, cgroup mode, risorse.</td><td>Contesto di riproducibilità.</td></tr>
+    </tbody>
+  </table>
+  <div class="box warn">
+    <code>kubectl logs</code> presenta normalmente stdout e stderr nello stesso
+    flusso testuale. Per conservare la distinzione del tool, lo Step 4 dovrà
+    acquisire i log CRI con il campo stream oppure usare prefissi e formato JSON
+    verificabili. Non verrà aggiunto un quarto sidecar soltanto per il logging.
+  </div>
+  <p>
+    CPU, memoria e cgroup devono essere raccolti per container. Le metriche
+    aggregate del Pod non isolano il costo del monitor e non sono sufficienti
+    per verificare la soglia prestazionale.
+  </p>
+</section>
+
+<section id="artifacts">
+  <h2>12. Artefatti da implementare nello Step 4</h2>
+  <pre><code>demo_project/k8s/minikube-ctf/
+  images/
+    target/
+      Dockerfile
+      listener/
+    trigger/
+      Dockerfile
+      requirements.txt
+      run-benign.py
+      run-exploit.py
+  manifests/
+    namespace.yaml
+    configmap.yaml
+    secret.example.yaml
+    pod.yaml
+    pod-hostpid-diagnostic.yaml
+  rules/
+    process-observation-policy.yaml
+  scripts/
+    verify-upstream-checksums.sh
+    build-images.sh
+    deploy.sh
+    collect-evidence.sh
+    run-functional-cases.sh
+  README.md</code></pre>
+  <p>
+    La directory <code>upstream</code> ipotizzata nello Step 2 non è necessaria
+    nel primo passaggio: la procedura di build può ricevere il checkout
+    openECSC come contesto nominato o copiare artefatti verificati in una
+    directory temporanea ignorata da Git. Prima della scelta finale devono
+    essere controllate licenza e portabilità della procedura.
+  </p>
+</section>
+
+<section id="risks">
+  <h2>13. Verifiche residue</h2>
+  <table>
+    <thead><tr><th>Verifica</th><th>Perché resta aperta</th><th>Esito richiesto</th></tr></thead>
+    <tbody>
+      <tr><td>Listener statico</td><td>Il codice non è ancora implementato.</td><td>Timeout, signal forwarding, process-group kill e reaping provati in Docker.</td></tr>
+      <tr><td>BusyBox statico</td><td>Versione e digest non sono ancora fissati.</td><td><code>system("cat flag")</code> funziona senza librerie aggiuntive.</td></tr>
+      <tr><td>Root filesystem monitor</td><td>Libbpf può richiedere percorsi scrivibili specifici.</td><td>Individuare solo i mount necessari senza modifiche speculative.</td></tr>
+      <tr><td><code>hostPID: false</code></td><td>Il vecchio manifest usava <code>true</code>.</td><td>Caricamento, attach e osservazione multi-container riusciti nel profilo primario.</td></tr>
+      <tr><td>Limite PID</td><td>Dipende dalla configurazione kubelet Minikube.</td><td>Exploit completo senza PID exhaustion del nodo.</td></tr>
+      <tr><td>Cgroup identity</td><td>Ogni container può avere una chiave locale distinta.</td><td>Registrare gli ID reali prima di progettare correlazioni cgroup.</td></tr>
+      <tr><td>Regole CTF</td><td>I detector esistenti non modellano la catena AES-beta.</td><td>Crearle dopo la traccia osservata, non anticiparne il risultato.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="gate">
+  <h2>14. Gate per lo Step 4</h2>
+  <ul>
+    <li><span class="status">Definito:</span> un Pod con loopback condiviso e nessun Service.</li>
+    <li><span class="status">Definito:</span> listener statico dedicato e sessioni serializzate.</li>
+    <li><span class="status">Definito:</span> avvio diretto di AES-beta con loader e libc originali nei path attesi.</li>
+    <li><span class="status">Definito:</span> target e trigger non root, senza capability e con root filesystem in sola lettura.</li>
+    <li><span class="status">Definito:</span> privilegi e mount host limitati al monitor.</li>
+    <li><span class="status">Definito:</span> lifecycle di warm-up, idle, benigno, exploit e raccolta evidenze.</li>
+    <li><span class="status">Implementato nello Step 4:</span> immagini, listener e client.</li>
+    <li><span class="status">Validato nello Step 4:</span> controllo benigno ed exploit in Docker.</li>
+    <li><span class="pending">Da implementare nello Step 5:</span> manifest e integrazione Minikube.</li>
+  </ul>
+  <div class="box good">
+    Lo Step 4 ha confermato le immagini <code>ctf-target</code> e
+    <code>attack-trigger</code>. Lo Step 5 può ora introdurre il manifest
+    Kubernetes senza dover diagnosticare contemporaneamente il packaging CTF.
+  </div>
+</section>
+
+<section>
+  <h2>15. Collegamenti</h2>
+  <ul>
+    <li><a href="minikube-ctf-experiment-design.html">Step 1: specifica sperimentale</a>.</li>
+    <li><a href="aes-beta-adaptation-specification.html">Step 2: adattamento di AES-beta</a>.</li>
+    <li><a href="minikube-ctf-container-implementation.html">Step 4: implementazione e validazione Docker</a>.</li>
+    <li><a href="../minkube_lab.html">Laboratorio Minikube precedente</a>, usato soltanto come riferimento infrastrutturale.</li>
+  </ul>
+</section>
+
+<footer>
+  Specifica di design, non risultato sperimentale. Ogni comportamento indicato
+  come previsto deve essere confermato dagli artefatti e dai test dello Step 4.
+</footer>
+</main>
+</body>
+</html>

@@ -19,7 +19,7 @@ The implementation baseline for Chapter 3 is:
 - committed baseline: `163ad72`;
 - parent correlation feature: `35103ea`;
 - target: Rocky Linux 8.10 on
-  `4.18.0-553.109.1.el8_10.x86_64`, x86-64.
+  `4.18.0-553.137.1.el8_10.x86_64`, x86-64.
 
 The following working-tree changes are excluded from the stable design:
 

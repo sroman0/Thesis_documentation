@@ -20,7 +20,7 @@ branch networking il runtime e' stato migrato verso
 Target principale:
 
 - OS: Rocky Linux 8.10 / RHEL-compatible
-- Kernel: `4.18.0-553.109.1.el8_10.x86_64`
+- Kernel: `4.18.0-553.137.1.el8_10.x86_64`
 - Feature eBPF disponibili/usate sul target: BTF/CO-RE, raw tracepoint,
   tracepoint, kprobe, kretprobe e perf event array
 - BTF nativo atteso in: `/sys/kernel/btf/vmlinux`

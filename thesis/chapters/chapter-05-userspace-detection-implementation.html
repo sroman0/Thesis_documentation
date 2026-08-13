@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 5 Dossier: User-Space Runtime and Detection Implementation</title>
+  <style>
+    :root { --ink:#19222c; --muted:#5c6672; --line:#cbd2d9; --panel:#f4f7f8; --accent:#0f5e75; --soft:#e8f3f6; --warn:#fff4df; }
+    * { box-sizing: border-box; }
+    body { max-width: 1080px; margin: 2rem auto; padding: 0 1.2rem 4rem; color:var(--ink); font:16px/1.58 system-ui,sans-serif; }
+    h1,h2,h3 { line-height:1.2; letter-spacing:0; }
+    h2 { margin-top:2.2rem; border-bottom:2px solid var(--line); padding-bottom:.35rem; }
+    table { width:100%; border-collapse:collapse; margin:1rem 0; }
+    th,td { border:1px solid var(--line); padding:.65rem; text-align:left; vertical-align:top; }
+    th { background:var(--panel); }
+    code { background:#edf0f3; padding:.08rem .28rem; overflow-wrap:anywhere; }
+    .callout { border-left:5px solid var(--accent); background:var(--soft); padding:.85rem 1rem; margin:1rem 0; }
+    .warning { background:var(--warn); border-left-color:#8a4b08; }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
+    .card { border:1px solid var(--line); padding:1rem; background:var(--panel); }
+    .card h3 { margin-top:0; }
+    a { color:var(--accent); }
+    @media (max-width:760px) { .grid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <h1>Chapter 5 Dossier</h1>
+  <p><strong>User-Space Runtime and Detection Implementation</strong></p>
+
+  <div class="callout">
+    <strong>Status:</strong> the previous prose has been reset. The LaTeX file
+    retains only provisional headings and stable labels. New prose must follow
+    the evidence and gates in
+    <a href="../chapter-05-agent-workflow.html">the Chapter 5 agent workflow</a>.
+  </div>
+
+  <h2>Purpose</h2>
+  <p>
+    Chapter 5 explains the implementation that begins after the kernel submits
+    a record through the perf buffer. Its subject is the Go control and data
+    path: runtime bootstrap, probe planning, event decoding and admission,
+    policy and detector execution, alert presentation, operational logging and
+    packaging. The chapter must describe implementation mechanisms without
+    repeating the architecture already established in Chapter 3.
+  </p>
+
+  <h2>Provisional Structure</h2>
+  <ol>
+    <li><strong>Loader, Probe Registry and Attachment Lifecycle</strong></li>
+    <li><strong>User-Space Decoder and Event Registry</strong></li>
+    <li><strong>User-Space Event Selection and Admission</strong></li>
+    <li>
+      <strong>Policy and Detector Engine</strong>
+      <ul>
+        <li>YAML policy and detector definitions;</li>
+        <li>point and collective detection;</li>
+        <li>local correlation and deduplication;</li>
+        <li>MITRE ATT&amp;CK metadata propagation.</li>
+      </ul>
+    </li>
+    <li><strong>Output and Structured Logging</strong></li>
+    <li><strong>Containerisation and Deployment Considerations</strong></li>
+    <li><strong>User-Space Implementation Summary</strong></li>
+  </ol>
+  <p>
+    This is a starting hypothesis, not a frozen table of contents. The
+    editorial synthesis may merge event selection into runtime planning or
+    split the policy/detector section if doing so gives each mechanism one
+    clear owner and removes repeated pipeline descriptions.
+  </p>
+
+  <h2>Implementation Questions</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Bootstrap</h3>
+      <p>How do configuration, policy scope and detector requirements become one selected event set and one owned attachment plan?</p>
+    </div>
+    <div class="card">
+      <h3>Event contract</h3>
+      <p>Where does binary decoding end, what exactly is normalisation, and which registry is authoritative for event names and schemas?</p>
+    </div>
+    <div class="card">
+      <h3>Admission</h3>
+      <p>Which filters run before loading, after decoding and before detector dispatch, and what does each rejection prevent?</p>
+    </div>
+    <div class="card">
+      <h3>Detection</h3>
+      <p>Which work is compiled at bootstrap, which work remains on the hot path, and how are point and collective alerts produced?</p>
+    </div>
+    <div class="card">
+      <h3>Bounded state</h3>
+      <p>How are process, parent, resource, cgroup and composite keys constructed, expired, evicted and deduplicated?</p>
+    </div>
+    <div class="card">
+      <h3>Operational boundary</h3>
+      <p>How are event and alert data kept separate from Zap and libbpf diagnostics, and what is actually packaged in the image?</p>
+    </div>
+  </div>
+
+  <h2>Authoritative Evidence</h2>
+  <table>
+    <thead><tr><th>Area</th><th>Primary implementation and tests</th></tr></thead>
+    <tbody>
+      <tr><td>Configuration and lifecycle</td><td><code>pkg/cmd</code>, <code>pkg/config</code>, <code>pkg/ebpf/project.go</code>, <code>pkg/ebpf/probes</code></td></tr>
+      <tr><td>Record decoding</td><td><code>pkg/bufferdecoder</code>, <code>pkg/events</code>, registry consistency tests</td></tr>
+      <tr><td>Policy</td><td><code>pkg/policy</code> and its tests</td></tr>
+      <tr><td>Detector engine</td><td><code>pkg/detectors</code>, <code>pkg/detectors/yaml</code>, non-network YAML examples</td></tr>
+      <tr><td>Presentation and logging</td><td><code>pkg/output</code>, <code>pkg/logging</code>, command/runtime error paths</td></tr>
+      <tr><td>Packaging</td><td><code>Dockerfile</code>, <code>Makefile</code>, current README</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Current code and tests take precedence over narrative documentation.
+    Agents must record the inspected commit and dirty working tree because
+    policy and detector behaviour has evolved after some earlier reports.
+  </p>
+
+  <h2>Legacy Draft Claim Inventory</h2>
+  <p>
+    The committed draft contained useful claims that must be re-audited rather
+    than copied: embedded-object precedence, policy-derived probe selection,
+    internal probe dependencies, selective autoload, schema-directed decoding,
+    permissive missing-argument handling, point and collective dispatch,
+    detector-local state, correlation strategies, finite windows and state
+    capacity, alert deduplication, ATT&amp;CK propagation, stdout/stderr
+    separation, Zap integration and multi-stage container packaging.
+  </p>
+  <div class="callout warning">
+    <strong>Known risk:</strong> details such as malformed-record handling,
+    duplicate indexes, policy-driven detector selection, cleanup scheduling,
+    deduplication keys and catalogue packaging are easy to overstate. They must
+    be confirmed in current code and tests before entering the thesis.
+  </div>
+
+  <h2>Editorial Boundaries</h2>
+  <ul>
+    <li>Chapter 2 owns general eBPF and loading theory.</li>
+    <li>Chapter 3 owns requirements, architecture and design rationale.</li>
+    <li>Chapter 4 owns eBPF hook implementation and the binary writer.</li>
+    <li>Chapter 5 owns concrete Go implementation and local detection mechanics.</li>
+    <li>Chapter 6 owns functional evidence, performance and alert-quality discussion.</li>
+    <li>Networking code, network detectors and cluster-wide interpretation are excluded.</li>
+    <li>Examples support explanation but must not turn the chapter into a CLI or YAML manual.</li>
+  </ul>
+
+  <h2>Output Contract for Agents</h2>
+  <p>
+    Every agent handoff is standalone HTML. Reports should use tables for claim
+    matrices and limits, ordered lists for edit priorities, visible status
+    callouts for blockers, and collapsible sections only for long supporting
+    evidence. Plain Markdown reports are not part of this workflow.
+  </p>
+</body>
+</html>

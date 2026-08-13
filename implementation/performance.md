@@ -109,7 +109,7 @@ Configurazione:
 - tutti gli eventi abilitati;
 - 56 programmi eBPF caricati;
 - VM con 2 CPU;
-- kernel `4.18.0-553.109.1.el8_10.x86_64`.
+- kernel `4.18.0-553.137.1.el8_10.x86_64`.
 
 Campione di 30 secondi:
 

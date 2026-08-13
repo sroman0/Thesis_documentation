@@ -229,7 +229,7 @@ did not occur.
 ## 6. Enterprise-Kernel Compatibility Decisions
 
 The reference environment is Rocky Linux 8.10 with kernel
-`4.18.0-553.109.1.el8_10.x86_64` on x86-64. Compatibility is established
+`4.18.0-553.137.1.el8_10.x86_64` on x86-64. Compatibility is established
 against that concrete kernel, not inferred from upstream Linux 4.18.
 
 The design combines the following measures:

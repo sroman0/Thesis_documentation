@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 6 Agentic Writing Workflow</title>
+  <style>
+    :root{color-scheme:light;--ink:#18202a;--muted:#5b6572;--line:#cbd2d9;--paper:#fff;--panel:#f5f7f9;--accent:#0f5e75;--soft:#e8f3f6;--warning:#8a4b08;--warning-soft:#fff4df;--success:#23633d;--success-soft:#eaf6ee}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.58 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    .layout{display:grid;grid-template-columns:minmax(210px,270px) minmax(0,980px);gap:2rem;max-width:1320px;margin:0 auto;padding:2rem 1.25rem 5rem}
+    nav{position:sticky;top:1rem;align-self:start;border:1px solid var(--line);background:var(--panel);padding:1rem}nav strong{display:block;margin-bottom:.6rem}nav a{display:block;color:var(--accent);padding:.28rem 0;text-decoration:none}nav a:hover{text-decoration:underline}
+    main{min-width:0}h1,h2,h3{line-height:1.2;letter-spacing:0}h1{margin-top:0;font-size:2rem}h2{margin-top:2.5rem;border-bottom:2px solid var(--line);padding-bottom:.35rem}h3{margin-top:1.7rem}p,li{max-width:84ch}
+    code{background:#edf0f3;padding:.08rem .28rem;overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;padding:1rem;background:#f2f4f6;border-top:1px solid var(--line);font:13px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace}
+    table{width:100%;border-collapse:collapse;margin:1rem 0}th,td{border:1px solid var(--line);padding:.65rem;text-align:left;vertical-align:top}th{background:var(--panel)}
+    .callout{border-left:5px solid var(--accent);background:var(--soft);padding:.85rem 1rem;margin:1rem 0}.warning{border-left-color:var(--warning);background:var(--warning-soft)}.success{border-left-color:var(--success);background:var(--success-soft)}
+    .flow{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:.55rem;margin:1rem 0}.flow div{border:1px solid var(--line);padding:.75rem;background:var(--panel)}.flow b{display:block;color:var(--accent)}
+    .prompt{border:1px solid var(--line);margin:1rem 0;background:var(--paper)}.prompt summary{cursor:pointer;padding:.85rem 1rem;font-weight:700;background:var(--panel)}.prompt .meta{padding:.7rem 1rem;color:var(--muted)}
+    .pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:.12rem .55rem;margin-right:.3rem;font-size:.88rem;background:var(--paper)}.gate{color:var(--success);font-weight:700}
+    @media(max-width:900px){.layout{grid-template-columns:1fr}nav{position:static}.flow{grid-template-columns:1fr}}
+    @media print{nav{display:none}.layout{display:block;max-width:none;padding:0}details>*{display:block}.prompt{break-before:page}}
+  </style>
+</head>
+<body><div class="layout">
+  <nav aria-label="Workflow navigation">
+    <strong>Chapter 6 workflow</strong>
+    <a href="#decision">Editorial decision</a>
+    <a href="#usage">How to use this file</a>
+    <a href="#snapshot">Verified starting point</a>
+    <a href="#evidence">Evidence readiness</a>
+    <a href="#boundaries">Ownership boundaries</a>
+    <a href="#structure">Provisional structure</a>
+    <a href="#pipeline">Agent pipeline</a>
+    <a href="#wave1">Wave 1: audits</a>
+    <a href="#wave2">Wave 2: synthesis</a>
+    <a href="#wave3">Wave 3: writing</a>
+    <a href="#wave4">Wave 4: review</a>
+    <a href="#acceptance">Acceptance gates</a>
+    <a href="#state">Current state</a>
+  </nav>
+
+  <main>
+    <h1>Chapter 6 Agentic Writing Workflow</h1>
+    <p>
+      This is the operational roadmap for writing <strong>Experimental
+      Evaluation</strong>. All agent-to-user handoffs use valid standalone HTML.
+      The workflow turns raw laboratory artefacts into a traceable evaluation
+      argument without repeating the theory, design or implementation chapters.
+    </p>
+
+    <section id="decision">
+      <h2>Editorial Decision</h2>
+      <div class="callout">
+        <strong>Chapter 6 is scenario-led.</strong> Its central experiment is the
+        AES-beta CTF workload executed in a Minikube Pod containing target,
+        trigger and monitor containers. The narrative follows controlled input,
+        observed kernel evidence, collective alert and resource measurements.
+      </div>
+      <p>
+        The older outline has been corrected. There is no standalone point-
+        detector case study because the implemented experiment directly evaluates
+        one collective detector. There is no separate ATT&amp;CK coverage section:
+        the two ATT&amp;CK mappings explain alert interpretation but cannot establish
+        technique coverage. Functional validation and performance evaluation
+        remain separate because their evidence has different maturity.
+      </p>
+      <div class="callout warning">
+        <strong>Scoped performance claim.</strong> Five replicated runs per
+        profile are now available. Agents may verify the filtered user-space
+        monitor result below 5%, but must not convert it into a total-overhead
+        claim because kernel attribution remains incomplete.
+      </div>
+    </section>
+
+    <section id="usage">
+      <h2>How to Use This File</h2>
+      <p>
+        Create four independent agents for Wave 1 and paste one complete prompt
+        into each agent. Wait until all four HTML reports exist, then inspect
+        their conclusions before creating Agent 5. Agent 6 may be created only
+        after the editorial synthesis has been read and explicitly approved.
+        Agent 7 must be a fresh reviewer that did not write or synthesise the
+        chapter.
+      </p>
+      <table>
+        <thead><tr><th>Moment</th><th>Agents to create</th><th>User action</th></tr></thead>
+        <tbody>
+          <tr><td>Wave 1</td><td>Four agents in parallel</td><td>Paste Prompts 1-4 and wait for four disjoint HTML outputs.</td></tr>
+          <tr><td>Gate A</td><td>None</td><td>Read the reports, reconcile blockers and approve the evidence base.</td></tr>
+          <tr><td>Wave 2</td><td>One synthesis agent</td><td>Paste Prompt 5; approve its binding structure and claim ledger.</td></tr>
+          <tr><td>Wave 3</td><td>One LaTeX writer</td><td>Paste Prompt 6 only after the synthesis and visual inventory are approved.</td></tr>
+          <tr><td>Wave 4</td><td>One fresh reviewer</td><td>Paste Prompt 7, then apply corrections only after reviewing its findings.</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warning">
+        <strong>Do not run all seven prompts together.</strong> Waves 2-4 depend
+        on artefacts approved in the preceding gate. Parallelism is appropriate
+        only for the four evidence audits in Wave 1.
+      </div>
+    </section>
+
+    <section id="snapshot">
+      <h2>Verified Starting Point</h2>
+      <table>
+        <thead><tr><th>Item</th><th>Verified state</th><th>Editorial consequence</th></tr></thead>
+        <tbody>
+          <tr><td>Prototype commit</td><td><code>497da90f564c97fb9ffc38b264398150467173f5</code></td><td>Agents must also record the live commit and dirty state when they run.</td></tr>
+          <tr><td>Laboratory implementation</td><td><code>demo_project/k8s/</code> is currently untracked; <code>.gitignore</code> is modified.</td><td>Describe laboratory behaviour as working-tree evidence, not behaviour established by the base commit.</td></tr>
+          <tr><td>Functional repetitions</td><td>Three benign controls and four observed malicious sequences.</td><td>These are scenario outcomes, not estimates of general false-positive or false-negative rates.</td></tr>
+          <tr><td>Replicated performance set</td><td>Five alternating runs for each of <code>filtered</code>, <code>unfiltered</code> and <code>no-monitor</code>.</td><td>All numerical claims must be regenerated from the raw TSV files.</td></tr>
+          <tr><td>Primary performance result</td><td>Filtered user-space monitor CPU: mean 0.39%, sample SD 0.02; 5/5 run means below 5%.</td><td>The threshold applies to the monitor container's user-space CPU, not total system overhead.</td></tr>
+          <tr><td>Filtering comparison</td><td>Mean monitor CPU reduced by 91.99% from unfiltered to filtered.</td><td>Report association within this controlled scenario; do not generalise across workloads.</td></tr>
+          <tr><td>Chapter state</td><td><code>chapter6.tex</code> does not yet exist.</td><td>No agent before Wave 3 may create or modify thesis prose.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        The authoritative replicated evidence directory is
+        <code>demo_project/k8s/minikube-ctf/evidence/step10-replicated-performance-20260812T072832Z/</code>.
+        Narrative HTML reports are guides; raw logs, TSV files, manifests and
+        source artefacts take precedence when they disagree.
+      </p>
+    </section>
+
+    <section id="evidence">
+      <h2>Evidence Readiness</h2>
+      <table>
+        <thead><tr><th>Evidence stream</th><th>Readiness</th><th>Gate</th></tr></thead>
+        <tbody>
+          <tr><td>CTF provenance and adaptation</td><td>Complete</td><td>Audit fidelity and cite the pinned upstream revision.</td></tr>
+          <tr><td>Three-container Pod and security boundaries</td><td>Complete</td><td>Use the applied manifest, not design intentions.</td></tr>
+          <tr><td>Cross-container event visibility</td><td>Complete</td><td>Verify raw JSONL and <code>hostPID: false</code>.</td></tr>
+          <tr><td>Collective detector behaviour</td><td>Complete for the controlled scenario</td><td>Audit four-event evidence and benign control.</td></tr>
+          <tr><td>Repeated functional runs</td><td>Three benign and four exploit runs</td><td>Report the divergent client outcome honestly.</td></tr>
+          <tr><td>Performance calibration</td><td>Complete</td><td>Historical method check, not the final result.</td></tr>
+          <tr><td>Replicated benchmark</td><td>Five alternating runs per profile</td><td>Audit raw TSV, regenerated summaries and attribution boundaries.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        All four Wave 1 agents may now run in parallel. Agent 3 must recompute
+        the replicated summaries from raw TSV data before Wave 2 begins.
+      </p>
+    </section>
+
+    <section id="boundaries">
+      <h2>Ownership Boundaries</h2>
+      <table>
+        <thead><tr><th>Material</th><th>Primary owner</th><th>Chapter 6 rule</th></tr></thead>
+        <tbody>
+          <tr><td>eBPF architecture, hook semantics and transport theory</td><td>Chapters 2 and 4</td><td>Use only to interpret evidence; do not teach it again.</td></tr>
+          <tr><td>Requirements, policy semantics and detector design</td><td>Chapter 3</td><td>State the evaluated configuration, not the rationale again.</td></tr>
+          <tr><td>Go runtime and detector implementation</td><td>Chapter 5</td><td>Describe observable outcomes, not functions or YAML fields in detail.</td></tr>
+          <tr><td>Testbed, protocol, controls, results and validity</td><td>Chapter 6</td><td>Primary material.</td></tr>
+          <tr><td>Complete commands, manifests and raw alert payloads</td><td>Appendix/documentation</td><td>Keep only concise reproducibility information in the body.</td></tr>
+          <tr><td>Networking detector and <code>security_socket_sendmsg</code></td><td>Outside this evaluation</td><td>Exclude.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Use British English and never use the internal tool name. Describe a
+        deterministic collective detector, not learned anomaly detection.
+        Never claim enforcement, production readiness, cluster-wide correlation
+        or Kubernetes workload identity. The monitor observes containers that
+        share one node kernel.
+      </p>
+    </section>
+
+    <section id="structure">
+      <h2>Provisional Chapter Structure</h2>
+      <ol>
+        <li><strong>6.1 Evaluation Objectives and Experimental Protocol.</strong> Define the evaluated properties, controls, repetitions and evidence chain without formal research questions.</li>
+        <li><strong>6.2 Minikube Environment and Three-Container Testbed.</strong> Record host, kernel, Kubernetes, Pod, identities, privileges and controlled variables.</li>
+        <li><strong>6.3 AES-beta Workload and Controlled Attack Scenario.</strong> Explain why the challenge exercises process monitoring and how fidelity and safety were preserved.</li>
+        <li><strong>6.4 Functional Evaluation.</strong> Present cross-container visibility, collective-alert evidence, benign controls, repetitions and the divergent client run.</li>
+        <li><strong>6.5 Performance Evaluation.</strong> Define counters, attribution boundaries, profiles, replicated results and effect of UID filtering.</li>
+        <li><strong>6.6 Discussion of Results.</strong> Join functional and quantitative findings without restating tables.</li>
+        <li><strong>6.7 Threats to Validity and Current Limitations.</strong> Internal, construct and external validity; scenario specificity; small sample; privilege model.</li>
+        <li><strong>6.8 Evaluation Summary.</strong> Short bridge to conclusions.</li>
+      </ol>
+      <p>
+        The synthesis agent may merge subsections where this improves flow, but
+        must retain separate ownership for functional evidence, performance
+        evidence and threats to validity.
+      </p>
+    </section>
+
+    <section id="pipeline">
+      <h2>Agent Pipeline</h2>
+      <div class="flow" aria-label="Five-stage workflow">
+        <div><b>Wave 1</b>Four parallel evidence audits</div>
+        <div><b>Gate A</b>Human evidence check</div>
+        <div><b>Wave 2</b>Binding editorial synthesis</div>
+        <div><b>Wave 3</b>One LaTeX writer</div>
+        <div><b>Wave 4</b>Independent review</div>
+      </div>
+      <table>
+        <thead><tr><th>Wave</th><th>Writes Thesis?</th><th>HTML output</th></tr></thead>
+        <tbody>
+          <tr><td>1: evidence audits</td><td>No</td><td>Four audit reports</td></tr>
+          <tr><td>2: editorial synthesis</td><td>No</td><td><code>editorial-synthesis.html</code></td></tr>
+          <tr><td>3: controlled writing</td><td><code>chapter6.tex</code> and its one include line</td><td><code>writing-report.html</code></td></tr>
+          <tr><td>4: independent review</td><td>No</td><td><code>final-review.html</code></td></tr>
+          <tr><td>5: approved corrections</td><td>Only after user review</td><td>Updated change ledger</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="wave1">
+      <h2>Wave 1: Four Parallel Evidence Audits</h2>
+      <p>Launch the four prompts in parallel. No Wave 1 agent may modify Thesis, demo_project or another report.</p>
+
+      <details class="prompt">
+        <summary>Agent 1: Experimental Environment, Protocol and Reproducibility</summary>
+        <div class="meta">Output: <code>agent-output/chapter-06/environment-protocol-audit.html</code></div>
+        <pre>You are the experimental-environment, protocol and reproducibility auditor for
+Chapter 6 of an MSc thesis about an eBPF-based runtime security monitor.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-06-agent-workflow.html
+- /home/simone/project/documentation/thesis/chapters/chapter-06-experimental-evaluation.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-final-report.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-experiment-design.html
+- /home/simone/project/documentation/evaluation/aes-beta-adaptation-specification.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-container-implementation.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-kubernetes-deployment.html
+- /home/simone/project/demo_project/k8s/minikube-ctf/README.md
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter5.tex
+
+Inspect all current artefacts under:
+- /home/simone/project/demo_project/k8s/minikube-ctf/manifests
+- /home/simone/project/demo_project/k8s/minikube-ctf/images
+- /home/simone/project/demo_project/k8s/minikube-ctf/scripts
+- /home/simone/project/demo_project/k8s/minikube-ctf/evidence/step8-repeated-runs-20260812
+- /home/simone/project/demo_project/k8s/minikube-ctf/evidence/step10-replicated-performance-20260812T072832Z
+
+Record the demo_project commit and dirty state. Record the pinned openECSC
+revision and distinguish committed prototype code from uncommitted lab files.
+
+Audit:
+1. target Rocky Linux kernel, Minikube/Kubernetes version and node resources;
+2. one-Pod, three-container topology and shared versus isolated namespaces;
+3. actual security contexts, UIDs, mounts, privileges and hostPID setting;
+4. image provenance, challenge checksum controls and synthetic flag handling;
+5. benign, exploit and performance protocols, warm-up and run identifiers;
+6. controlled, independent and dependent variables;
+7. repeatability commands versus details better moved to an appendix;
+8. evidence capture, clock use, image identity and configuration preservation;
+9. discrepancies between design documents and the applied implementation;
+10. external sources needed for Kubernetes, Minikube, container and cgroup claims.
+
+Produce an environment table, protocol timeline, controlled-variable matrix,
+reproducibility checklist, claim-to-artefact ledger, visual proposal, paragraph
+plan and unresolved issues. Do not analyse detector correctness or performance
+results. Do not modify any other file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-06/environment-protocol-audit.html</pre>
+      </details>
+
+      <details class="prompt">
+        <summary>Agent 2: Functional Evidence and Collective Detector Results</summary>
+        <div class="meta">Output: <code>agent-output/chapter-06/functional-evidence-audit.html</code></div>
+        <pre>You are the functional-evidence and collective-detector evaluation auditor for
+Chapter 6 of an MSc thesis about an eBPF-based runtime security monitor.
+
+Read completely:
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-06-agent-workflow.html
+- /home/simone/project/documentation/thesis/chapters/chapter-06-experimental-evaluation.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-ebpf-workload-visibility.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-detector-validation.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-repeated-functional-evaluation.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-final-report.html
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter5.tex
+
+Inspect:
+- /home/simone/project/demo_project/k8s/minikube-ctf/detectors
+- /home/simone/project/demo_project/k8s/minikube-ctf/detectors/aes_beta_command_execution_test.go
+- /home/simone/project/demo_project/k8s/minikube-ctf/manifests/monitor-policy.yaml
+- /home/simone/project/demo_project/k8s/minikube-ctf/evidence/step6-workload-telemetry.jsonl
+- /home/simone/project/demo_project/k8s/minikube-ctf/evidence/step7-final-telemetry.jsonl
+- /home/simone/project/demo_project/k8s/minikube-ctf/evidence/step8-repeated-runs-20260812
+
+Record commit and dirty state. Derive every count from raw artefacts rather than
+copying report prose.
+
+Audit:
+1. proof of cross-container visibility with hostPID false;
+2. the exact shell, cat, resolved-file and successful-open evidence;
+3. ordering, process-tree relationship, five-second window and alert payload;
+4. three benign controls and four malicious-sequence runs;
+5. alert count, evidence count, severity, ATT&amp;CK metadata and loss diagnostics;
+6. the divergent run where the client did not receive the flag;
+7. detector-test evidence versus live-lab evidence;
+8. what the sample can and cannot say about false positives and false negatives;
+9. claims that confuse LSM mediation, syscall success or client success;
+10. the minimum tables and figures needed to present the result.
+
+Produce a raw-evidence ledger, per-run result matrix, expected-versus-observed
+sequence, claim qualification table, paragraph plan, proposed visuals and
+unresolved issues. Do not repeat detector implementation or claim general
+detection accuracy. Do not modify any other file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-06/functional-evidence-audit.html</pre>
+      </details>
+
+      <details class="prompt">
+        <summary>Agent 3: Performance Methodology, Statistics and Attribution</summary>
+        <div class="meta">Output: <code>agent-output/chapter-06/performance-evidence-audit.html</code></div>
+        <pre>You are the performance-methodology, statistics and attribution auditor for
+Chapter 6 of an MSc thesis about an eBPF-based runtime security monitor.
+
+Read completely:
+- /home/simone/project/documentation/thesis/chapter-06-agent-workflow.html
+- /home/simone/project/documentation/thesis/chapters/chapter-06-experimental-evaluation.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-performance-methodology.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-performance-calibration.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-replicated-performance-evaluation.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-final-report.html
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter5.tex
+
+Inspect the current performance scripts and every available raw performance
+artefact under:
+- /home/simone/project/demo_project/k8s/minikube-ctf/scripts
+- /home/simone/project/demo_project/k8s/minikube-ctf/evidence/step9-performance-calibration
+- /home/simone/project/demo_project/k8s/minikube-ctf/evidence/step10-replicated-performance-20260812T072832Z
+
+Record commit and dirty state. Recompute reported summaries from TSV data.
+
+Audit:
+1. cgroup version, cpuacct counter, sampling interval and one-core percentage;
+2. warm-up exclusion and exact workload-window selection;
+3. filtered, unfiltered and no-monitor profile comparability;
+4. CPU, P95, peak, cgroup memory, RSS, PID count and workload duration;
+5. attribution of user-space monitor CPU versus eBPF work in observed tasks;
+6. whether target and node CPU are available in the latest evidence;
+7. number of repetitions, execution order and sources of run variability;
+8. the validity of the 5% user-space gate and the replicated 91.99% filtered
+   versus unfiltered reduction;
+9. statistical summaries suitable for a small repeated experiment;
+10. missing evidence that blocks final performance conclusions.
+
+Produce a recomputed-metrics table, measurement-boundary diagram, profile
+comparison matrix, statistical plan, figure specification, valid/invalid claim
+ledger and an explicit readiness verdict. Reconcile <code>aggregate.tsv</code>,
+<code>runs.tsv</code> and <code>comparison.txt</code> with the per-run samples.
+Do not invent samples, treat P95 as a confidence interval, or extrapolate total
+overhead from monitor-cgroup CPU. Do not modify any other file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-06/performance-evidence-audit.html</pre>
+      </details>
+
+      <details class="prompt">
+        <summary>Agent 4: Editorial Boundaries, Validity, Citations and Visuals</summary>
+        <div class="meta">Output: <code>agent-output/chapter-06/editorial-validity-audit.html</code></div>
+        <pre>You are the editorial-boundary, threats-to-validity, citation and visual curator
+for Chapter 6 of an MSc thesis about an eBPF-based runtime security monitor.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-06-agent-workflow.html
+- /home/simone/project/documentation/thesis/chapters/chapter-06-experimental-evaluation.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-final-report.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-repeated-functional-evaluation.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-replicated-performance-evaluation.html
+- /home/simone/project/Thesis/content/chapters/chapter1.tex
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+- /home/simone/project/Thesis/content/chapters/chapter5.tex
+- /home/simone/project/Thesis/bibliography.bib
+- /home/simone/project/Thesis/glossaries.tex
+
+Inspect the evaluation documentation and evidence inventory where needed.
+
+Audit:
+1. repetition against Chapters 2-5, especially Kubernetes boundaries, hooks,
+   policy/detector theory and implementation details;
+2. internal, construct, external and conclusion validity threats;
+3. challenge specificity, detector tailoring, sample size and client divergence;
+4. privilege model, single-node Minikube scope and hostPID interpretation;
+5. distinction between no diagnosed loss and proof of loss-free collection;
+6. ATT&amp;CK classification versus coverage claims;
+7. British English, terminology, glossary, labels and thesis structure;
+8. primary external citations needed for Kubernetes Pods, Minikube, cgroups,
+   the upstream challenge and ATT&amp;CK;
+9. visual and table budget, accessibility and non-duplication;
+10. material that belongs in appendices rather than the body.
+
+Produce a redundancy ledger, threats-to-validity matrix, citation gap list,
+visual budget, section ownership plan and acceptance checklist. Do not rewrite
+the chapter and do not modify any other file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-06/editorial-validity-audit.html</pre>
+      </details>
+    </section>
+
+    <section id="wave2">
+      <h2>Wave 2: Binding Editorial Synthesis</h2>
+      <p class="gate">Gate A: all four Wave 1 reports exist, raw conflicts have been checked, and the performance report states whether evidence is final or provisional.</p>
+      <details class="prompt">
+        <summary>Agent 5: Technical Editorial Synthesis</summary>
+        <div class="meta">Output: <code>agent-output/chapter-06/editorial-synthesis.html</code></div>
+        <pre>You are the technical editorial synthesiser for Chapter 6 of an MSc thesis about
+an eBPF-based runtime security monitor.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-06-agent-workflow.html
+- /home/simone/project/documentation/thesis/chapters/chapter-06-experimental-evaluation.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-06/environment-protocol-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-06/functional-evidence-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-06/performance-evidence-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-06/editorial-validity-audit.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-final-report.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-replicated-performance-evaluation.html
+- /home/simone/project/Thesis/content/chapters/chapter1.tex
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+- /home/simone/project/Thesis/content/chapters/chapter5.tex
+- /home/simone/project/Thesis/bibliography.bib
+- /home/simone/project/Thesis/glossaries.tex
+
+Inspect the current manifests, detector, scripts and raw evidence under:
+- /home/simone/project/demo_project/k8s/minikube-ctf
+
+Record the verified demo_project commit and dirty state. Audit reports are
+evidence collections, not authority. Resolve disagreements from source files
+and raw artefacts, never by majority vote among reports.
+
+Produce one binding standalone HTML specification containing:
+1. resolved factual conflicts and rejected claims;
+2. final section/subsection structure and stable label plan;
+3. paragraph-level narrative with one owner for every result;
+4. bridges from Chapter 5 and towards Chapter 7;
+5. exact environment and protocol facts;
+6. functional result tables derived from raw evidence;
+7. performance readiness verdict and permitted numerical claims;
+8. figure/table budget and the question answered by every visual;
+9. citation and glossary requirements;
+10. a no-repetition matrix against Chapters 2-5;
+11. threats-to-validity structure;
+12. excluded appendix, networking, implementation and future-work material;
+13. ordered writing and acceptance checklists.
+
+Keep the expected chapter at approximately 2,800-3,500 words and 12-14 pages,
+with at most three figures and three result tables. Use no source-code listings.
+Every proposed visual must answer one explicit question and identify its data
+source and final asset path. Full commands, manifests, YAML and raw JSON belong
+in documentation or appendices. The synthesis must block any unsupported total-
+overhead, detection-accuracy or loss-free-transport claim.
+
+Do not modify Thesis, demo_project or another file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-06/editorial-synthesis.html</pre>
+      </details>
+    </section>
+
+    <section id="wave3">
+      <h2>Wave 3: Controlled LaTeX Writing</h2>
+      <p class="gate">Gate B: the synthesis is approved by the user and marks the evidence set ready. If performance remains provisional, either wait or write it explicitly as calibration without the 5% conclusion.</p>
+      <details class="prompt">
+        <summary>Agent 6: Sole Chapter 6 LaTeX Writer</summary>
+        <div class="meta">Writes <code>chapter6.tex</code>, its include line, and <code>writing-report.html</code></div>
+        <pre>You are the sole LaTeX writer for Chapter 6 of an MSc thesis about an eBPF-based
+runtime security monitor.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-06-agent-workflow.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-06/editorial-synthesis.html
+- /home/simone/project/Thesis/content/chapters/chapter1.tex
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+- /home/simone/project/Thesis/content/chapters/chapter5.tex
+- /home/simone/project/Thesis/content/chapters.tex
+- /home/simone/project/Thesis/bibliography.bib
+- /home/simone/project/Thesis/glossaries.tex
+
+Inspect the raw evidence explicitly selected by the synthesis for every
+numerical and functional claim. Record the demo_project commit and dirty state
+in the HTML report, not in thesis prose.
+
+Write Chapter 6 according to the synthesis. Requirements:
+- clear academic British English and a scenario-led evaluation narrative;
+- no repeated eBPF theory, hook catalogue, YAML tutorial or runtime walkthrough;
+- distinguish experimental input, observed evidence, comparison and limitation;
+- distinguish client exploit success from monitor detection;
+- use ATT&amp;CK only as alert classification;
+- report no diagnosed perf loss without claiming proof of loss-free transport;
+- do not claim total overhead below 5% unless the synthesis explicitly permits it;
+- keep full commands, manifests and raw JSON out of the body;
+- use only the approved visual/table budget;
+- use no source-code listings in this evaluation chapter;
+- keep the chapter within the synthesis word and page budget;
+- do not reference a visual asset unless it already exists and is approved;
+- do not modify the abstract or Chapters 1-5.
+
+Create or modify only:
+- /home/simone/project/Thesis/content/chapters/chapter6.tex
+- /home/simone/project/Thesis/content/chapters.tex, only to add the chapter6 input
+- /home/simone/project/documentation/thesis/agent-output/chapter-06/writing-report.html
+
+Preserve existing chapter inclusion order and add exactly one Chapter 6 input.
+Run label, citation and diff checks and the full LaTeX build if available.
+Write a valid standalone HTML change report containing the inspected commit,
+structure, numerical claim ledger, visual inventory, validation results and
+unresolved warnings to:
+/home/simone/project/documentation/thesis/agent-output/chapter-06/writing-report.html</pre>
+      </details>
+    </section>
+
+    <section id="wave4">
+      <h2>Wave 4: Independent Technical and Editorial Review</h2>
+      <p class="gate">Gate C: use an agent that did not write or synthesise the chapter.</p>
+      <details class="prompt">
+        <summary>Agent 7: Independent Final Reviewer</summary>
+        <div class="meta">Output: <code>agent-output/chapter-06/final-review.html</code></div>
+        <pre>You are the independent technical, statistical and editorial reviewer for
+Chapter 6 of an MSc thesis about an eBPF-based runtime security monitor.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-06-agent-workflow.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-06/environment-protocol-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-06/functional-evidence-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-06/performance-evidence-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-06/editorial-validity-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-06/editorial-synthesis.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-06/writing-report.html
+- /home/simone/project/Thesis/content/chapters/chapter1.tex
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+- /home/simone/project/Thesis/content/chapters/chapter5.tex
+- /home/simone/project/Thesis/content/chapters/chapter6.tex
+- /home/simone/project/Thesis/bibliography.bib
+- /home/simone/project/Thesis/glossaries.tex
+
+Independently inspect every raw artefact supporting a number or success count
+under /home/simone/project/demo_project/k8s/minikube-ctf/evidence. Record the
+demo_project commit and dirty state. The synthesis and writing report are not
+proof that claims are correct.
+
+Report findings ordered by severity:
+1. numerical errors or values not reproducible from raw evidence;
+2. unsupported overhead, detection-quality, loss, Kubernetes or coverage claims;
+3. confusion between client outcome, syscall/LSM evidence and alert outcome;
+4. weak controls, missing variables or omitted threats to validity;
+5. performance attribution and statistical errors;
+6. repetition against Chapters 2-5;
+7. misleading figures, tables, captions or axes;
+8. citation, glossary, label, British-English and LaTeX issues;
+9. material that should move to an appendix;
+10. an edit list and final acceptance checklist.
+
+Check explicitly that the chapter remains within the approved length and visual
+budget, that it contains no source-code listings or operational tutorial, and
+that every percentage states its denominator and measurement boundary.
+
+Run isolated syntax checks and the full thesis build if available. Do not modify
+Thesis, demo_project or another file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-06/final-review.html</pre>
+      </details>
+    </section>
+
+    <section id="acceptance">
+      <h2>Acceptance Gates</h2>
+      <table>
+        <thead><tr><th>Gate</th><th>Required evidence</th><th>Failure condition</th></tr></thead>
+        <tbody>
+          <tr><td>A: audit complete</td><td>Four HTML reports, commits recorded, raw counts reconciled</td><td>Reports copy one another or rely only on prose summaries</td></tr>
+          <tr><td>B: synthesis approved</td><td>Final structure, claim ledger, visual budget and performance readiness</td><td>Any unresolved conflict or unsupported 5% claim</td></tr>
+          <tr><td>C: draft complete</td><td>Chapter 6 builds and every result has traceable evidence</td><td>Raw logs replace interpretation or implementation is repeated</td></tr>
+          <tr><td>D: review accepted</td><td>No high-severity findings; limitations are explicit</td><td>Statistical, attribution or functional claims remain unsupported</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="state">
+      <h2>Current State and Immediate Action</h2>
+      <p>
+        <span class="pill">Roadmap ready</span>
+        <span class="pill">Functional evidence ready</span>
+        <span class="pill">Performance calibration ready</span>
+        <span class="pill">Replicated benchmark ready for audit</span>
+      </p>
+      <p>
+        The immediate action is to launch the four Wave 1 agents in parallel.
+        The performance agent must treat the user-space 5% gate and total system
+        overhead as separate claims.
+      </p>
+    </section>
+  </main>
+</div></body>
+</html>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 5 Writing Report</title>
+</head>
+<body>
+  <main>
+    <h1>Chapter 5 Writing Report</h1>
+    <p><strong>Scope:</strong> user-space runtime and local detection implementation. This report records the evidence used to rewrite <code>Thesis/content/chapters/chapter5.tex</code>.</p>
+
+    <section>
+      <h2>Inspected Baseline</h2>
+      <ul>
+        <li><strong>demo_project commit:</strong> <code>497da90f564c97fb9ffc38b264398150467173f5</code> (<code>fix(policy): fixed wrong configuration with --events and policy</code>).</li>
+        <li><strong>demo_project working tree:</strong> clean.</li>
+        <li><strong>Thesis change:</strong> only <code>content/chapters/chapter5.tex</code> was modified by this writing pass.</li>
+        <li><strong>Evidence basis:</strong> current source and tests were preferred over earlier audit reports where they differed.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Revised Structure</h2>
+      <ol>
+        <li><code>sec:implementation-loader-registry</code>: configuration, object/BTF resolution, logical selection, dependency expansion, selective autoload, attachment and shutdown.</li>
+        <li><code>sec:implementation-decoder-registry</code>: perf-record consumption, explicit context decoding, schema-directed indexed arguments and admission boundaries.</li>
+        <li><code>sec:userspace-event-selection</code>: ordered event admission, policy scope and the distinction between raw-event and alerts-only output.</li>
+        <li><code>sec:implementation-policy-detector</code>: YAML definitions, point and collective evaluation, bounded local correlation and ATT&amp;CK metadata.</li>
+        <li><code>sec:implementation-output-logging</code>: presentation boundary, alert rendering and structured diagnostic logging.</li>
+        <li><code>sec:implementation-containerisation</code>: build and packaging boundary only.</li>
+        <li><code>sec:user-space-implementation-summary</code>: concise bridge to Chapter 6.</li>
+      </ol>
+      <p>The retained and newly introduced subsection labels are <code>subsec:implementation-yaml-definitions</code>, <code>subsec:implementation-point-collective</code>, <code>subsec:implementation-correlation-deduplication</code> and <code>subsec:implementation-attack-metadata</code>.</p>
+    </section>
+
+    <section>
+      <h2>Listing and Visual Inventory</h2>
+      <p>Five body listings were retained or introduced, all explicitly abridged and followed by architectural explanation:</p>
+      <ul>
+        <li><code>lst:probe-plan</code>: selected physical programs and selective autoload.</li>
+        <li><code>lst:schema-decoding</code>: indexed, schema-directed decoding boundary.</li>
+        <li><code>lst:event-admission</code>: ordered user-space admission path.</li>
+        <li><code>lst:detector-dispatch</code>: detector dispatch and error isolation.</li>
+        <li><code>lst:collective-transition</code>: local sequence transition and bounded partial state.</li>
+      </ul>
+      <p>Three compact tables answer separate questions: <code>tab:decoder-admission</code> distinguishes record outcomes; <code>tab:correlation-bounds</code> owns detector-state limits; and <code>tab:output-boundaries</code> separates event, alert and diagnostic output. No figure was added. No approved Chapter 5-specific visual asset exists, and reusing the Chapter 3 architecture figures would repeat design material rather than clarify implementation.</p>
+    </section>
+
+    <section>
+      <h2>Claim Ledger</h2>
+      <table>
+        <thead>
+          <tr><th>Claim</th><th>Primary implementation evidence</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>CLI validation feeds a runtime configuration; embedded object/BTF defaults can be overridden.</td><td><code>cmd/project/cmd/root.go</code>, <code>pkg/config</code>, <code>pkg/cmd/initialize/bpfobject.go</code></td><td>Supported.</td></tr>
+          <tr><td>Logical event selection expands support dependencies before selective autoload and attachment.</td><td><code>pkg/ebpf/probes/probes.go</code>, <code>pkg/ebpf/project.go</code></td><td>Supported; availability still depends on the target kernel.</td></tr>
+          <tr><td>The perf reader supplies raw records to schema-directed decoding before policy and detector evaluation.</td><td><code>pkg/ebpf/project.go</code>, <code>pkg/bufferdecoder/eventsreader.go</code>, <code>pkg/events/spec.go</code></td><td>Supported.</td></tr>
+          <tr><td>Policies select scope; detectors evaluate deterministic point and collective conditions over the same decoded event representation.</td><td><code>pkg/policy</code>, <code>pkg/detectors</code>, <code>pkg/ebpf/project.go</code></td><td>Supported.</td></tr>
+          <tr><td>Collective matching is local and bounded.</td><td><code>pkg/detectors/detector.go</code>, <code>pkg/detectors/engine.go</code></td><td>Supported: maximum five-second window and 4,096 retained partial matches per detector are owned by Section 5.4.3.</td></tr>
+          <tr><td>ATT&amp;CK metadata classifies alerts rather than establishing correctness or coverage.</td><td><code>pkg/detectors</code>, detector YAML schema and <code>strom2020attack</code></td><td>Supported and qualified.</td></tr>
+          <tr><td>Output and Zap diagnostics use separate responsibilities.</td><td><code>pkg/output</code>, <code>pkg/logging</code>, <code>pkg/ebpf/project.go</code></td><td>Supported.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Validation</h2>
+      <ul>
+        <li><strong>LaTeX labels:</strong> no duplicate labels found across <code>Thesis/content</code>.</li>
+        <li><strong>Citations:</strong> <code>aquasecurity_libbpfgo</code>, <code>strom2020attack</code> and <code>uber_zap</code> are present in <code>bibliography.bib</code>.</li>
+        <li><strong>Diff hygiene:</strong> <code>git -C Thesis diff --check -- content/chapters/chapter5.tex</code> passed.</li>
+        <li><strong>Build attempt:</strong> an isolated <code>pdflatex</code> run was attempted with output under <code>/tmp</code>. It stopped before Chapter 5 was parsed because the local TeX Live installation lacks <code>biblatex.sty</code>. <code>biber</code> and <code>makeglossaries</code> are present, but <code>latexmk</code> is not installed. A full thesis build could therefore not be validated in this environment.</li>
+        <li><strong>Go tests:</strong> <code>go test ./...</code> passed in all packages except <code>pkg/ebpf/probes</code>. The failing consistency test reports that public probe <code>security_socket_sendmsg</code> has no decoder schema.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Warnings and Follow-up</h2>
+      <ul>
+        <li><code>security_socket_sendmsg</code> remains public in the current probe registry while lacking a public decoder schema. This is an implementation/test inconsistency outside the Chapter 5 host-runtime narrative; it should be corrected by making the support probe internal or by defining a matching public event and schema.</li>
+        <li>The current detector engine has no periodic production flush. Time-window expiry is evaluated when new relevant events are processed; this is described as a local implementation boundary, not as general complex-event processing.</li>
+        <li>There is no end-to-end test which exercises every attachment route against the target kernel. Registry tests detect source-level interface drift, not target-kernel hook availability.</li>
+        <li>The chapter deliberately excludes networking, cluster-wide correlation, enforcement and experimental results. These remain outside its implementation boundary.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

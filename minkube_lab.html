@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guida completa al laboratorio Minikube per Vesuvius</title>
+<style>
+:root {
+  --ink:#182235; --muted:#647083; --line:#d9e0e9; --panel:#f7f9fc;
+  --accent:#2457a6; --green:#237a52; --amber:#9a6700; --code:#101622;
+}
+* { box-sizing:border-box; }
+body { margin:0; font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); line-height:1.62; }
+main { max-width:1160px; margin:0 auto; padding:44px 32px 80px; }
+h1 { font-size:2.3rem; line-height:1.15; margin-bottom:8px; }
+h2 { margin-top:50px; padding-bottom:8px; border-bottom:1px solid var(--line); }
+h3 { margin-top:30px; }
+p { max-width:98ch; }
+.subtitle { color:var(--muted); font-size:1.08rem; margin-bottom:28px; }
+.toc, .box { border:1px solid var(--line); border-radius:10px; padding:18px 22px; background:#fbfcfe; }
+.toc a { color:var(--accent); text-decoration:none; }
+.step { border:1px solid var(--line); border-radius:11px; margin:26px 0; overflow:hidden; }
+.stephead { background:#f3f6fa; padding:13px 16px; font-weight:760; }
+.stepbody { padding:18px 20px; }
+.where { display:inline-block; font-size:.82rem; font-weight:750; color:#fff; background:var(--accent); border-radius:999px; padding:3px 9px; margin-bottom:8px; }
+pre { background:var(--code); color:#e8edf5; padding:15px 17px; border-radius:8px; overflow:auto; font-size:.88rem; line-height:1.45; }
+code { font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace; }
+table { width:100%; border-collapse:collapse; margin:18px 0 26px; font-size:.95rem; }
+th,td { border:1px solid var(--line); padding:10px 12px; vertical-align:top; text-align:left; }
+th { background:#f2f5f9; }
+.note { border-left:4px solid var(--accent); background:#f3f7fd; }
+.good { border-left:4px solid var(--green); background:#eff9f4; }
+.warn { border-left:4px solid var(--amber); background:#fff9ec; }
+.flow { display:grid; grid-template-columns:repeat(7,auto); gap:8px; align-items:center; margin:22px 0; }
+.node { border:1px solid #bdc8d7; border-radius:9px; padding:14px; background:#fafcff; text-align:center; min-width:125px; }
+.arrow { font-size:1.35rem; font-weight:800; color:var(--accent); }
+small,.small { color:var(--muted); }
+footer { margin-top:56px; border-top:1px solid var(--line); padding-top:18px; color:var(--muted); font-size:.9rem; }
+@media(max-width:850px) {
+  main { padding:28px 18px 50px; }
+  .flow { grid-template-columns:1fr; }
+  .arrow { transform:rotate(90deg); text-align:center; }
+}
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>Guida completa al laboratorio Minikube per Vesuvius</h1>
+<div class="subtitle">
+Percorso operativo completo del laboratorio: dalla connessione alla VM Rocky Linux fino alla generazione e osservazione di eventi da un workload Kubernetes.
+</div>
+</header>
+
+<section class="toc">
+<strong>Indice</strong>
+<ol>
+<li><a href="#goal">Obiettivo del laboratorio</a></li>
+<li><a href="#theory">Teoria necessaria per comprendere il lab</a></li>
+<li><a href="#tools">Ruolo di Docker, Minikube e Kubernetes</a></li>
+<li><a href="#steps">Sequenza completa dei comandi</a></li>
+<li><a href="#issues">Problemi incontrati durante il laboratorio</a></li>
+<li><a href="#manifests">Manifest finali utilizzati</a></li>
+<li><a href="#result">Risultato del laboratorio</a></li>
+</ol>
+</section>
+
+<section id="goal">
+<h2>1. Obiettivo del laboratorio</h2>
+<p>
+L'obiettivo è verificare che Vesuvius possa essere eseguito come monitor eBPF node-local in un cluster Kubernetes locale,
+senza abbandonare il kernel Rocky Linux su cui il prototipo è stato sviluppato e validato. Il test separa volutamente il
+monitor dal workload che produce gli eventi: Vesuvius viene eseguito in un pod dedicato, mentre un secondo pod genera
+attività osservabile dagli hook eBPF.
+</p>
+</section>
+
+<section id="theory">
+<h2>2. Teoria necessaria per comprendere il lab</h2>
+
+<p>
+Per comprendere la logica del laboratorio è utile distinguere chiaramente quattro livelli: kernel Linux, container,
+nodo Kubernetes e pod. eBPF opera nel kernel, quindi la compatibilità del monitor dipende prima di tutto dal kernel
+effettivamente utilizzato dal sistema. I container, invece, non hanno un kernel proprio: isolano processi, filesystem,
+rete e altre risorse tramite namespace e cgroup, ma continuano a condividere il kernel dell'host. Questa proprietà è
+centrale nel laboratorio perché consente di eseguire Vesuvius in un container mantenendo il kernel Rocky Linux target.
+</p>
+
+<p>
+Docker fornisce il primo livello di containerizzazione. L'immagine Docker contiene il binario e le dipendenze user-space
+necessarie al monitor, ma quando il container carica un programma eBPF quel programma viene verificato ed eseguito dal
+kernel dell'host. Per questo motivo il test Docker viene eseguito prima di Kubernetes: serve a dimostrare che il prototipo
+funziona correttamente in un container sul kernel Rocky, senza introdurre ancora l'orchestrazione del cluster.
+</p>
+
+<p>
+Kubernetes non sostituisce Docker né crea automaticamente un kernel separato. Kubernetes descrive uno stato desiderato
+e coordina l'esecuzione dei container sui nodi del cluster. In questo laboratorio il cluster è creato con Minikube,
+un ambiente Kubernetes locale pensato per sviluppo e test. Minikube può essere eseguito usando driver diversi; scegliendo
+il driver Docker, il nodo Minikube viene eseguito come container sul sistema Rocky e continua quindi a condividere il
+kernel dell'host. Il nodo può presentare un user space differente, ma questo non implica che utilizzi un kernel differente.
+</p>
+
+<p>
+All'interno di Kubernetes, il monitor viene distribuito come <code>DaemonSet</code>. Un DaemonSet rappresenta bene un
+monitor node-local perché Kubernetes tenta di mantenere una sua istanza su ogni nodo compatibile. Nel cluster Minikube
+utilizzato nel laboratorio esiste un solo nodo, quindi viene creato un solo pod Vesuvius. Il workload da monitorare è
+invece un pod distinto. Questa separazione permette di verificare che il monitor non osservi soltanto il proprio container,
+ma attività generata da altri processi sul medesimo nodo.
+</p>
+
+<p>
+Un'altra distinzione importante riguarda i namespace Linux. Un processo all'interno di un container può vedere un PID
+diverso dal PID con cui lo stesso processo è identificato sull'host. Vesuvius raccoglie anche informazioni host-level,
+perciò il laboratorio può mostrare contemporaneamente un identificatore locale al namespace del workload e il corrispondente
+host PID. I cgroup forniscono inoltre un'indicazione del contesto di esecuzione del processo e, nel caso Kubernetes,
+contengono percorsi associati a <code>kubepods</code>, pod e container.
+</p>
+
+<p>
+Il fatto che un container condivida il kernel non significa però che possa accedere automaticamente a tutte le interfacce
+kernel presenti nel filesystem dell'host. BTF, bpffs e tracefs sono filesystem o interfacce kernel che devono essere visibili
+nel mount namespace del monitor. Nel laboratorio <code>/sys/kernel/btf</code> fornisce le informazioni BTF necessarie al
+runtime, <code>/sys/fs/bpf</code> espone il BPF filesystem e <code>/sys/kernel/tracing</code> espone tracefs, utilizzato da
+libbpf per individuare e collegare tracepoint come <code>sys_enter_execve</code>.
+</p>
+
+<p>
+Il percorso completo di un evento nel test può quindi essere letto in questo modo: un comando viene eseguito nel
+<code>demo-workload</code>; la relativa system call attraversa il kernel Rocky Linux; i programmi eBPF collegati agli hook
+selezionati raccolgono il contesto necessario e lo inviano al runtime tramite perf-event buffer; il pod Vesuvius riceve
+il record, lo decodifica e lo espone nel formato configurato. Kubernetes organizza il deployment, ma l'osservazione
+rimane kernel-level e node-local.
+</p>
+
+<div class="flow">
+<div class="node"><strong>demo-workload</strong><br>processo containerizzato</div><div class="arrow">→</div>
+<div class="node"><strong>Kernel Rocky</strong><br>hook eBPF</div><div class="arrow">→</div>
+<div class="node"><strong>perf buffer</strong><br>trasporto</div><div class="arrow">→</div>
+<div class="node"><strong>Vesuvius pod</strong><br>decode/output</div>
+</div>
+
+<div class="box note">
+<strong>Idea chiave.</strong> Kubernetes è il livello di deployment; Docker fornisce il runtime dei container; Minikube
+fornisce il cluster locale; eBPF continua invece a operare sul kernel Rocky Linux sottostante. Il successo del lab dipende
+quindi dal preservare quel kernel e dal rendere accessibili al pod monitor le interfacce kernel necessarie.
+</div>
+</section>
+
+<section id="tools">
+<h2>3. Ruolo di Docker, Minikube e Kubernetes</h2>
+<table>
+<thead><tr><th>Tool</th><th>Ruolo nel laboratorio</th><th>Perché serve</th></tr></thead>
+<tbody>
+<tr><td><strong>Docker</strong></td><td>Costruisce ed esegue l'immagine di Vesuvius e fornisce il runtime usato da Minikube.</td><td>Permette di validare il monitor in container sul kernel Rocky prima di aggiungere Kubernetes.</td></tr>
+<tr><td><strong>Minikube</strong></td><td>Crea un cluster Kubernetes locale single-node usando Docker come driver.</td><td>Permette di sperimentare un deployment Kubernetes mantenendo il kernel Rocky sottostante.</td></tr>
+<tr><td><strong>Kubernetes</strong></td><td>Orchestra il DaemonSet Vesuvius e il pod demo-workload.</td><td>Consente di modellare un monitor node-local e un workload separato da osservare.</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="steps">
+<h2>4. Sequenza completa dei comandi</h2>
+
+<div class="step"><div class="stephead">Step 1 — Collegarsi alla VM Rocky</div><div class="stepbody">
+<div class="where">PC LOCALE</div>
+<pre><code>ssh simone@&lt;IP_VM&gt;</code></pre>
+<p>
+Il laboratorio viene controllato dal PC Ubuntu locale, ma il target effettivo è la VM Rocky Linux. Il comando
+<code>ssh</code> apre una shell remota sulla VM e permette di eseguire da lì tutti i passi successivi. Questa separazione
+è intenzionale: il kernel Ubuntu del PC non deve entrare nel percorso di esecuzione del monitor.
+</p>
+<p>
+Da questo momento, salvo indicazioni esplicite, i comandi vengono eseguiti sulla Rocky VM. In questo modo build,
+containerizzazione, Minikube e Kubernetes rimangono tutti ancorati allo stesso host kernel.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 2 — Verificare il kernel target e le interfacce eBPF</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>uname -a
+uname -r</code></pre>
+<p>
+Il primo controllo riguarda il kernel. <code>uname -a</code> restituisce una descrizione completa del sistema,
+mentre <code>uname -r</code> isola la release del kernel. Questo è il checkpoint più importante della baseline,
+perché l'oggetto eBPF viene verificato e caricato proprio da questo kernel.
+</p>
+<pre><code>ls -lh /sys/kernel/btf/vmlinux</code></pre>
+<p>
+Questo comando verifica la presenza del BTF del kernel. Il file <code>vmlinux</code> in questa directory contiene
+le informazioni di tipo usate dal runtime per risolvere strutture e simboli compatibili con il kernel effettivamente
+in esecuzione.
+</p>
+<pre><code>mount | grep bpf
+ls -la /sys/fs/bpf</code></pre>
+<p>
+I due comandi controllano il BPF filesystem. Il primo verifica se bpffs è montato; il secondo ne controlla direttamente
+l'esistenza e i permessi. In questa fase non si sta ancora testando Vesuvius: si sta verificando che il sistema fornisca
+le primitive kernel necessarie per poterlo eseguire.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 3 — Verificare Docker</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>docker --version
+sudo systemctl status docker
+docker ps</code></pre>
+<p>
+Docker viene verificato prima di Kubernetes perché costituisce sia il formato di packaging del monitor sia il runtime
+scelto per Minikube. <code>docker --version</code> documenta la versione installata, <code>systemctl status docker</code>
+controlla che il daemon sia attivo e <code>docker ps</code> verifica che l'utente possa comunicare con il socket Docker.
+</p>
+<p>
+Se <code>docker ps</code> fallisce per permessi ma <code>sudo docker ps</code> funziona, il problema non riguarda Docker
+in sé ma i privilegi dell'utente. In quel caso:
+</p>
+<pre><code>sudo usermod -aG docker $USER
+exit</code></pre>
+<div class="where">PC LOCALE</div>
+<pre><code>ssh simone@&lt;IP_VM&gt;</code></pre>
+<div class="where">ROCKY VM</div>
+<pre><code>docker ps</code></pre>
+<p>
+La nuova sessione SSH è necessaria perché l'appartenenza al gruppo Docker venga ricalcolata al login. Il controllo finale
+senza <code>sudo</code> conferma che la configurazione è pronta per gli step successivi.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 4 — Verificare kubectl</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>kubectl version --client</code></pre>
+<p>
+<code>kubectl</code> è il client con cui verranno inviati manifest e comandi all'API server Kubernetes. In questa fase
+il cluster non deve ancora esistere: il comando serve soltanto a verificare che il client sia installato e a documentarne
+la versione. È importante che sia disponibile sulla Rocky VM perché sarà questa macchina a gestire Minikube.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 5 — Verificare Minikube</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>minikube version</code></pre>
+<p>
+Minikube è il componente che trasforma la Rocky VM in un ambiente capace di ospitare un piccolo cluster Kubernetes.
+Il comando controlla che il binario sia installato prima di tentare l'avvio del cluster. Al termine di questa fase
+la VM deve disporre di Docker, kubectl e Minikube: Docker eseguirà i container, Minikube creerà il cluster e kubectl
+lo amministrerà.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 6 — Costruire Vesuvius prima di introdurre Kubernetes</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>cd ~/project/demo_project
+make build
+make docker-image
+docker images</code></pre>
+<p>
+Il repository viene aperto e il tool viene prima compilato con la normale procedura del progetto. Successivamente
+<code>make docker-image</code> costruisce l'immagine runtime. L'ultimo comando elenca le immagini Docker disponibili
+e permette di verificare nome e tag dell'artefatto creato.
+</p>
+<p>
+Questo checkpoint riduce l'ambiguità del troubleshooting. Se il binario o l'immagine non vengono costruiti correttamente,
+il problema è nel progetto o nella containerizzazione; Kubernetes non è ancora coinvolto. Solo dopo aver ottenuto una
+immagine valida ha senso continuare.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 7 — Provare direttamente il container Vesuvius</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>docker run --rm \
+  --privileged \
+  --pid=host \
+  -v /sys/kernel/btf:/sys/kernel/btf:ro \
+  -v /sys/fs/bpf:/sys/fs/bpf \
+  demo-project-ebpf:latest \
+  --events sched_process_exec \
+  --output table</code></pre>
+<p>
+Questa prova serve a validare il monitor in un container senza l'orchestrazione Kubernetes. <code>--rm</code> elimina
+automaticamente il container al termine; <code>--privileged</code> fornisce i privilegi richiesti dal runtime eBPF;
+<code>--pid=host</code> permette al container di condividere il PID namespace dell'host. I bind mount rendono visibili
+BTF e bpffs nel container.
+</p>
+<p>
+Il tool viene avviato monitorando un evento semplice, <code>sched_process_exec</code>, con output tabellare. Se questa
+fase fallisce, Minikube non deve ancora essere introdotto: prima bisogna assicurarsi che il percorso Rocky kernel →
+Docker → Vesuvius → eBPF sia funzionante.
+</p>
+<p>Da un secondo terminale vengono generati processi sull'host:</p>
+<div class="where">PC LOCALE</div>
+<pre><code>ssh simone@&lt;IP_VM&gt;</code></pre>
+<div class="where">ROCKY VM</div>
+<pre><code>ls
+whoami</code></pre>
+<p>
+Nel terminale dove Vesuvius è in esecuzione devono comparire gli eventi corrispondenti. Questo conferma che il monitor
+containerizzato può osservare attività del nodo Rocky.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 8 — Avviare Minikube con il driver Docker</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>minikube start --driver=docker
+minikube status</code></pre>
+<p>
+A questo punto viene introdotto il livello Kubernetes. L'opzione <code>--driver=docker</code> è fondamentale per il
+disegno del test: Minikube viene eseguito sopra Docker anziché creare una macchina virtuale separata. Di conseguenza
+continua a condividere il kernel della Rocky VM.
+</p>
+<p>
+<code>minikube status</code> controlla lo stato delle componenti principali del cluster: host, kubelet, API server e
+kubeconfig. Solo quando tutte risultano operative si può procedere con il deployment del monitor.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 9 — Verificare che Minikube usi lo stesso kernel</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>uname -r
+minikube ssh -- uname -r</code></pre>
+<p>
+Il primo comando legge il kernel dell'host Rocky; il secondo esegue lo stesso controllo all'interno del nodo Minikube.
+Le due versioni devono coincidere. Questa verifica evita di confondere il sistema operativo user-space del nodo con il
+kernel realmente utilizzato.
+</p>
+<p>
+Nel laboratorio il nodo Minikube riportava un user space Debian, ma la release del kernel era identica a quella della
+Rocky VM. Questo è esattamente il comportamento desiderato: Kubernetes può cambiare l'ambiente user-space del nodo
+senza modificare il kernel che esegue i programmi eBPF.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 10 — Verificare BTF e bpffs nel nodo Minikube</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>minikube ssh -- ls -lh /sys/kernel/btf/vmlinux
+minikube ssh -- ls -la /sys/fs/bpf</code></pre>
+<p>
+Questi controlli ripetono nel nodo Minikube parte della baseline verificata sull'host. Il fatto che il nodo condivida
+il kernel non garantisce automaticamente che tutte le risorse filesystem siano esposte nel modo richiesto. Per questo
+si verifica direttamente la presenza del BTF e del BPF filesystem dall'interno del nodo.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 11 — Verificare Kubernetes</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>kubectl get nodes -o wide
+kubectl cluster-info</code></pre>
+<p>
+<code>kubectl get nodes -o wide</code> interroga l'API server e mostra lo stato del nodo insieme a dettagli come IP,
+sistema operativo, versione kernel e container runtime. Oltre a confermare che il nodo sia <code>Ready</code>, questo
+comando offre un'ulteriore verifica del kernel condiviso.
+</p>
+<p>
+<code>kubectl cluster-info</code> fornisce gli endpoint principali del cluster e conferma che il client <code>kubectl</code>
+sta comunicando correttamente con l'API server creato da Minikube.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 12 — Rendere disponibile l'immagine di Vesuvius a Minikube</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>minikube image load demo-project-ebpf:latest
+minikube image ls | grep demo-project</code></pre>
+<p>
+L'immagine creata dal Docker della Rocky VM non deve essere considerata automaticamente disponibile al runtime del nodo
+Minikube. <code>minikube image load</code> importa esplicitamente l'immagine nel nodo, evitando la necessità di pubblicarla
+su Docker Hub o su un registry privato.
+</p>
+<p>
+Il secondo comando controlla che l'immagine sia realmente presente. Questa verifica è importante perché il manifest
+userà <code>imagePullPolicy: Never</code>: Kubernetes deve quindi trovare l'immagine localmente e non tenterà di scaricarla.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 13 — Preparare la directory dei manifest</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>mkdir -p k8s/minikube-demo</code></pre>
+<p>
+La directory raccoglie i file YAML che descrivono il laboratorio. Non è un requisito di Kubernetes, ma una scelta di
+organizzazione utile per mantenere il test riproducibile e separato dal resto della configurazione del progetto.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 14 — Creare e applicare il namespace</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>kubectl apply -f k8s/minikube-demo/namespace.yaml
+kubectl get namespace vesuvius-demo</code></pre>
+<p>
+Il namespace <code>vesuvius-demo</code> crea un perimetro logico dedicato al laboratorio. <code>kubectl apply</code>
+invia il manifest all'API server e dichiara lo stato desiderato; Kubernetes crea la risorsa se non esiste o la aggiorna
+se è già presente.
+</p>
+<p>
+Il secondo comando verifica che il namespace sia stato effettivamente creato. Tutte le risorse successive vengono
+collocate qui, rendendo più semplice sia il debugging sia la successiva rimozione del laboratorio.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 15 — Definire il DaemonSet Vesuvius</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: vesuvius
+  namespace: vesuvius-demo
+
+spec:
+  selector:
+    matchLabels:
+      app: vesuvius
+
+  template:
+    metadata:
+      labels:
+        app: vesuvius
+
+    spec:
+      hostPID: true
+
+      containers:
+        - name: vesuvius
+          image: demo-project-ebpf:latest
+          imagePullPolicy: Never
+
+          args:
+            - &quot;--events&quot;
+            - &quot;execve,security_bprm_check,sched_process_exec&quot;
+            - &quot;--output&quot;
+            - &quot;json&quot;
+
+          securityContext:
+            privileged: true
+
+          volumeMounts:
+              - name: btf
+                mountPath: /sys/kernel/btf
+                readOnly: true
+
+              - name: bpffs
+                mountPath: /sys/fs/bpf
+
+              - name: tracefs
+                mountPath: /sys/kernel/tracing
+
+      volumes:
+        - name: btf
+          hostPath:
+            path: /sys/kernel/btf
+            type: Directory
+
+        - name: bpffs
+          hostPath:
+            path: /sys/fs/bpf
+            type: Directory
+
+        - name: tracefs
+          hostPath:
+            path: /sys/kernel/tracing
+            type: Directory</code></pre>
+<p>
+Il monitor è rappresentato come DaemonSet perché il suo ruolo è node-local. Il campo <code>hostPID: true</code> espone
+al pod il PID namespace dell'host; <code>securityContext.privileged: true</code> fornisce i privilegi necessari per
+caricare e collegare i programmi eBPF.
+</p>
+<p>
+Il volume BTF viene montato in sola lettura perché il runtime deve consultare le informazioni del kernel ma non modificarle.
+bpffs viene esposto per le risorse BPF. Dopo il problema incontrato durante il laboratorio è stato aggiunto anche tracefs,
+montando <code>/sys/kernel/tracing</code>; questo permette a libbpf di leggere gli ID dei tracepoint richiesti durante
+l'attach.
+</p>
+<p>
+Gli argomenti del container selezionano <code>execve</code>, <code>security_bprm_check</code> e
+<code>sched_process_exec</code>, così da osservare tre momenti complementari del percorso di esecuzione di un programma.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 16 — Eseguire il deployment del monitor</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>kubectl apply -f k8s/minikube-demo/vesuvius.yaml
+kubectl get daemonset -n vesuvius-demo
+kubectl get pods -n vesuvius-demo -o wide</code></pre>
+<p>
+Il primo comando crea o aggiorna il DaemonSet. Kubernetes confronta il manifest con lo stato corrente e avvia il pod
+necessario. Poiché il cluster Minikube ha un solo nodo, il DaemonSet deve convergere verso una singola replica del monitor.
+</p>
+<p>
+<code>kubectl get daemonset</code> mostra quanti pod sono desiderati, correnti e disponibili. <code>kubectl get pods -o wide</code>
+mostra invece il pod concreto creato dal controller, il relativo stato, l'IP e il nodo sul quale è in esecuzione.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 17 — Osservare i log e diagnosticare eventuali errori</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>kubectl logs -n vesuvius-demo daemonset/vesuvius
+kubectl logs -f -n vesuvius-demo daemonset/vesuvius</code></pre>
+<p>
+I log sono il punto di osservazione principale del runtime. Il primo comando legge l'output disponibile; con
+<code>-f</code> kubectl mantiene la connessione aperta e stampa le nuove righe in tempo reale. Questo consente di verificare
+sia lo startup sia l'arrivo degli eventi.
+</p>
+<p>Se il pod termina o non raggiunge lo stato <code>Running</code>, la sequenza di troubleshooting è:</p>
+<pre><code>kubectl get pods -n vesuvius-demo
+kubectl describe pod -n vesuvius-demo &lt;nome-pod&gt;
+kubectl logs -n vesuvius-demo &lt;nome-pod&gt; --previous</code></pre>
+<p>
+<code>describe</code> mostra stato, mount, immagine e gli eventi generati dal control plane; <code>--previous</code>
+permette di leggere i log dell'istanza precedente di un container terminato. Questa sequenza è stata utile durante i due
+problemi reali incontrati nel laboratorio.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 18 — Verificare il punto di vista del pod Vesuvius</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>kubectl get pods -n vesuvius-demo
+kubectl exec -n vesuvius-demo &lt;vesuvius-pod&gt; -- uname -r
+kubectl exec -n vesuvius-demo &lt;vesuvius-pod&gt; -- ls -lh /sys/kernel/btf/vmlinux
+kubectl exec -n vesuvius-demo &lt;vesuvius-pod&gt; -- cat /sys/kernel/tracing/events/syscalls/sys_enter_execve/id</code></pre>
+<p>
+Questa fase è più significativa del solo controllo del manifest perché verifica ciò che vede realmente il processo
+all'interno del container. <code>kubectl exec</code> esegue comandi direttamente nel pod Vesuvius.
+</p>
+<p>
+La release del kernel deve coincidere con quella dell'host e del nodo Minikube. BTF deve essere leggibile e il file
+<code>id</code> del tracepoint deve essere disponibile. Nel test finale il tracepoint <code>sys_enter_execve</code>
+restituiva l'ID <code>712</code>, confermando che tracefs era correttamente visibile.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 19 — Creare il workload da monitorare</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>apiVersion: v1
+kind: Pod
+metadata:
+  name: demo-workload
+  namespace: vesuvius-demo
+
+spec:
+  containers:
+    - name: workload
+      image: ubuntu:24.04
+      command:
+        - /bin/bash
+        - -c
+        - sleep infinity</code></pre>
+<pre><code>kubectl apply -f k8s/minikube-demo/workload.yaml
+kubectl get pods -n vesuvius-demo</code></pre>
+<p>
+Il workload è volutamente minimale. L'immagine Ubuntu viene avviata con <code>sleep infinity</code>, che mantiene il
+container vivo senza generare continuamente attività propria. Questo crea un ambiente stabile nel quale è possibile
+entrare successivamente con <code>kubectl exec</code>.
+</p>
+<p>
+La verifica finale deve mostrare contemporaneamente il pod Vesuvius e <code>demo-workload</code> nello stato
+<code>Running</code>. A questo punto monitor e sorgente degli eventi sono due componenti distinti sullo stesso nodo.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 20 — Preparare due terminali per la dimostrazione</div><div class="stepbody">
+<div class="where">PC LOCALE — TERMINALE A</div>
+<pre><code>ssh simone@&lt;IP_VM&gt;</code></pre>
+<div class="where">ROCKY VM — TERMINALE A</div>
+<pre><code>kubectl logs -f -n vesuvius-demo daemonset/vesuvius</code></pre>
+<p>
+Il primo terminale resta dedicato all'osservazione del monitor. In questo modo gli eventi possono essere letti nel
+momento stesso in cui vengono prodotti.
+</p>
+<div class="where">PC LOCALE — TERMINALE B</div>
+<pre><code>ssh simone@&lt;IP_VM&gt;</code></pre>
+<div class="where">ROCKY VM — TERMINALE B</div>
+<pre><code>kubectl exec -it -n vesuvius-demo demo-workload -- bash</code></pre>
+<p>
+Il secondo terminale entra invece interattivamente nel workload. L'opzione <code>-i</code> mantiene aperto lo standard
+input e <code>-t</code> assegna un terminale pseudo-TTY. Separare i due terminali rende evidente il rapporto causa-effetto
+tra il comando eseguito nel workload e l'evento osservato dal monitor.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 21 — Generare attività nel workload</div><div class="stepbody">
+<div class="where">DENTRO IL WORKLOAD POD</div>
+<pre><code>whoami
+ls
+/bin/echo hello
+cat /etc/passwd</code></pre>
+<p>
+Questi comandi rappresentano una prima prova manuale. In particolare l'esecuzione di programmi come <code>ls</code>,
+<code>echo</code> o <code>cat</code> attraversa il normale percorso di esecuzione del kernel e può quindi essere osservata
+dagli hook selezionati.
+</p>
+<p>
+Il flusso da ricordare non è "Kubernetes genera un evento eBPF", ma piuttosto: Kubernetes avvia un processo in un pod;
+quel processo esegue una system call sul kernel Rocky; gli hook eBPF osservano il kernel; il record viene trasferito
+attraverso il perf buffer al runtime Vesuvius.
+</p>
+<pre><code>demo-workload Pod
+        ↓
+execve()
+        ↓
+Rocky Linux kernel
+        ↓
+eBPF hook
+        ↓
+perf buffer
+        ↓
+Vesuvius DaemonSet
+        ↓
+decoder
+        ↓
+policy / detector / output</code></pre>
+</div></div>
+
+<div class="step"><div class="stephead">Step 22 — Generare un test controllato riconoscibile nei log</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>kubectl exec -n vesuvius-demo demo-workload -- \
+  /bin/echo THESIS_MINIKUBE_TEST</code></pre>
+<p>
+Dopo la prova interattiva viene eseguito un comando singolo con un marker testuale unico. Questo rende il risultato
+facilmente distinguibile dagli eventi generati continuamente da Kubernetes, Docker e dai servizi della Rocky VM.
+</p>
+<pre><code>kubectl logs -n vesuvius-demo daemonset/vesuvius | \
+  grep -A2 -B2 THESIS_MINIKUBE_TEST</code></pre>
+<p>
+<code>grep</code> cerca il marker nel flusso dei log; <code>-B2</code> e <code>-A2</code> includono rispettivamente due
+righe precedenti e successive. Nel laboratorio il comando ha permesso di isolare la sequenza relativa al workload:
+<code>execve</code>, <code>security_bprm_check</code> e <code>sched_process_exec</code>.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 23 — Verificare namespace PID e cgroup del workload</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>kubectl exec -n vesuvius-demo demo-workload -- sh -c '
+echo "PID=$$"
+grep -E "^(Pid|PPid|NSpid):" /proc/self/status
+echo "--- cgroup ---"
+cat /proc/self/cgroup
+'</code></pre>
+<p>
+Questa fase serve a collegare l'osservazione eBPF al modello di isolamento dei container. <code>$$</code> mostra il PID
+della shell, mentre <code>/proc/self/status</code> espone PID, parent PID e informazioni relative al PID namespace.
+</p>
+<p>
+<code>/proc/self/cgroup</code> mostra i cgroup a cui appartiene il processo. Nel laboratorio i percorsi contenevano
+<code>kubepods</code>, il pod UID e l'identificatore del container. Gli eventi Vesuvius del test controllato mostravano
+inoltre un PID locale al workload insieme a un host PID differente, rendendo visibile la relazione tra isolamento
+container e osservazione node-level.
+</p>
+</div></div>
+
+<div class="step"><div class="stephead">Step 24 — Documentare la revisione esatta del progetto</div><div class="stepbody">
+<div class="where">ROCKY VM</div>
+<pre><code>git rev-parse HEAD
+git branch --show-current
+git status --short</code></pre>
+<p>
+Il laboratorio deve poter essere associato a una versione precisa del codice. <code>git rev-parse HEAD</code> restituisce
+il commit corrente, <code>git branch --show-current</code> il branch e <code>git status --short</code> eventuali modifiche
+non committate o file non tracciati.
+</p>
+<p>
+Per il test documentato la revisione era <code>497da90f564c97fb9ffc38b264398150467173f5</code> sul branch
+<code>main</code>; la directory dei manifest Kubernetes risultava ancora non tracciata.
+</p>
+</div></div>
+</section>
+
+<section id="issues">
+<h2>5. Problemi incontrati durante il laboratorio</h2>
+
+<div class="box warn">
+<strong>ErrImageNeverPull.</strong> Il primo DaemonSet puntava a un nome immagine non corrispondente all'immagine realmente
+costruita. Poiché <code>imagePullPolicy</code> era impostato a <code>Never</code>, Kubernetes non poteva tentare un pull
+da un registry e il pod rimaneva in errore. Il nome corretto era <code>demo-project-ebpf:latest</code>; dopo aver corretto
+il manifest, l'immagine è stata caricata nel nodo con <code>minikube image load demo-project-ebpf:latest</code>.
+</div>
+
+<div class="box warn">
+<strong>Attach fallito a sys_enter_execve.</strong> Dopo aver risolto il problema dell'immagine, Vesuvius riusciva ad
+avviarsi ma libbpf non trovava l'ID del tracepoint <code>sys_enter_execve</code>. Il tracepoint esisteva nel kernel,
+ma tracefs non era esposto nel mount namespace del pod. Il DaemonSet è stato quindi esteso con un volume
+<code>hostPath</code> per <code>/sys/kernel/tracing</code>. Dopo il fix, il pod poteva leggere correttamente l'ID
+<code>712</code> e completare l'attach.
+</div>
+</section>
+
+<section id="manifests">
+<h2>6. Manifest finali utilizzati</h2>
+<h3>Namespace</h3>
+<pre><code>apiVersion: v1
+kind: Namespace
+metadata:
+  name: vesuvius-demo</code></pre>
+<h3>Vesuvius DaemonSet</h3>
+<pre><code>apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: vesuvius
+  namespace: vesuvius-demo
+
+spec:
+  selector:
+    matchLabels:
+      app: vesuvius
+
+  template:
+    metadata:
+      labels:
+        app: vesuvius
+
+    spec:
+      hostPID: true
+
+      containers:
+        - name: vesuvius
+          image: demo-project-ebpf:latest
+          imagePullPolicy: Never
+
+          args:
+            - &quot;--events&quot;
+            - &quot;execve,security_bprm_check,sched_process_exec&quot;
+            - &quot;--output&quot;
+            - &quot;json&quot;
+
+          securityContext:
+            privileged: true
+
+          volumeMounts:
+              - name: btf
+                mountPath: /sys/kernel/btf
+                readOnly: true
+
+              - name: bpffs
+                mountPath: /sys/fs/bpf
+
+              - name: tracefs
+                mountPath: /sys/kernel/tracing
+
+      volumes:
+        - name: btf
+          hostPath:
+            path: /sys/kernel/btf
+            type: Directory
+
+        - name: bpffs
+          hostPath:
+            path: /sys/fs/bpf
+            type: Directory
+
+        - name: tracefs
+          hostPath:
+            path: /sys/kernel/tracing
+            type: Directory</code></pre>
+<h3>Demo workload</h3>
+<pre><code>apiVersion: v1
+kind: Pod
+metadata:
+  name: demo-workload
+  namespace: vesuvius-demo
+
+spec:
+  containers:
+    - name: workload
+      image: ubuntu:24.04
+      command:
+        - /bin/bash
+        - -c
+        - sleep infinity</code></pre>
+</section>
+
+<section id="result">
+<h2>7. Risultato del laboratorio</h2>
+<p>
+Il laboratorio ha verificato che Vesuvius può essere eseguito come componente node-local in un cluster Minikube
+mantenendo il kernel Rocky Linux sottostante. Il monitor containerizzato ha caricato e collegato i programmi eBPF,
+ha ricevuto record attraverso il trasporto perf-event e ha osservato attività proveniente da un pod Kubernetes separato.
+</p>
+<p>
+La prova controllata con <code>/bin/echo THESIS_MINIKUBE_TEST</code> ha permesso di associare esplicitamente un'azione
+nel workload agli eventi <code>execve</code>, <code>security_bprm_check</code> e <code>sched_process_exec</code>.
+La presenza contemporanea di PID namespace-local e host PID, insieme ai percorsi cgroup Kubernetes, ha inoltre fornito
+evidenza del fatto che l'attività osservata provenisse realmente da un contesto containerizzato.
+</p>
+<div class="box good">
+<strong>Risultato chiave:</strong> Rocky VM, nodo Minikube e pod Vesuvius hanno operato sullo stesso kernel
+<code>4.18.0-553.137.1.el8_10.x86_64</code>. Kubernetes ha quindi introdotto il livello di deployment senza sostituire
+il kernel sul quale opera l'instrumentation eBPF.
+</div>
+</section>
+
+<footer>
+Guida basata sulla sequenza effettivamente seguita durante il laboratorio Minikube/Vesuvius.
+</footer>
+</main>
+</body>
+</html>

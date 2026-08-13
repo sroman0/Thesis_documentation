@@ -1,5 +1,11 @@
 # Workflow agenti - Capitolo 3
 
+> **Nota sulla numerazione corrente:** questo workflow precede la separazione
+> dell'implementazione in Capitolo 4 kernel-space e Capitolo 5 user-space.
+> I riferimenti storici alla valutazione nel Capitolo 5 indicano ora il
+> Capitolo 6; i dettagli implementativi vanno assegnati a 4 o 5 secondo il
+> confine corrente. L'indice canonico resta `definitive-outline.md`.
+
 ## Strategia
 
 Il lavoro segue tre ondate:
@@ -55,7 +61,7 @@ Produce:
 7. safe academic wording for Sections 3.1 and 3.7.
 
 Preserve these boundaries:
-- target Rocky Linux 8.10 and kernel 4.18.0-553.109.1.el8_10.x86_64;
+- target Rocky Linux 8.10 and kernel 4.18.0-553.137.1.el8_10.x86_64;
 - deterministic rule-based detection, not machine learning;
 - observation and detection, not enforcement;
 - local point and collective detection, not cluster-wide contextual analysis;
@@ -315,7 +321,7 @@ user-space processing.
 
 Mandatory technical boundaries:
 - the target is Rocky Linux 8.10 with kernel
-  4.18.0-553.109.1.el8_10.x86_64;
+  4.18.0-553.137.1.el8_10.x86_64;
 - vendor backports require capabilities to be verified on the actual target;
 - kernel space performs observation, bounded extraction, optional early UID
   filtering, event construction and serialisation;
@@ -353,8 +359,9 @@ Editorial requirements:
 - never use the internal project name;
 - do not modify the abstract;
 - do not rewrite Chapters 1 or 2;
-- avoid repeating the eBPF background, anomaly taxonomy, ATT&CK introduction,
-  and related-work comparison already covered by Chapter 2;
+- avoid repeating the eBPF background and related-work comparison covered by
+  Chapter 2; define point and collective detector semantics and the role of
+  ATT&CK here because they belong to the system design;
 - distinguish requirements from implementation evidence and evaluation
   results;
 - explain what and why in Chapter 3; reserve function names, Go packages,

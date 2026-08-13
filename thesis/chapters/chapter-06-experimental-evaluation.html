@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 6 Evidence and Editorial Brief</title>
+  <style>
+    :root{--ink:#18202a;--muted:#5b6572;--line:#cbd2d9;--panel:#f5f7f9;--accent:#0f5e75;--soft:#e8f3f6;--warn:#8a4b08;--warn-soft:#fff4df;--ok:#23633d;--ok-soft:#eaf6ee}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);font:16px/1.58 system-ui,sans-serif;background:#fff}
+    main{max-width:1050px;margin:auto;padding:2.5rem 1.5rem 5rem}h1,h2,h3{line-height:1.2;letter-spacing:0}h2{margin-top:2.5rem;border-bottom:2px solid var(--line);padding-bottom:.35rem}
+    p,li{max-width:86ch}code{background:#edf0f3;padding:.08rem .28rem;overflow-wrap:anywhere}table{width:100%;border-collapse:collapse;margin:1rem 0}th,td{border:1px solid var(--line);padding:.65rem;text-align:left;vertical-align:top}th{background:var(--panel)}
+    .box{border-left:5px solid var(--accent);background:var(--soft);padding:.85rem 1rem;margin:1rem 0}.warn{border-left-color:var(--warn);background:var(--warn-soft)}.ok{border-left-color:var(--ok);background:var(--ok-soft)}
+  </style>
+</head>
+<body><main>
+  <h1>Chapter 6 Evidence and Editorial Brief</h1>
+  <p>
+    This is the shared evidence brief for <strong>Experimental Evaluation</strong>.
+    It defines what is currently supported, what remains provisional, and how
+    the chapter must differ from the design and implementation chapters.
+  </p>
+
+  <h2>Chapter Purpose</h2>
+  <p>
+    Chapter 6 evaluates the prototype through a controlled Minikube experiment.
+    A vulnerable AES-beta CTF service, an attack trigger and the privileged eBPF
+    monitor run as three containers in one Pod. The chapter must connect the
+    controlled input to kernel evidence, detector output and measured resource
+    consumption. It is an evaluation narrative, not a deployment tutorial or a
+    repetition of detector implementation.
+  </p>
+
+  <h2>Provisional Structure</h2>
+  <ol>
+    <li>Evaluation Objectives and Experimental Protocol</li>
+    <li>Minikube Environment and Three-Container Testbed</li>
+    <li>AES-beta Workload and Controlled Attack Scenario</li>
+    <li>Functional Evaluation: visibility, collective detection and benign control</li>
+    <li>Performance Evaluation: methodology, measurements and UID-filter comparison</li>
+    <li>Discussion of Results</li>
+    <li>Threats to Validity and Current Limitations</li>
+    <li>Evaluation Summary</li>
+  </ol>
+
+  <h2>Authoritative Evidence Set</h2>
+  <table>
+    <thead><tr><th>Evidence</th><th>Primary source</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Experiment rationale, architecture, theory, commands and current results</td><td><code>documentation/evaluation/minikube-ctf-final-report.html</code></td><td>Current narrative baseline</td></tr>
+      <tr><td>Challenge provenance and faithful adaptation</td><td><code>aes-beta-adaptation-specification.html</code> and image sources</td><td>Verified</td></tr>
+      <tr><td>Actual Pod, security contexts, mounts and monitor arguments</td><td><code>demo_project/k8s/minikube-ctf/manifests/</code></td><td>Implemented</td></tr>
+      <tr><td>Cross-container visibility with <code>hostPID: false</code></td><td><code>minikube-ctf-ebpf-workload-visibility.html</code> and Step 6 JSONL</td><td>Verified</td></tr>
+      <tr><td>Collective detector semantics and alert structure</td><td>detector YAML, test and <code>minikube-ctf-detector-validation.html</code></td><td>Verified</td></tr>
+      <tr><td>Three benign and four exploit runs</td><td><code>step8-repeated-runs-20260812/</code> and repeated-evaluation report</td><td>Functional result</td></tr>
+      <tr><td>Initial filtered, unfiltered and no-monitor samples</td><td><code>step9-performance-calibration/</code></td><td>Calibration</td></tr>
+      <tr><td>Replicated performance comparison</td><td><code>step10-replicated-performance-20260812T072832Z/</code> and replicated-evaluation report</td><td>Five runs per profile; ready for audit</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Current Supported Results</h2>
+  <ul>
+    <li>All three benign runs completed without an AES-beta alert.</li>
+    <li>All four observed malicious sequences produced one structurally valid collective alert and no diagnosed perf loss.</li>
+    <li>Three exploit clients received the synthetic flag; one client did not, although the monitored shell, <code>cat</code> and successful file open still occurred.</li>
+    <li>The Pod remained <code>3/3 Running</code> without restarts.</li>
+    <li>The replicated filtered profile measured 0.39% mean user-space monitor CPU with 0.02 sample standard deviation; all five run means were below 5%.</li>
+    <li>The replicated unfiltered profile measured 4.87% mean monitor CPU and a mean per-run P95 of 7.72%.</li>
+    <li>Filtering reduced mean monitor-container CPU by 91.99%; all ten monitored runs produced one alert and no loss diagnostic.</li>
+  </ul>
+
+  <div class="box warn">
+    <strong>Performance claim boundary.</strong> The user-space monitor CPU gate
+    is achieved for the filtered profile. Do not restate this as total system
+    overhead: eBPF work in observed task context is not fully attributed to the
+    monitor cgroup, and node CPU remained close to saturation in all profiles.
+  </div>
+
+  <h2>Editorial Boundaries</h2>
+  <table>
+    <thead><tr><th>Material</th><th>Owner</th><th>Chapter 6 treatment</th></tr></thead>
+    <tbody>
+      <tr><td>eBPF execution theory and hook semantics</td><td>Chapters 2 and 4</td><td>Only the minimum needed to interpret the measured evidence</td></tr>
+      <tr><td>Architecture and detector design</td><td>Chapter 3</td><td>State the evaluated configuration, do not redesign it</td></tr>
+      <tr><td>Runtime, YAML and correlation implementation</td><td>Chapter 5</td><td>Refer to mechanisms; focus on observed behaviour</td></tr>
+      <tr><td>Full commands and manifests</td><td>Appendix or evaluation documentation</td><td>Give a concise reproducibility protocol, not a manual</td></tr>
+      <tr><td>Networking and <code>security_socket_sendmsg</code></td><td>Outside current evaluation</td><td>Exclude</td></tr>
+      <tr><td>ATT&amp;CK</td><td>Alert interpretation</td><td>Explain the two mappings; do not claim coverage</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Terminology and Claims</h2>
+  <ul>
+    <li>Use British English and never use the internal tool name.</li>
+    <li>Prefer <em>point detector</em> and <em>collective detector</em> in evaluation prose; the experiment directly evaluates one collective detector.</li>
+    <li>Say <em>cross-container visibility on one shared node kernel</em>, not cluster-wide monitoring.</li>
+    <li>Distinguish exploit success at the client from detection of host behaviour.</li>
+    <li>Distinguish a diagnosed absence of perf loss from proof that no record was ever lost.</li>
+    <li>Describe the monitor as observational, not enforcing or production-ready.</li>
+  </ul>
+
+  <h2>Preferred Visuals</h2>
+  <ul>
+    <li>One three-container Pod diagram that answers where the attack and monitoring components run.</li>
+    <li>One attack-to-evidence sequence that answers which four observations complete the detector.</li>
+    <li>One functional-results table for benign and exploit repetitions.</li>
+    <li>At most two performance plots after replicated data exist: CPU by profile and memory or workload duration by profile.</li>
+  </ul>
+
+  <div class="box ok">
+    <strong>Writing principle.</strong> Every result paragraph should identify
+    the input, the measured or observed output, the comparison being made and
+    the limitation of that comparison. Raw logs support the prose; they should
+    not dominate it.
+  </div>
+</main></body>
+</html>

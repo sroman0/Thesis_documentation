@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Step 9 - Calibrazione delle prestazioni AES-beta</title>
+<style>
+body{max-width:1080px;margin:36px auto;padding:0 24px 60px;color:#172033;font-family:system-ui,sans-serif;line-height:1.58}
+h1,h2{line-height:1.22}h2{margin-top:38px;border-bottom:1px solid #d8dee8;padding-bottom:7px}
+code{font-family:Consolas,monospace}table{width:100%;border-collapse:collapse}th,td{padding:9px 11px;border:1px solid #d8dee8;text-align:left;vertical-align:top}
+.ok,.warn,.note{padding:13px 16px;margin:16px 0}.ok{border-left:4px solid #16803c;background:#f0faf3}.warn{border-left:4px solid #b45309;background:#fff8eb}.note{border-left:4px solid #2457a6;background:#f3f7fc}
+</style>
+</head>
+<body>
+<h1>Step 9 - Calibrazione delle prestazioni AES-beta</h1>
+
+<p>La calibrazione e stata eseguita il 12 agosto 2026 sul commit base
+<code>497da90f564c97fb9ffc38b264398150467173f5</code>. Ogni profilo ha usato un
+Pod appena creato. Questi sono singoli run esplorativi, utili per verificare la
+strumentazione e stimare la dimensione dell'effetto, non risultati statistici
+finali.</p>
+
+<h2>CPU e memoria</h2>
+<table>
+<tr><th>Profilo</th><th>Container</th><th>CPU media</th><th>P95</th><th>Picco</th><th>Memoria cgroup</th><th>RSS</th></tr>
+<tr><td>Filtered idle</td><td>project-monitor</td><td>0,03%</td><td>0,05%</td><td>0,11%</td><td>81,44 MiB</td><td>26,30 MiB</td></tr>
+<tr><td>Filtered exploit</td><td>project-monitor</td><td>0,44%</td><td>0,87%</td><td>0,99%</td><td>105,50 MiB</td><td>39,34 MiB</td></tr>
+<tr><td>Unfiltered exploit</td><td>project-monitor</td><td>5,20%</td><td>7,61%</td><td>10,24%</td><td>99,19 MiB</td><td>41,83 MiB</td></tr>
+<tr><td>No-monitor exploit</td><td>ctf-target</td><td>32,11%</td><td>68,65%</td><td>72,73%</td><td>13,72 MiB</td><td>4,57 MiB</td></tr>
+</table>
+
+<div class="ok"><strong>Risultato primario:</strong> il profilo filtrato usa in
+media lo 0,44% di un core durante l'exploit e rimane sotto il gate del 5%.</div>
+
+<p>La rimozione del filtro UID porta la media al 5,20%. Nel confronto diretto,
+il filtro riduce di circa il 91,5% la CPU user-space osservata del monitor. Non
+sono state diagnosticate perdite del perf buffer e i due profili di monitoraggio
+hanno prodotto l'alert atteso.</p>
+
+<h2>Durata end-to-end</h2>
+<table>
+<tr><th>Profilo</th><th>Durata exploit</th><th>Esito client</th></tr>
+<tr><td>Filtered</td><td>54.383 ms</td><td>Flag non restituito; alert prodotto.</td></tr>
+<tr><td>Unfiltered</td><td>63.412 ms</td><td>Pass.</td></tr>
+<tr><td>No monitor</td><td>58.840 ms</td><td>Pass.</td></tr>
+</table>
+
+<div class="warn"><strong>Nessuna conclusione sull'overhead temporale:</strong>
+un singolo run per profilo non separa l'effetto del monitor dalla variabilita
+della challenge. Il profilo filtrato risulta persino piu rapido della baseline,
+segnale che questi valori devono essere replicati e aggregati.</div>
+
+<h2>Limiti e prossimo passo</h2>
+<p>La calibrazione misura direttamente la CPU user-space del container. Non
+attribuisce in modo completo il costo degli hook eBPF eseguiti nel contesto dei
+task osservati. Il passaggio successivo è stato completato con cinque repliche
+per profilo, ordine alternato e misure sincronizzate di monitor, target e nodo.</p>
+
+<h2>Evidenze</h2>
+<p>I campioni TSV, gli output della challenge e i log sono conservati in
+<code>demo_project/k8s/minikube-ctf/evidence/step9-performance-calibration/</code>.</p>
+
+<p><a href="minikube-ctf-performance-methodology.html">Metodologia completa</a>
+e <a href="minikube-ctf-replicated-performance-evaluation.html">valutazione prestazionale replicata</a>.</p>
+</body>
+</html>

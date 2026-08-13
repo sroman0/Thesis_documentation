@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Step 9 - Metodologia di valutazione delle prestazioni</title>
+<style>
+body{max-width:1080px;margin:36px auto;padding:0 24px 60px;color:#172033;font-family:system-ui,sans-serif;line-height:1.58}
+h1,h2{line-height:1.22}h2{margin-top:38px;border-bottom:1px solid #d8dee8;padding-bottom:7px}
+code{font-family:Consolas,monospace}table{width:100%;border-collapse:collapse}th,td{padding:9px 11px;border:1px solid #d8dee8;text-align:left;vertical-align:top}
+.note,.warn{padding:13px 16px;margin:16px 0}.note{border-left:4px solid #2457a6;background:#f3f7fc}.warn{border-left:4px solid #b45309;background:#fff8eb}
+</style>
+</head>
+<body>
+<h1>Step 9 - Metodologia di valutazione delle prestazioni</h1>
+
+<p>La valutazione usa la CPU del monitor come metrica primaria e mantiene
+separate le prestazioni della challenge. L'obiettivo iniziale e una CPU media
+user-space non superiore al 5% di un singolo core durante una finestra di
+workload, dopo un warm-up di dieci secondi.</p>
+
+<h2>Misura CPU</h2>
+<p>Minikube non espone Metrics Server in questo laboratorio. Il sampler legge
+quindi <code>cpuacct.usage</code> dal cgroup v1 del container sul nodo. La
+differenza tra due contatori, divisa per il tempo reale trascorso, produce la
+percentuale di un core. Il sampler gira nel cgroup del nodo e non nel container
+misurato, evitando di includere il proprio costo.</p>
+
+<div class="warn"><strong>Confine della metrica:</strong> la CPU del cgroup
+<code>project-monitor</code> misura il runtime user-space. Il lavoro eBPF svolto
+nel contesto dei task osservati non e necessariamente attribuito allo stesso
+cgroup. Il limite del 5% non deve quindi essere presentato come overhead totale
+del sistema senza un confronto aggiuntivo a livello di nodo e workload.</div>
+
+<h2>Metriche</h2>
+<table>
+<tr><th>Metrica</th><th>Uso</th><th>Interpretazione</th></tr>
+<tr><td>CPU media</td><td>Gate primario, soglia 5%</td><td>Media dei campioni nel solo intervallo del workload.</td></tr>
+<tr><td>CPU P95 e picco</td><td>Diagnostica della variabilita</td><td>Non sostituiscono il gate medio.</td></tr>
+<tr><td>Memoria cgroup e RSS</td><td>Impronta del container e pagine residenti</td><td>Si riporta il massimo osservato.</td></tr>
+<tr><td>Numero di processi</td><td>Stabilita del runtime</td><td>Picco nel cgroup misurato.</td></tr>
+<tr><td>Durata della challenge</td><td>Effetto end-to-end</td><td>Richiede run ripetuti per separare overhead e variabilita.</td></tr>
+<tr><td>Alert e perdite</td><td>Controllo funzionale</td><td>L'ottimizzazione non deve eliminare la detection.</td></tr>
+</table>
+
+<h2>Profili</h2>
+<ul>
+<li><strong>Filtered idle:</strong> monitor completo, filtro UID 10001, nessun workload.</li>
+<li><strong>Filtered exploit:</strong> configurazione operativa e exploit AES-beta.</li>
+<li><strong>Unfiltered exploit:</strong> stesso monitor senza ammissione UID nel kernel.</li>
+<li><strong>No-monitor exploit:</strong> soli target e trigger, usato per la durata baseline.</li>
+</ul>
+
+<p>Ogni profilo ricrea il Pod e quindi il cgroup. La valutazione finale ha
+eseguito cinque run per profilo, con ordine ruotato, stesso nodo e assenza di
+altri workload intenzionali. Il sampler esteso registra nello stesso istante
+container primario, target e CPU complessiva del nodo. Media, deviazione,
+mediana, intervallo e distribuzione delle durate vengono calcolati sulle cinque
+repliche.</p>
+
+<h2>Artefatti</h2>
+<p><code>sample-container-performance.sh</code> raccoglie i contatori cgroup;
+<code>run-performance-case.sh</code> delimita la finestra del workload;
+<code>deploy-performance-profile.sh</code> produce i tre Pod senza mantenere
+manifest duplicati; <code>run-replicated-performance.sh</code> ruota i profili;
+<code>summarize-replicated-performance.sh</code> rigenera le statistiche dai
+dati grezzi.</p>
+
+<p><a href="minikube-ctf-replicated-performance-evaluation.html">Risultati della valutazione replicata</a>.</p>
+</body>
+</html>

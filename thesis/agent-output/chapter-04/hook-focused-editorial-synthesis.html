@@ -248,7 +248,7 @@
   <table>
     <thead><tr><th>Claim or limit</th><th>Mandatory qualification</th></tr></thead>
     <tbody>
-      <tr><td>Target compatibility</td><td>Claim the audited Rocky Linux 8.10 kernel <code>4.18.0-553.109.1.el8_10.x86_64</code>, not arbitrary Linux portability. Vendor backports require validation on the actual host.</td></tr>
+      <tr><td>Target compatibility</td><td>Claim the audited Rocky Linux 8.10 kernel <code>4.18.0-553.137.1.el8_10.x86_64</code>, not arbitrary Linux portability. Vendor backports require validation on the actual host.</td></tr>
       <tr><td>BTF and CO-RE</td><td>They adapt compatible data-layout differences; they do not provide absent hooks, helpers, symbols, program types, attachment paths, permissions or verifier acceptance.</td></tr>
       <tr><td>Security hooks</td><td>The implementation attaches kprobes to <code>security_*</code> functions. These are observation points, not BPF-LSM programs, and entry-only records do not contain the eventual return decision.</td></tr>
       <tr><td>Semantic stages</td><td>Attempt, mediation, committed state, successful transition and syscall return are distinct. A result field must be interpreted according to its syscall, especially <code>setfsuid</code>/<code>setfsgid</code>.</td></tr>

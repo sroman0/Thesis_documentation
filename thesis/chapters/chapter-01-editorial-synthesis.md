@@ -125,7 +125,7 @@ Una formulazione utilizzabile e':
 > with an eBPF monitoring agent adapted to the constraints of Rocky Linux 8's
 > 4.18-based enterprise kernel.
 
-La frase deve restare prudente finche' Capitolo 2 e Capitolo 5 non forniscono
+La frase deve restare prudente finche' Capitolo 2 e Capitolo 6 non forniscono
 confronto e risultati sufficienti.
 
 ### Elementi che non sono novelty autonome
@@ -190,7 +190,7 @@ Non affermare che:
 - MITRE guida gia' automaticamente il runtime;
 - l'integrazione MITRE e' una novelty autonoma.
 
-La coverage analysis appartiene al Capitolo 5.
+La coverage analysis appartiene al Capitolo 6.
 
 ## Performance
 
@@ -201,7 +201,7 @@ Il Capitolo 1 puo' dichiarare:
 
 Non puo' dichiarare che l'obiettivo e' gia' raggiunto. Le misure esistenti sono
 dipendenti da workload, eventi, detector, warm-up e filtro UID. I risultati
-numerici restano nel Capitolo 5.
+numerici restano nel Capitolo 6.
 
 ## Claims policy
 
@@ -259,7 +259,7 @@ numerici restano nel Capitolo 5.
 1. Confermare con relatore e azienda se nominare esplicitamente l'azienda nel
    corpo della tesi.
 2. Formalizzare l'attribuzione della componente networking.
-3. Definire il profilo benchmark rappresentativo prima del Capitolo 5.
+3. Definire il profilo benchmark rappresentativo prima del Capitolo 6.
 4. Fissare versioni o commit di Tracee, Falco e Tetragon nel Capitolo 2.
 5. Confermare limiti di pagine e requisiti formali.
 
@@ -271,7 +271,7 @@ scrittore usi le formulazioni conservative indicate qui.
 - Riscrivere il capitolo attorno al problema, non correggere soltanto frasi
   isolate del draft corrente.
 - Presentare l'obiettivo generale in forma narrativa e chiudere con una lista
-  dei Capitoli 2-6 e del loro focus.
+  dei Capitoli 2-7 e del loro focus.
 - Mantenere la spiegazione tecnica di eBPF ad alto livello.
 - Non anticipare dettagli dei Capitoli 3-5.
 - Non modificare l'abstract.
