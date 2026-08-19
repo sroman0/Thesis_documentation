@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agent 3: Performance Evidence</title>
+<style>body{max-width:1000px;margin:2rem auto;padding:0 1.25rem;font:16px/1.55 system-ui,sans-serif;color:#18202a}h1{line-height:1.2}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f2f4f6;border:1px solid #cbd2d9;padding:1rem;font:13px/1.45 ui-monospace,Consolas,monospace}.note{border-left:5px solid #0f5e75;background:#e8f3f6;padding:.8rem 1rem}code{background:#edf0f3;padding:.08rem .28rem}</style></head>
+<body><h1>Agent 3: Performance Evidence</h1><p class="note"><strong>Output:</strong> <code>performance-evidence-audit.html</code>. Copy the complete prompt below into one agent.</p><pre>You are the performance-evidence and measurement-boundary auditor for Chapter 6 of an MSc thesis about an eBPF runtime security monitor.
+
+Read completely:
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-06-cross-pod-agent-workflow.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-cross-pod-performance-plan.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-cross-pod-performance-evaluation.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-cross-pod-final-report.html
+- /home/simone/project/Thesis/content/chapters/chapter6.tex
+
+Inspect completely:
+- /home/simone/project/demo_project/k8s/minikube-ctf-cross-pod/scripts
+- /home/simone/project/demo_project/k8s/minikube-ctf-cross-pod/evidence/performance-calibration-20260819T065500Z
+- /home/simone/project/demo_project/k8s/minikube-ctf-cross-pod/evidence/performance-calibration-20260819T070018Z
+- /home/simone/project/demo_project/k8s/minikube-ctf-cross-pod/evidence/cross-pod-performance-20260819T070557Z
+
+Record commit and dirty state. Recompute every official statistic from raw samples, runs.tsv and aggregate.tsv. Preserve the rejected calibration history.
+
+Audit cgroup-v1 measurement, CPU denominators, workload windows, all filtered and unfiltered runs, mean/sample SD/range/mean-run-P95, memory and RSS, the 5% gate, the 91.97% reduction, alert and health checks, node saturation and the no-monitor deletion-timing limitation.
+
+No-monitor controls may not support duration or overhead claims. Produce regenerated tables, formula notes, claim ledger, accepted/rejected conclusions, visual proposal, paragraph plan and unresolved questions. Do not modify another file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-06/performance-evidence-audit.html</pre></body></html>

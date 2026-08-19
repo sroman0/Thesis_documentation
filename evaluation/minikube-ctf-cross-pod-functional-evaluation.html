@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cross-Pod Minikube Functional Evaluation</title>
+  <style>
+    :root{--ink:#172033;--muted:#5d6878;--line:#cfd7e2;--panel:#f6f8fb;--green:#176b43;--amber:#8a5a00}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);font:16px/1.58 system-ui,sans-serif}main{max-width:1080px;margin:auto;padding:42px 28px 72px}
+    h1,h2{line-height:1.22}h1{margin-top:0}h2{margin-top:38px;border-bottom:1px solid var(--line);padding-bottom:7px}p,li{max-width:96ch}
+    code,pre{font-family:Consolas,monospace}code{background:#eef1f5;padding:.08rem .25rem}pre{overflow:auto;padding:13px;background:#111827;color:#edf2f8}
+    table{width:100%;border-collapse:collapse;margin:18px 0 28px}th,td{padding:10px 11px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:#eef2f7}
+    .box{padding:14px 17px;margin:17px 0;border-left:4px solid var(--green);background:#f0f8f4}.warn{border-left-color:var(--amber);background:#fff9ed}.status{display:inline-block;padding:4px 8px;border:1px solid var(--line);background:var(--panel);font-weight:700;color:var(--amber)}
+    @media(max-width:760px){main{padding:28px 18px 52px}table{font-size:14px}}
+  </style>
+</head>
+<body><main>
+  <h1>Cross-Pod Minikube Functional Evaluation</h1>
+  <p><span class="status">FUNCTIONAL EVALUATION COMPLETE AND AUDITED</span></p>
+
+  <h2>Evaluation Boundary</h2>
+  <p>This document records the functional runs executed after validating the three-Pod topology. Application success, detector output, transport-loss diagnostics and Pod stability are treated as separate observations. The monitor ran in canonical <code>alerts-only</code> mode with the exact kernel UID filter set to target UID 10001.</p>
+
+  <h2>Benign Method</h2>
+  <p>The independent trigger Pod contacted the AES-beta target through its ClusterIP Service and executed the normal encryption client. The client supplied an eight-byte key, submitted the plaintext <code>SECURITY</code>, retrieved the encrypted message and compared it with the locally calculated XOR result. Three runs were executed without automatic retry.</p>
+  <pre>EVIDENCE_DIR=... KUBECTL='kubectl --context cross-pod' \
+RUN_ID=benign-cross-pod-0N RUN_DIR_NAME=benign-run-0N \
+./scripts/run-cross-pod-scenario.sh benign</pre>
+
+  <h2>Observed Benign Results</h2>
+  <table>
+    <thead><tr><th>Run</th><th>Start UTC</th><th>Duration</th><th>Application result</th><th>Flag</th><th>Worker</th><th>Alert count</th><th>Expected attack evidence</th><th>Lost events</th><th>Restarts</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>01</td><td>05:59:09</td><td>138,181 ms</td><td>Expected ciphertext returned</td><td>Not requested</td><td>33</td><td>0</td><td>Absent</td><td>No diagnostic</td><td>0</td><td>PASS</td></tr>
+      <tr><td>02</td><td>06:01:47</td><td>13 ms</td><td>Expected ciphertext returned</td><td>Not requested</td><td>35</td><td>0</td><td>Absent</td><td>No diagnostic</td><td>0</td><td>PASS</td></tr>
+      <tr><td>03</td><td>06:01:59</td><td>14 ms</td><td>Expected ciphertext returned</td><td>Not requested</td><td>37</td><td>0</td><td>Absent</td><td>No diagnostic</td><td>0</td><td>PASS</td></tr>
+    </tbody>
+  </table>
+  <div class="box"><strong>Aggregate result.</strong> Benign workloads succeeded in 3/3 runs. The monitor emitted 0 <code>aes-beta-command-execution</code> alerts. No loss diagnostic or Pod restart was observed in the corresponding evidence.</div>
+
+  <h2>Preserved Anomaly</h2>
+  <div class="box warn">The first run waited for the non-protocol TCP connection used in Phase 5 to reach the target's approximately 900-second timeout. The target accepts one challenge session at a time, so this delayed the queued benign client. Once accepted, that benign target session completed in 6 ms and returned the expected result. The 138,181 ms client duration is therefore retained but is not interpreted as normal workload performance.</div>
+
+  <h2>Evidence</h2>
+  <p>Raw inputs are preserved under <code>demo_project/k8s/minikube-ctf-cross-pod/evidence/cross-pod-20260817T052019Z/</code>. Each <code>benign-run-0N</code> directory contains client output, target and monitor intervals, Pod state before and after the run, and run metadata. <code>summary.tsv</code> contains the aggregate machine-readable result, while <code>commands.log</code> records command provenance and the failed local audit wrapper.</p>
+
+  <h2>Exploit Method</h2>
+  <p>The exploit client recovered the stack canary by evaluating 1,792 candidates and then created one final worker that executed <code>cat flag</code>, for 1,793 workers per run. The application result was determined from flag recovery; detector success was established independently from the alert record.</p>
+
+  <h2>Observed Exploit Results</h2>
+  <table>
+    <thead><tr><th>Run</th><th>Start UTC</th><th>Duration</th><th>Workers</th><th>Application</th><th>Flag</th><th>Client result</th><th>Alerts</th><th>Expected evidence</th><th>Lost events</th><th>Restarts</th></tr></thead>
+    <tbody>
+      <tr><td>01</td><td>06:07:07</td><td>46,766 ms</td><td>1,793</td><td>Success</td><td>Recovered</td><td>Fail: pattern mismatch</td><td>1</td><td>Complete</td><td>No diagnostic</td><td>0</td></tr>
+      <tr><td>02</td><td>06:09:00</td><td>45,877 ms</td><td>1,793</td><td>Success</td><td>Recovered</td><td>Fail: malformed first fix</td><td>1</td><td>Complete</td><td>No diagnostic</td><td>0</td></tr>
+      <tr><td>03</td><td>06:10:50</td><td>47,577 ms</td><td>1,793</td><td>Success</td><td>Recovered</td><td>Pass</td><td>1</td><td>Complete</td><td>No diagnostic</td><td>0</td></tr>
+    </tbody>
+  </table>
+  <div class="box"><strong>Aggregate result.</strong> The exploit recovered the flag in 3/3 runs. The monitor produced one AES-beta alert in every run, and every alert contained the complete ordered four-event sequence with UID 10001. No loss diagnostic or Pod restart was observed.</div>
+
+  <h2>Client-Validation Anomaly</h2>
+  <div class="box warn">The cross-Pod deployment generated an <code>openECSC{...}</code> flag, while the reused exploit client validated <code>THESIS{...}</code> by default. Runs 1 and 2 therefore returned status 1 despite flag recovery and detector success. The first configuration fix was itself malformed by Bash parameter expansion and is preserved. After moving the regex default into a literal assignment and testing it directly, run 3 returned status 0. No failed run was replaced.</div>
+
+  <h2>Detector Evidence</h2>
+  <p>Each alert contained, in order, shell execution, <code>cat</code> execution, resolved access to <code>/opt/aes-beta/flag</code> and a successful relative <code>open</code> of <code>flag</code>. All records carried UID 10001 and one shared host PID within the run. This supports detector completion for the target process tree; it does not establish cross-node or cluster-wide correlation.</p>
+
+  <h2>Final Audit Status</h2>
+  <p>The functional results were checked against the raw run directories, final cluster snapshot, effective manifests, cgroup records and command log. All planned benign, exploit, detector, loss-diagnostic and restart criteria are supported. Cross-node detection, least-privilege monitoring and production readiness remain <strong>NOT VERIFIED</strong>.</p>
+
+  <h2>Related Documents</h2>
+  <ul>
+    <li><a href="minikube-ctf-cross-pod-step-by-step.html">Complete chronological record</a></li>
+    <li><a href="minikube-ctf-cross-pod-final-report.html">Thesis-oriented final report</a></li>
+    <li><a href="minikube-ctf-cross-pod-performance-evaluation.html">Completed performance evaluation</a></li>
+  </ul>
+</main></body>
+</html>

@@ -1,411 +1,113 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Chapter 6 Experimental Environment, Protocol and Reproducibility Audit</title>
-  <style>
-    :root {
-      color-scheme: light;
-      --ink: #17212b;
-      --muted: #52606d;
-      --line: #ccd5dc;
-      --soft: #f4f7f9;
-      --good: #176b3a;
-      --warn: #8a5700;
-      --bad: #9f2d2d;
-      --accent: #075985;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: #fff;
-      color: var(--ink);
-      font: 16px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-    main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 36px 0 72px; }
-    h1, h2, h3 { line-height: 1.2; }
-    h1 { margin: 0 0 8px; font-size: 2rem; }
-    h2 { margin-top: 42px; padding-bottom: 8px; border-bottom: 2px solid var(--line); }
-    h3 { margin-top: 28px; }
-    p, li { max-width: 92ch; }
-    a { color: var(--accent); }
-    code { background: var(--soft); padding: .08rem .3rem; border-radius: 3px; }
-    .meta, .callout { border-left: 4px solid var(--accent); background: var(--soft); padding: 14px 18px; }
-    .callout.warn { border-color: var(--warn); }
-    .callout.bad { border-color: var(--bad); }
-    .status { font-weight: 700; white-space: nowrap; }
-    .verified { color: var(--good); }
-    .qualified { color: var(--warn); }
-    .missing { color: var(--bad); }
-    table { width: 100%; border-collapse: collapse; margin: 18px 0 28px; font-size: .94rem; }
-    th, td { border: 1px solid var(--line); padding: 9px 11px; text-align: left; vertical-align: top; }
-    th { background: #eaf0f4; }
-    tbody tr:nth-child(even) { background: #fafcfd; }
-    ol.timeline { counter-reset: phase; list-style: none; padding: 0; }
-    ol.timeline li { margin: 0 0 10px; padding: 12px 16px 12px 52px; border: 1px solid var(--line); position: relative; }
-    ol.timeline li::before {
-      counter-increment: phase; content: counter(phase); position: absolute; left: 14px; top: 12px;
-      width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: white;
-      text-align: center; line-height: 24px; font-weight: 700;
-    }
-    .small { color: var(--muted); font-size: .9rem; }
-    .nowrap { white-space: nowrap; }
-    @media (max-width: 760px) {
-      table { display: block; overflow-x: auto; }
-      main { width: min(100% - 20px, 1180px); padding-top: 20px; }
-    }
-  </style>
-</head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chapter 6 Cross-Pod Environment and Protocol Audit</title>
+<style>body{max-width:1120px;margin:2rem auto;padding:0 1.3rem 4rem;font:16px/1.55 system-ui,sans-serif;color:#17212b}h1,h2,h3{line-height:1.2}h2{margin-top:2.2rem;border-bottom:1px solid #ccd5dd;padding-bottom:.35rem}table{width:100%;border-collapse:collapse;margin:1rem 0}th,td{border:1px solid #ccd5dd;padding:.58rem;text-align:left;vertical-align:top}th{background:#f3f6f8}code{background:#eef2f4;padding:.08rem .25rem}.box{padding:.85rem 1rem;border-left:5px solid #166534;background:#eef8f1;margin:1rem 0}.warn{border-color:#a16207;background:#fff8e7}.muted{color:#596775}.pass{color:#166534;font-weight:700}.qualified{color:#9a6700;font-weight:700}</style></head>
 <body>
-<main>
-  <header>
-    <h1>Chapter 6 Experimental Environment, Protocol and Reproducibility Audit</h1>
-    <p class="small">Scope: experimental environment, execution protocol and evidence preservation. Detector correctness and performance outcomes are deliberately excluded.</p>
-  </header>
+<h1>Cross-Pod Experimental Environment, Protocol and Reproducibility Audit</h1>
+<p class="muted">Audit date: 19 August 2026. Authoritative functional dataset: <code>cross-pod-20260817T052019Z</code>.</p>
+<div class="box"><strong>Scope decision:</strong> this report addresses only the completed cross-Pod experiment. The earlier one-Pod laboratory and its evidence are excluded from the Chapter 6 narrative.</div>
 
-  <section class="meta">
-    <strong>Audit baseline.</strong>
-    The committed prototype was inspected at <code>497da90f564c97fb9ffc38b264398150467173f5</code>
-    (<em>fix(policy): fixed wrong configuration with --events and policy</em>, 7 August 2026).
-    This revision does not introduce behaviour material to the experiment: the monitored features and claims are also supported by the implementation baseline used in the preceding chapters. The revision difference is therefore a traceability note, not a threat to validity. The Minikube CTF laboratory is currently held as working-tree material under <code>k8s/</code> and should be preserved with the experimental evidence.
-    The adapted challenge source is a clean checkout of openECSC 2024 at
-    <code>2602f22c664eb98398413e6a7dfe03ea88b2d296</code>.
-  </section>
+<h2>1. Repository and Evidence Provenance</h2>
+<table><tbody>
+<tr><th>Inspected revision</th><td><code>e8795fea7afb12079844031a1a8b69d7091e0dfd</code></td><td>The revision is recorded for traceability. No material monitoring behaviour needed by this experiment differs from the implementation baseline used in Chapters 3-5.</td></tr>
+<tr><th>Current dirty state</th><td><code>Dockerfile</code> and <code>pkg/policy/loader_test.go</code> modified; <code>k8s/minikube-ctf-cross-pod/</code> and <code>rules/policies/aes-beta-process-observation.yaml</code> untracked.</td><td>The cross-Pod laboratory and evidence are local artefacts. They must be archived independently with the thesis.</td></tr>
+<tr><th>Collection-time state</th><td><code>git-state.txt</code> records the same revision and the cross-Pod directory as untracked.</td><td>The evidence identifies the code baseline even though the laboratory itself was not committed at collection time.</td></tr>
+<tr><th>Challenge provenance</th><td>openECSC revision <code>2602f22c664eb98398413e6a7dfe03ea88b2d296</code>, with checked challenge, loader and C-library hashes inherited from the controlled adaptation.</td><td>The synthetic flag replaces competition data; challenge mechanics remain the controlled workload.</td></tr>
+</tbody></table>
 
-  <h2>1. Executive Finding</h2>
-  <p>
-    The applied laboratory is sufficiently defined to explain a controlled, local experiment: one Minikube node runs one Pod containing a target, an attack trigger and the monitoring prototype. The target and trigger share the Pod network and communicate through <code>localhost</code>, while their process namespaces remain isolated. The monitor is the only privileged container and receives the host mounts required for eBPF operation.
-  </p>
-  <p>
-    The protocol is stronger than the original design in several respects. The challenge artefacts are checksum-controlled, container base images are digest-pinned, functional runs have identifiers, performance profiles are rotated, and the performance window is separated from warm-up. However, the current evidence collector does not preserve all the state needed to recreate a run: tool versions, node allocation, cgroup mode, applied ConfigMaps, image inventory and host/node clock alignment are absent or only indirectly recoverable.
-  </p>
-  <div class="callout warn">
-    <strong>Binding qualification for Chapter 6:</strong> describe this as a reproducible laboratory procedure with identified preservation gaps, not as a fully hermetic experiment. The experiment used Rocky Linux 8.10 kernel <code>4.18.0-553.137.1.el8_10.x86_64</code>, not the earlier <code>4.18.0-553.137.1.el8_10.x86_64</code> build used as the implementation target elsewhere in the thesis.
-  </div>
+<h2>2. Environment</h2>
+<table><thead><tr><th>Layer</th><th>Applied value</th><th>Evidence and qualification</th></tr></thead><tbody>
+<tr><td>Host</td><td>Rocky Linux 8.10, x86-64; kernel <code>4.18.0-553.137.1.el8_10.x86_64</code>.</td><td><code>environment.txt</code>; aligned with the thesis target.</td></tr>
+<tr><td>Minikube</td><td>v1.38.1, Docker driver, profile <code>cross-pod</code>, one node.</td><td>All three Pods were scheduled on node <code>cross-pod</code>.</td></tr>
+<tr><td>Kubernetes</td><td>Server v1.30.0; collection host client v1.36.3.</td><td>The node used Debian 12 inside Minikube while sharing the Rocky Linux host kernel.</td></tr>
+<tr><td>Container runtime</td><td>Node reports <code>docker://29.2.1</code>; host CLI reports Docker 26.1.3.</td><td>These identify different sides of the Minikube Docker-driver boundary and should not be merged into one version.</td></tr>
+<tr><td>Node resources</td><td>Single two-CPU, 4096 MiB Minikube node requested by the laboratory setup.</td><td>Chapter 6 should state the configured node size and avoid implying a multi-node test.</td></tr>
+<tr><td>Kernel interfaces</td><td>Host BTF, bpffs and tracefs present.</td><td>Only the monitor receives these host paths.</td></tr>
+</tbody></table>
 
-  <h2>2. Evidence Hierarchy and Provenance</h2>
-  <table>
-    <thead><tr><th>Evidence class</th><th>Authority</th><th>Current state</th><th>Use in Chapter 6</th></tr></thead>
-    <tbody>
-      <tr>
-        <td>Committed prototype</td>
-        <td><code>demo_project</code> commit <code>497da90…</code></td>
-        <td class="status verified">Verified</td>
-        <td>Authoritative for the inspected monitor implementation. Its difference from the earlier thesis baseline is not material to the evaluated behaviour.</td>
-      </tr>
-      <tr>
-        <td>Laboratory implementation</td>
-        <td><code>demo_project/k8s/minikube-ctf</code></td>
-        <td class="status qualified">Untracked</td>
-        <td>Authoritative for the applied manifests, images and scripts. Preserve this directory or an equivalent archive with the experiment.</td>
-      </tr>
-      <tr>
-        <td>Applied evidence</td>
-        <td><code>k8s/minikube-ctf/evidence</code></td>
-        <td class="status qualified">Ignored</td>
-        <td>Primary evidence for the realised Pod, logs, run outputs and sample files. It must be archived separately from Git.</td>
-      </tr>
-      <tr>
-        <td>Challenge source</td>
-        <td>openECSC checkout at <code>2602f22…</code></td>
-        <td class="status verified">Clean checkout</td>
-        <td>Establishes upstream provenance. The preparation script verifies artefact hashes but does not itself enforce this Git revision.</td>
-      </tr>
-      <tr>
-        <td>Design documents</td>
-        <td>Experiment design and adaptation specification</td>
-        <td class="status qualified">Intent, not execution proof</td>
-        <td>Explain rationale and planned controls; defer to applied artefacts and final evidence where they differ.</td>
-      </tr>
-      <tr>
-        <td>Final report</td>
-        <td><code>minikube-ctf-final-report.html</code></td>
-        <td class="status qualified">Narrative evidence</td>
-        <td>Useful for versions and run history, but claims should be cross-checked against archived files.</td>
-      </tr>
-    </tbody>
-  </table>
+<h2>3. Three-Resource Topology and Ownership</h2>
+<table><thead><tr><th>Role</th><th>Kubernetes owner and identity</th><th>Security and mounts</th><th>Purpose</th></tr></thead><tbody>
+<tr><td>Monitor</td><td>DaemonSet <code>project-monitor-cross-pod</code>; Pod IP <code>10.244.0.7</code>; distinct Pod UID and cgroup.</td><td>UID 0, privileged, seccomp Unconfined, read-only root filesystem; BTF read-only, bpffs and tracefs read-write; detector ConfigMap and private temporary volume.</td><td>Attach eBPF programs to the node kernel and evaluate the selected cross-Pod evidence.</td></tr>
+<tr><td>Target</td><td>One-replica Deployment <code>aes-beta-target-cross-pod</code>; Pod IP <code>10.244.0.3</code>; distinct Pod UID and cgroup.</td><td>UID/GID 10001, non-root, no privilege escalation, all capabilities dropped, read-only root filesystem; synthetic flag Secret mounted read-only.</td><td>Run the vulnerable AES-beta service on TCP/1337.</td></tr>
+<tr><td>Trigger</td><td>Standalone Pod <code>aes-beta-trigger-cross-pod</code>; Pod IP <code>10.244.0.4</code>; distinct Pod UID and cgroup.</td><td>UID/GID 10002 with the same non-root hardening; private <code>emptyDir</code>.</td><td>Run benign and exploit clients independently of the target.</td></tr>
+<tr><td>Service</td><td>ClusterIP <code>10.102.19.49:1337</code>, endpoint <code>10.244.0.3:1337</code>.</td><td>No host networking.</td><td>Route trigger traffic to the target across Pod network boundaries.</td></tr>
+</tbody></table>
+<ul>
+<li>All Pods set <code>hostPID: false</code>, <code>hostNetwork: false</code> and <code>shareProcessNamespace: false</code>.</li>
+<li>All Pods ran on the same node and therefore shared the node kernel observed by the monitor. This is node-local cross-Pod observation, not cross-node or cluster-wide correlation.</li>
+<li><code>automountServiceAccountToken: false</code> is set for all three roles.</li>
+<li>The namespace uses the privileged Pod Security profile because the monitor is privileged; target and trigger remain hardened independently.</li>
+<li>The monitor policy is included in its image, while the detector is delivered through a ConfigMap. The synthetic flag Secret is referenced only by the target Deployment.</li>
+</ul>
 
-  <h2>3. Experimental Environment</h2>
-  <table>
-    <thead><tr><th>Dimension</th><th>Realised value</th><th>Evidence</th><th>Qualification</th></tr></thead>
-    <tbody>
-      <tr>
-        <td>Host OS</td>
-        <td>Rocky Linux 8.10</td>
-        <td>Final report and current host inspection</td>
-        <td>The evidence collector does not save <code>/etc/os-release</code> per experiment.</td>
-      </tr>
-      <tr>
-        <td>Host kernel</td>
-        <td><code>4.18.0-553.137.1.el8_10.x86_64</code></td>
-        <td>Final report and current <code>uname -r</code></td>
-        <td>Later package build than the thesis implementation target <code>…137.1…</code>. Record this explicitly rather than silently merging the two.</td>
-      </tr>
-      <tr>
-        <td>Minikube</td>
-        <td>v1.38.1, Docker driver, one node</td>
-        <td>Final report; start script selects Docker</td>
-        <td>The script does not pin or archive the Minikube executable version.</td>
-      </tr>
-      <tr>
-        <td>Kubernetes</td>
-        <td>v1.30.0 client and server</td>
-        <td>Archived Kubernetes version output; <code>start-minikube.sh</code> pins <code>--kubernetes-version=v1.30.0</code></td>
-        <td>Strongly controlled.</td>
-      </tr>
-      <tr>
-        <td>Node resources</td>
-        <td>2 CPUs, 4096 MiB requested for Minikube</td>
-        <td><code>start-minikube.sh</code> and final report</td>
-        <td>The realised node capacity/allocatable values are not preserved in the automatic snapshot.</td>
-      </tr>
-      <tr>
-        <td>Container engine</td>
-        <td>Docker 26.1.3 reported</td>
-        <td>Container validation report</td>
-        <td>Not captured by the final evidence script or pinned by the laboratory.</td>
-      </tr>
-      <tr>
-        <td>Resource control basis</td>
-        <td>cgroup v1 counters, including <code>cpuacct.usage</code> and memory/RSS files</td>
-        <td>Sampler implementation</td>
-        <td>The cgroup mode and resolved paths should be saved for each run.</td>
-      </tr>
-      <tr>
-        <td>Pod resources</td>
-        <td>Requests: target 50m/64Mi; trigger 100m/128Mi; monitor 250m/256Mi</td>
-        <td><code>pod.yaml</code></td>
-        <td>No CPU or memory limits are configured, contrary to the initial design wording about declared limits.</td>
-      </tr>
-    </tbody>
-  </table>
+<h2>4. Functional Protocol Timeline</h2>
+<ol>
+<li>Create the dedicated namespace, detector ConfigMap and synthetic flag Secret.</li>
+<li>Apply target Deployment and Service, trigger Pod and monitor DaemonSet; wait for all resources.</li>
+<li>Capture effective manifests, Pod identities, IPs, cgroups, Service endpoint, security contexts and environment metadata.</li>
+<li>Confirm that target and trigger are separate Pods on the monitor's node and that Service traffic reaches the target.</li>
+<li>Confirm target UID 10001 telemetry and restore the canonical alerts-only, UID-filtered monitor configuration.</li>
+<li>Run three benign scenarios with unique run IDs and no automatic retry.</li>
+<li>Run three exploit scenarios with unique run IDs and no automatic retry.</li>
+<li>For every run, preserve client output, target and monitor intervals, Pod state before/after, diagnostics and metadata.</li>
+<li>Audit application outcome, expected evidence, alert count, loss diagnostics and restart delta as separate criteria.</li>
+</ol>
+<p>The first benign run was delayed by a stale non-protocol connection from validation. This is preserved as an anomaly and its duration is excluded from performance interpretation.</p>
 
-  <h3>Applied Pod Topology and Security Context</h3>
-  <table>
-    <thead><tr><th>Container</th><th>Purpose and identity</th><th>Security context</th><th>Storage and host access</th></tr></thead>
-    <tbody>
-      <tr>
-        <td><code>ctf-target</code></td>
-        <td>Adapted AES-beta listener; UID/GID 10001</td>
-        <td>Non-root; privilege escalation disabled; read-only root filesystem; all capabilities dropped</td>
-        <td>Read-only synthetic flag Secret. No host mounts.</td>
-      </tr>
-      <tr>
-        <td><code>attack-trigger</code></td>
-        <td>Benign and exploit client; UID/GID 10002</td>
-        <td>Non-root; privilege escalation disabled; read-only root filesystem; all capabilities dropped</td>
-        <td>64 MiB <code>emptyDir</code> at <code>/tmp</code>. No flag or host mount.</td>
-      </tr>
-      <tr>
-        <td><code>project-monitor</code></td>
-        <td>Monitoring prototype; UID/GID 0</td>
-        <td>Privileged; seccomp <code>Unconfined</code>; read-only root filesystem</td>
-        <td>Policy and detector ConfigMaps; host BTF read-only; bpffs and tracefs read-write; temporary workspace.</td>
-      </tr>
-    </tbody>
-  </table>
-  <p>
-    The Pod sets <code>hostPID: false</code>, <code>hostNetwork: false</code> and <code>shareProcessNamespace: false</code>. The three containers share the Pod network namespace, which is why the trigger reaches the target at <code>127.0.0.1:1337</code>. They do not share a container process namespace and do not enter the host PID namespace. Storage is shared only through declared volumes. The namespace uses the privileged Pod Security level so that the monitoring container can be admitted.
-  </p>
-  <div class="callout warn">
-    The Pod does not set <code>automountServiceAccountToken: false</code>. Kubernetes therefore injects default service-account credentials into all three containers. This is not required by the experiment and weakens any claim that target and trigger receive only the explicitly declared resources.
-  </div>
+<h2>5. Variables and Controls</h2>
+<table><thead><tr><th>Class</th><th>Variable</th><th>Operational definition</th></tr></thead><tbody>
+<tr><td>Independent</td><td>Scenario</td><td>Normal AES exchange or the controlled AES-beta exploit.</td></tr>
+<tr><td>Dependent</td><td>Application outcome</td><td>Expected ciphertext for benign runs; worker count and recovered synthetic flag for exploit runs.</td></tr>
+<tr><td>Dependent</td><td>Monitoring outcome</td><td>Run-local alert count and completeness of the expected ordered evidence.</td></tr>
+<tr><td>Dependent</td><td>Operational health</td><td>Matching perf-loss diagnostic and Pod restart delta.</td></tr>
+<tr><td>Controlled</td><td>Placement</td><td>One Minikube node; monitor, target and trigger remain separate Pods.</td></tr>
+<tr><td>Controlled</td><td>Identity</td><td>Target UID 10001, trigger UID 10002, privileged root monitor.</td></tr>
+<tr><td>Controlled</td><td>Monitor scope</td><td>Exact UID filter, three required logical events, one collective detector, alerts-only JSON output.</td></tr>
+<tr><td>Controlled</td><td>Workload and input</td><td>Same challenge images, Service path, synthetic flag and no automatic retry.</td></tr>
+</tbody></table>
 
-  <h3>Image and Challenge Provenance</h3>
-  <ul>
-    <li>The target and trigger Dockerfiles pin their base images by digest. The monitor image is rebuilt from the current local <code>demo_project</code> tree and loaded into Minikube under a mutable tag with <code>imagePullPolicy: Never</code>.</li>
-    <li>The applied Pod evidence records image IDs: target <code>sha256:de73e8e4…</code>, trigger <code>sha256:4c9427d7…</code> and monitor <code>sha256:d9f9f1b1…</code>. These IDs should be promoted to the primary environment table in the thesis evidence archive.</li>
-    <li>The challenge preparation script verifies the staged binary, loader and libc with SHA-256 values <code>44535b44…</code>, <code>491c2eb0…</code> and <code>a7ec5ec3…</code>. It does not verify that the openECSC checkout itself is at <code>2602f22…</code>.</li>
-    <li>The original binary, loader, libc, exploit payload and gadget assumptions are retained. The privileged challenge jail and proof-of-work front end are replaced by a bounded TCP wrapper suitable for the Pod experiment.</li>
-    <li>No competition flag is embedded. A Kubernetes Secret supplies a non-sensitive synthetic value only to the target. The default synthetic string is present in working-tree scripts and documentation, so the precise claim must be “no competition secret or static Secret manifest is committed”, not “the flag is never versioned”.</li>
-  </ul>
+<h2>6. Claim-to-Evidence Ledger</h2>
+<table><thead><tr><th>Claim</th><th>Primary raw artefact</th><th>Status</th></tr></thead><tbody>
+<tr><td>Three independent role Pods ran on one node.</td><td><code>pods-wide.txt</code>, effective manifests and per-role cgroup files.</td><td class="pass">Supported</td></tr>
+<tr><td>The trigger reached the target through a ClusterIP Service.</td><td><code>services.txt</code>, <code>endpoints.txt</code> and target log.</td><td class="pass">Supported</td></tr>
+<tr><td>The monitor did not rely on host PID namespace sharing.</td><td>Effective manifests and security-context validation.</td><td class="pass">Supported, but all Pods still share the node kernel</td></tr>
+<tr><td>The flag was exposed only to the target.</td><td>Effective manifests and Secret references.</td><td class="pass">Supported within the applied Kubernetes configuration</td></tr>
+<tr><td>The functional campaign is reproducible from one Git checkout alone.</td><td>Git state and ignored evidence/lab path.</td><td class="qualified">Not fully; local laboratory and evidence require separate archival</td></tr>
+<tr><td>The experiment demonstrates cross-node visibility.</td><td>Single-node placement.</td><td class="qualified">Not supported</td></tr>
+</tbody></table>
 
-  <h2>4. Protocol Timeline</h2>
-  <ol class="timeline">
-    <li><strong>Freeze inputs.</strong> Record the implementation baseline, openECSC revision, current manifest/detector/policy hashes, image IDs, host/kernel, Docker, Minikube and Kubernetes versions.</li>
-    <li><strong>Create the cluster.</strong> Start a one-node Minikube profile with Docker, Kubernetes v1.30.0, 2 CPUs and 4096 MiB. Confirm node readiness, capacity and cgroup mode.</li>
-    <li><strong>Prepare and load images.</strong> Verify upstream challenge hashes, build the target and trigger from digest-pinned bases, build the monitor from the recorded source state, load all images and save the resulting image inventory.</li>
-    <li><strong>Deploy the laboratory.</strong> Create the namespace, policy and detector ConfigMaps, synthetic-flag Secret and three-container Pod. Wait for all containers to be ready and preserve the applied resources without storing the Secret value.</li>
-    <li><strong>Bootstrap check.</strong> Verify target reachability over Pod localhost and monitor startup. Capture timestamped logs and the Pod status, including image IDs and restart counts.</li>
-    <li><strong>Benign functional run.</strong> Generate or provide a unique run ID; capture trigger start/end records and timestamped monitor/target logs for the same interval.</li>
-    <li><strong>Exploit functional run.</strong> Execute the fixed AES-beta exploit workload with its bounded worker count and the same evidence procedure. Repeat according to the declared run count.</li>
-    <li><strong>Performance suite.</strong> For each of five rounds, recreate the Pod under the rotated <code>filtered</code>, <code>unfiltered</code> and <code>no-monitor</code> profiles. Start sampling, wait 10 seconds, execute the 90-second workload window and preserve raw samples before calculating summaries.</li>
-    <li><strong>Close the experiment.</strong> Archive raw evidence, configurations, hashes, run IDs and environment metadata before deleting the Pod or Minikube profile. Generate summaries from immutable raw data.</li>
-  </ol>
+<h2>7. Reproducibility Checklist</h2>
+<ul>
+<li class="pass">Environment, kernel, Kubernetes, Minikube and node runtime recorded.</li>
+<li class="pass">Effective manifests, Pod identities, image identities, Service endpoint and cgroups preserved.</li>
+<li class="pass">Commands and exit statuses recorded; operational scripts require a non-empty evidence directory.</li>
+<li class="pass">Run IDs and before/after Pod snapshots preserved without automatic retry.</li>
+<li class="qualified">Archive the currently untracked laboratory, policy and evidence with immutable hashes.</li>
+<li class="qualified">Record the exact node CPU/memory capacity and allocatable values in the final archive if used numerically.</li>
+<li class="qualified">Keep the upstream revision and challenge checksums beside the cross-Pod campaign manifest.</li>
+</ul>
 
-  <h3>Functional and Performance Protocol Boundaries</h3>
-  <table>
-    <thead><tr><th>Protocol</th><th>Independent variable</th><th>Repeated unit</th><th>Preserved observations</th><th>Interpretive boundary</th></tr></thead>
-    <tbody>
-      <tr>
-        <td>Benign functional scenario</td>
-        <td>Benign client action</td>
-        <td>Run ID</td>
-        <td>Trigger output and timestamped container logs</td>
-        <td>Environment/protocol audit only; detection correctness belongs to the corresponding evaluation audit.</td>
-      </tr>
-      <tr>
-        <td>Exploit functional scenario</td>
-        <td>Fixed adapted exploit action</td>
-        <td>Run ID</td>
-        <td>Trigger output, logs and run timing</td>
-        <td>The exploit workload is controlled; claims about true/false alerts require separate analysis.</td>
-      </tr>
-      <tr>
-        <td>Performance suite</td>
-        <td><code>filtered</code>, <code>unfiltered</code>, <code>no-monitor</code></td>
-        <td>Profile × round, five rounds</td>
-        <td>Raw cgroup/node samples, scenario output, deploy log, monitor log and derived summary</td>
-        <td><code>no-monitor</code> measures the target and node without the monitor; it is not a zero-valued monitor-container baseline.</td>
-      </tr>
-    </tbody>
-  </table>
+<h2>8. Body and Appendix Plan</h2>
+<p><strong>Main body:</strong> one environment table, one cross-Pod topology figure, the controlled-variable definition and a concise protocol timeline.</p>
+<p><strong>Appendix or evidence package:</strong> complete manifests, commands, image IDs, cgroup paths, ConfigMap/Secret creation, checksums and raw logs.</p>
+<p><strong>Topology figure question:</strong> how can a monitor Pod observe a target Pod while the trigger is a third Pod? Show three Pod boundaries on one node, the trigger-to-Service-to-target path, distinct UIDs/IPs/cgroups, <code>hostPID: false</code>, and the monitor attached to the shared node kernel. Do not draw a cluster-wide correlation service.</p>
 
-  <h2>5. Controlled-Variable Matrix</h2>
-  <table>
-    <thead><tr><th>Variable</th><th>Role</th><th>Control mechanism</th><th>Residual risk</th></tr></thead>
-    <tbody>
-      <tr><td>Monitoring profile</td><td>Independent</td><td>Generated from one base Pod by <code>deploy-performance-profile.sh</code></td><td>The generated manifest is not explicitly archived per run.</td></tr>
-      <tr><td>Scenario</td><td>Independent</td><td>Dedicated benign/exploit commands and run IDs</td><td>Functional repetition count should be stated in one authoritative place.</td></tr>
-      <tr><td>CPU and memory observations</td><td>Dependent</td><td>Raw cgroup v1 and node counters sampled at a fixed interval</td><td>Clock alignment and cgroup path discovery are not preserved as metadata.</td></tr>
-      <tr><td>Runtime duration</td><td>Controlled</td><td>90-second workload window in the performance suite</td><td>Functional runs are action-bounded rather than duration-matched.</td></tr>
-      <tr><td>Warm-up</td><td>Controlled</td><td>10 seconds between sampler start and workload start</td><td>No explicit readiness/steady-state criterion beyond elapsed time.</td></tr>
-      <tr><td>Profile order</td><td>Controlled</td><td>Deterministic rotation across five rounds</td><td>Balanced rotation reduces order bias but is not randomisation.</td></tr>
-      <tr><td>Challenge workload</td><td>Controlled</td><td>Pinned upstream revision, artefact hashes and fixed adapted exploit</td><td>The Git revision is documented but not enforced by the preparation script.</td></tr>
-      <tr><td>Pod topology</td><td>Controlled</td><td>One manifest and profile generator</td><td>Mutable image tags make the image ID essential evidence.</td></tr>
-      <tr><td>Node resources</td><td>Controlled by command</td><td>2 CPUs and 4096 MiB passed to Minikube</td><td>Realised capacity/allocatable values are not archived.</td></tr>
-      <tr><td>Container resource ceilings</td><td>Uncontrolled</td><td>No limits configured</td><td>Contradicts any statement that limits isolate profile behaviour.</td></tr>
-      <tr><td>Background host/node load</td><td>Potential confounder</td><td>Node-wide samples are collected</td><td>No pre-run load threshold or quiescence rule is enforced.</td></tr>
-      <tr><td>Image and source identity</td><td>Controlled only if preserved</td><td>Digest-pinned bases; applied Pod records image IDs</td><td>The per-run snapshot should retain the monitor image ID and applied laboratory configuration.</td></tr>
-    </tbody>
-  </table>
+<h2>9. Required External Sources</h2>
+<ul>
+<li><a href="https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/">Kubernetes DaemonSet</a> for one monitor instance per selected node.</li>
+<li><a href="https://kubernetes.io/docs/concepts/services-networking/service/">Kubernetes Service</a> for ClusterIP routing.</li>
+<li><a href="https://kubernetes.io/docs/concepts/workloads/pods/">Kubernetes Pods</a> for Pod identity and isolation semantics.</li>
+<li><a href="https://kubernetes.io/docs/concepts/security/pod-security-standards/">Pod Security Standards</a> for privileged and restricted settings.</li>
+<li><a href="https://kubernetes.io/docs/concepts/storage/volumes/#hostpath">hostPath volumes</a> for host interface exposure.</li>
+<li><a href="https://minikube.sigs.k8s.io/docs/drivers/docker/">Minikube Docker driver</a> for the local node boundary.</li>
+</ul>
 
-  <h2>6. Design-to-Implementation Discrepancies</h2>
-  <table>
-    <thead><tr><th>Topic</th><th>Earlier design</th><th>Applied implementation</th><th>Editorial resolution</th></tr></thead>
-    <tbody>
-      <tr><td>Kernel build</td><td><code>…137.1…</code> target</td><td><code>…137.1…</code> experiment</td><td>State both and explain that they belong to the same Rocky 8.10 kernel line but are not the same build.</td></tr>
-      <tr><td>Pod name</td><td><code>process-security-ctf-lab</code></td><td><code>aes-beta-lab</code></td><td>Use the applied name only in the evaluation chapter.</td></tr>
-      <tr><td>Functional detector scope</td><td>Point and collective validation</td><td>Final laboratory focuses on the collective chain</td><td>Do not imply that both classes were exercised by this experiment.</td></tr>
-      <tr><td>Complementary symlink scenario</td><td>Planned</td><td>Not part of the final protocol</td><td>Remove from the main method or identify it as omitted future work.</td></tr>
-      <tr><td>Performance profiles</td><td>Collection / point / collective</td><td>Filtered / unfiltered / no-monitor</td><td>Use the realised profiles and explain the variable isolated by each.</td></tr>
-      <tr><td>Policy event scope</td><td>Broader lifecycle set</td><td>Focused execution and file-open scope</td><td>Use the applied ConfigMap and preserve its hash.</td></tr>
-      <tr><td>Correlation strategy</td><td>Process/cgroup relation considered</td><td>Applied detector uses <code>process_tree</code></td><td>Do not claim cgroup correlation was exercised.</td></tr>
-      <tr><td>Resource limits</td><td>Requests and limits declared</td><td>Requests only</td><td>Correct the experimental controls and list absence of limits as a limitation.</td></tr>
-      <tr><td>Evidence inventory</td><td>Environment, images, revisions and configurations</td><td>Automatic collector saves a narrower Kubernetes/log snapshot</td><td>Expand collection before the final campaign or qualify reproducibility.</td></tr>
-      <tr><td>PID visibility</td><td>Diagnostic <code>hostPID: true</code> was explored</td><td>Final protocol uses <code>hostPID: false</code></td><td>Keep the diagnostic out of the main protocol; mention only if needed to explain development history.</td></tr>
-    </tbody>
-  </table>
-
-  <h2>7. Reproducibility Checklist</h2>
-  <table>
-    <thead><tr><th>Status</th><th>Required item</th><th>Current evidence</th><th>Action before final evaluation</th></tr></thead>
-    <tbody>
-      <tr><td class="status verified">Present</td><td>Pinned Kubernetes version and Minikube resource request</td><td><code>start-minikube.sh</code></td><td>Retain command output and node description.</td></tr>
-      <tr><td class="status verified">Present</td><td>Challenge source revision and upstream artefact hashes</td><td>Clean openECSC checkout; preparation script</td><td>Add an automated revision assertion.</td></tr>
-      <tr><td class="status verified">Present</td><td>Base image digests and applied container image IDs</td><td>Dockerfiles and applied Pod YAML</td><td>Save image inventory alongside each campaign.</td></tr>
-      <tr><td class="status verified">Present</td><td>Policy, detector and Pod hashes</td><td>Current values match archived final evidence</td><td>Hash generated performance manifests as well.</td></tr>
-      <tr><td class="status verified">Present</td><td>Unique functional and performance run identifiers</td><td>Scenario and suite scripts</td><td>Include run ID in every log/evidence filename.</td></tr>
-      <tr><td class="status verified">Present</td><td>Raw performance samples retained before aggregation</td><td>Performance scripts/evidence layout</td><td>Keep summaries derivable from immutable raw data.</td></tr>
-      <tr><td class="status qualified">Partial</td><td>Toolchain and host identity</td><td>Distributed across narrative reports</td><td>Capture OS, kernel, Docker, Minikube, Kubernetes, architecture and compiler versions automatically.</td></tr>
-      <tr><td class="status qualified">Partial</td><td>Applied Kubernetes resources</td><td>Pod YAML and logs captured</td><td>Also save namespace, policy and detector ConfigMaps, Pod Security labels, node description and non-secret Secret metadata.</td></tr>
-      <tr><td class="status qualified">Partial</td><td>Laboratory configuration preservation</td><td>Applied Pod and selected hashes are available, while the laboratory directory is not part of the prototype commit</td><td>Archive the applied manifests, scripts, policy, detector and image IDs with the final campaign.</td></tr>
-      <tr><td class="status missing">Missing</td><td>Clock-alignment evidence</td><td>Host, node, trigger and log timestamps are combined without an offset check</td><td>Capture host/node realtime and monotonic clocks immediately before/after each run; calculate offset and uncertainty.</td></tr>
-      <tr><td class="status missing">Missing</td><td>Realised node/cgroup state</td><td>Assumed from startup and sampler behaviour</td><td>Save capacity, allocatable, runtime, cgroup version and resolved cgroup paths.</td></tr>
-      <tr><td class="status missing">Missing</td><td>Service-account minimisation</td><td>Default token automount remains enabled</td><td>Set <code>automountServiceAccountToken: false</code> unless API access is demonstrated as necessary.</td></tr>
-    </tbody>
-  </table>
-
-  <h3>Clock, Run and Configuration Preservation</h3>
-  <p>
-    The laboratory currently combines Python wall-clock epochs from the trigger, UTC listener timestamps, Kubernetes log timestamps, host nanoseconds and Minikube-node nanoseconds. The performance summary selects node samples using host-derived workload boundaries. This is valid only if host and node realtime clocks are sufficiently aligned; the scripts do not measure that offset. The chapter must either document an explicit synchronisation check or treat alignment as a source of measurement uncertainty.
-  </p>
-  <p>
-    The automatic evidence collector preserves the Kubernetes version, Pod YAML, Pod description, namespace events and timestamped container logs. It does not preserve the openECSC revision, host and Minikube versions, node allocation, cgroup mode, ConfigMap contents, image inventory, configuration hashes or client scenario output. The final campaign should extend this snapshot before any result is presented as independently repeatable.
-  </p>
-
-  <h2>8. Claim-to-Artefact Ledger</h2>
-  <table>
-    <thead><tr><th>Permitted claim</th><th>Primary local evidence</th><th>Strength / caveat</th></tr></thead>
-    <tbody>
-      <tr><td>The experiment used one Pod with three containers.</td><td><code>manifests/pod.yaml</code>; applied Pod YAML</td><td class="verified">Directly verified</td></tr>
-      <tr><td>Target and trigger communicated over Pod localhost.</td><td>Pod manifest; trigger scripts; target listener; Kubernetes network model</td><td class="verified">Directly verified</td></tr>
-      <tr><td>Container PID namespaces and the host PID namespace were not shared.</td><td><code>hostPID: false</code>, <code>shareProcessNamespace: false</code></td><td class="verified">Directly verified</td></tr>
-      <tr><td>Only the monitor was privileged and mounted host kernel interfaces.</td><td>Container security contexts and volume mounts in <code>pod.yaml</code></td><td class="verified">Directly verified; note default service-account mounts in all containers</td></tr>
-      <tr><td>The challenge artefacts were checked before image construction.</td><td><code>prepare-upstream.sh</code></td><td class="verified">Hashes enforced; Git revision not enforced</td></tr>
-      <tr><td>The flag was synthetic and inaccessible to the trigger through declared lab volumes.</td><td><code>deploy-lab.sh</code>; Pod volume mounts</td><td class="verified">Do not claim the synthetic default string is absent from source</td></tr>
-      <tr><td>The functional protocol distinguished benign and exploit runs by run ID.</td><td><code>run-scenario.sh</code>; trigger scripts</td><td class="verified">Directly verified</td></tr>
-      <tr><td>The performance protocol used three profiles over five rotated rounds.</td><td><code>run-performance-suite.sh</code></td><td class="verified">Directly verified; rotation is not randomisation</td></tr>
-      <tr><td>A 10-second warm-up preceded the 90-second measured workload.</td><td><code>run-performance-case.sh</code></td><td class="verified">Directly verified</td></tr>
-      <tr><td>The experiment was executed on the exact thesis target kernel.</td><td>Target docs versus actual host/report</td><td class="missing">Rejected: exact builds differ</td></tr>
-      <tr><td>Pod limits prevented resource interference.</td><td><code>pod.yaml</code></td><td class="missing">Rejected: limits are absent</td></tr>
-      <tr><td>The evidence archive alone identifies the exact monitor image.</td><td>Applied Pod image ID</td><td class="qualified">Qualified: the applied image is identifiable, while rebuilding it also requires the corresponding laboratory configuration and implementation baseline</td></tr>
-    </tbody>
-  </table>
-
-  <h2>9. External Sources Required</h2>
-  <p>Use primary documentation for platform semantics; local files remain the source for the realised configuration.</p>
-  <ul>
-    <li><a href="https://kubernetes.io/docs/concepts/services-networking/">Kubernetes networking model</a>: one private network namespace shared by containers in a Pod and communication over <code>localhost</code>.</li>
-    <li><a href="https://kubernetes.io/docs/tasks/configure-pod-container/share-process-namespace/">Kubernetes process namespace sharing</a>: meaning and consequences of <code>shareProcessNamespace</code>.</li>
-    <li><a href="https://kubernetes.io/docs/tasks/configure-pod-container/security-context/">Kubernetes security contexts</a>: non-root identity, privilege escalation, capabilities, privileged mode and seccomp.</li>
-    <li><a href="https://kubernetes.io/docs/concepts/storage/volumes/#hostpath">Kubernetes <code>hostPath</code> volumes</a>: host exposure and security/reproducibility risks.</li>
-    <li><a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#opt-out-of-api-credential-automounting">Service-account credential automounting</a>: default token injection and opt-out.</li>
-    <li><a href="https://minikube.sigs.k8s.io/docs/commands/start/">Minikube start command</a> and <a href="https://minikube.sigs.k8s.io/docs/drivers/docker/">Docker driver</a>: driver, Kubernetes version and resource flags.</li>
-    <li><a href="https://docs.kernel.org/admin-guide/cgroup-v1/cpuacct.html">Linux cgroup v1 CPU accounting</a> and <a href="https://docs.kernel.org/admin-guide/cgroup-v1/memory.html">memory controller</a>: interpretation of the raw counters.</li>
-    <li><a href="https://github.com/ECSC2024/openECSC-2024/tree/2602f22c664eb98398413e6a7dfe03ea88b2d296/teamitaly-preselection-ctf/pwn01">Pinned openECSC AES-beta source</a>: challenge provenance.</li>
-  </ul>
-
-  <h2>10. Visual Proposal</h2>
-  <div class="callout">
-    <strong>One primary environment figure:</strong> draw the Rocky Linux host and single Minikube node, then one Pod containing three clearly differentiated containers. Show a shared Pod network with the trigger-to-target connection over <code>127.0.0.1:1337</code>; separate PID namespaces; a read-only Secret mounted only into the target; policy/detector ConfigMaps mounted into the monitor; and the monitor's BTF, bpffs and tracefs host mounts. Mark the monitor as root/privileged and the other two as non-root/unprivileged. Add <code>hostPID=false</code> and “no shared process namespace” next to the Pod boundary.
-  </div>
-  <p>
-    The figure should answer one question: <em>which isolation boundaries are preserved, and which resources are deliberately shared to execute and observe the attack?</em> Do not place protocol results or detector output in this figure. A compact protocol timeline may be a second visual only if prose becomes difficult to scan; it should show freeze, deploy, warm-up, workload, sampling and evidence archive.
-  </p>
-
-  <h2>11. Chapter 6 Paragraph Plan</h2>
-  <ol>
-    <li><strong>Evaluation purpose and boundaries.</strong> Define the CTF-based functional experiment and the separate resource protocol. State that the chapter evaluates a local prototype, not cluster-wide monitoring.</li>
-    <li><strong>Host and Minikube baseline.</strong> Report Rocky Linux 8.10, the actual kernel build, Minikube/Kubernetes versions, driver, node count and requested node resources. Qualify the difference from the original target kernel build.</li>
-    <li><strong>Pod topology and isolation.</strong> Explain the one-Pod/three-container arrangement through the proposed figure, with network sharing, PID isolation, UIDs, privileges and mounts.</li>
-    <li><strong>Challenge adaptation and provenance.</strong> State the pinned openECSC revision, artefact checksum controls, retained exploit mechanics, replaced listener/PoW boundary and synthetic flag handling.</li>
-    <li><strong>Applied monitoring configuration.</strong> Identify the policy, detector and image/configuration hashes needed to reproduce the experiment without analysing detection quality.</li>
-    <li><strong>Functional protocol.</strong> Describe bootstrap, benign and exploit scenarios, run identifiers, repetitions and evidence captured for each run.</li>
-    <li><strong>Performance protocol.</strong> Define the three profiles, five rotated rounds, warm-up, workload window, sampling interval and raw counters. Explain that rotation is deterministic and that <code>no-monitor</code> changes the measured entity.</li>
-    <li><strong>Variables and evidence.</strong> Summarise controlled, independent and dependent variables; state clock, source-state, image and configuration preservation.</li>
-    <li><strong>Threats to reproducibility.</strong> Report absent resource limits, mutable image tags, missing clock-offset capture and incomplete environment snapshot.</li>
-    <li><strong>Transition to results.</strong> Separate this method from later detector and performance findings so that results do not retroactively redefine the protocol.</li>
-  </ol>
-
-  <h3>Material Better Placed in an Appendix</h3>
-  <ul>
-    <li>Complete shell command sequences and environment-variable catalogues.</li>
-    <li>Full Pod, ConfigMap and generated profile YAML.</li>
-    <li>Complete SHA-256 and image-ID inventory.</li>
-    <li>Raw sample file schema and aggregation commands.</li>
-    <li>Full benign/exploit client output and timestamped monitor logs.</li>
-    <li>Diagnostic <code>hostPID: true</code> investigation and discarded early protocol variants.</li>
-  </ul>
-
-  <h2>12. Unresolved Issues, Ordered by Priority</h2>
-  <ol>
-    <li><strong>Extend the evidence snapshot before the final campaign.</strong> Add environment versions, node description, cgroup mode/paths, applied ConfigMaps, image inventory and configuration hashes.</li>
-    <li><strong>Measure clock alignment.</strong> The current host-defined workload interval is applied to node timestamps without a saved offset or uncertainty.</li>
-    <li><strong>Resolve resource-control wording.</strong> Either add justified container limits or explicitly state that only requests were configured and treat contention as a threat to validity.</li>
-    <li><strong>Pin the challenge revision mechanically.</strong> Fail preparation if the openECSC checkout is not at <code>2602f22…</code>.</li>
-    <li><strong>Disable unused API credentials.</strong> Set <code>automountServiceAccountToken: false</code> unless a container demonstrably requires Kubernetes API access.</li>
-    <li><strong>Freeze Minikube and Docker identity.</strong> Record, and preferably provision, the exact executable/engine versions used for the final runs.</li>
-    <li><strong>Choose the authoritative repetition counts.</strong> Preserve them in the protocol and scripts, avoiding divergent narrative values.</li>
-    <li><strong>Preserve the laboratory artefacts.</strong> Archive the applied manifests, scripts, policy and detector with the evidence; this is an organisational requirement rather than a concern about the prototype revision.</li>
-    <li><strong>Clarify image preservation.</strong> Decide whether image IDs plus build metadata are sufficient or whether the three final images will also be exported and checksummed.</li>
-  </ol>
-
-  <footer class="small">
-    <p>Audit checks: all 15 laboratory shell scripts pass <code>bash -n</code>. Current detector, policy and Pod SHA-256 values match the archived final values: <code>096ded21…</code>, <code>799e8410…</code> and <code>310216b3…</code>, respectively.</p>
-  </footer>
-</main>
-</body>
-</html>
+<h2>10. Stale Claims and Unresolved Questions</h2>
+<ul>
+<li>Remove every one-Pod, three-container topology statement and every five-repetition performance statement from Chapter 6 inputs.</li>
+<li>Do not describe UID 10001 as a Pod or workload identity; it is the controlled exact admission key.</li>
+<li>Do not claim resource limits: the manifests define requests but no CPU or memory limits.</li>
+<li>Do not claim least-privilege monitoring, cross-node observation, enforcement or production readiness.</li>
+<li>Decide where the immutable cross-Pod evidence bundle will be archived, because it is currently excluded from Git.</li>
+</ul>
+<div class="box"><strong>Environment audit verdict: READY.</strong> The cross-Pod topology, protocol and reproducibility boundary are sufficiently documented for editorial synthesis, provided the untracked laboratory and evidence are archived and all old shared-Pod claims remain excluded.</div>
+</body></html>

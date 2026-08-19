@@ -5,325 +5,390 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Chapter 6 Independent Final Review</title>
   <style>
-    :root {
-      color-scheme: light;
-      --ink: #17212b;
-      --muted: #53606d;
-      --line: #cfd7df;
-      --paper: #ffffff;
-      --soft: #f4f7f9;
-      --critical: #8f1d1d;
-      --major: #a64b00;
-      --moderate: #755b00;
-      --minor: #315d73;
-      --pass: #246b45;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: #e9eef2;
-      color: var(--ink);
-      font: 16px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-    main {
-      width: min(1120px, calc(100% - 32px));
-      margin: 24px auto;
-      padding: 36px 44px 52px;
-      background: var(--paper);
-      border: 1px solid var(--line);
-    }
-    h1, h2, h3 { line-height: 1.2; }
-    h1 { margin: 0 0 8px; font-size: 2rem; }
-    h2 { margin-top: 36px; padding-bottom: 7px; border-bottom: 2px solid var(--ink); }
-    h3 { margin: 24px 0 8px; }
-    p { max-width: 92ch; }
-    code, pre { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-    code { overflow-wrap: anywhere; }
-    pre {
-      overflow-x: auto;
-      padding: 14px;
-      background: var(--soft);
-      border: 1px solid var(--line);
-    }
-    table { width: 100%; border-collapse: collapse; margin: 14px 0 22px; }
-    th, td { padding: 9px 10px; border: 1px solid var(--line); vertical-align: top; text-align: left; }
-    th { background: var(--soft); }
-    ul, ol { max-width: 96ch; }
-    li { margin: 6px 0; }
-    .meta, .verdict, .finding, .note { padding: 15px 18px; border-left: 5px solid var(--line); background: var(--soft); }
-    .verdict { border-color: var(--major); }
-    .major { border-color: var(--major); }
-    .moderate { border-color: var(--moderate); }
-    .minor { border-color: var(--minor); }
-    .pass { border-color: var(--pass); }
-    .tag { display: inline-block; margin-right: 7px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
-    .tag.major { color: var(--major); }
-    .tag.moderate { color: var(--moderate); }
-    .tag.minor { color: var(--minor); }
-    .tag.pass { color: var(--pass); }
-    .small { color: var(--muted); font-size: .92rem; }
-    .checklist li::marker { color: var(--pass); }
-    @media (max-width: 720px) {
-      main { width: 100%; margin: 0; padding: 24px 18px 40px; border: 0; }
-      table { display: block; overflow-x: auto; }
-    }
+    :root{color-scheme:light;--ink:#17212b;--muted:#5d6875;--line:#cbd3da;--panel:#f4f7f9;--high:#9f1d20;--high-bg:#fff0f0;--med:#925b08;--med-bg:#fff7e6;--low:#185b74;--low-bg:#eaf5f8;--ok:#21643c;--ok-bg:#edf8f0}
+    *{box-sizing:border-box}body{margin:0;background:#fff;color:var(--ink);font:16px/1.56 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.layout{display:grid;grid-template-columns:245px minmax(0,1020px);gap:2rem;max-width:1340px;margin:auto;padding:2rem 1.25rem 5rem}nav{position:sticky;top:1rem;align-self:start;border:1px solid var(--line);background:var(--panel);padding:1rem}nav strong,nav a{display:block}nav a{padding:.24rem 0;color:#0f5e75;text-decoration:none}nav a:hover{text-decoration:underline}main{min-width:0}h1,h2,h3{line-height:1.2;letter-spacing:0}h1{margin-top:0}h2{margin-top:2.4rem;padding-bottom:.35rem;border-bottom:2px solid var(--line)}h3{margin-top:1.6rem}p,li{max-width:92ch}code{padding:.07rem .25rem;background:#edf0f3;overflow-wrap:anywhere}table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.93rem}th,td{padding:.62rem;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--panel)}.box{margin:1rem 0;padding:.9rem 1rem;border-left:5px solid var(--low);background:var(--low-bg)}.high{border-left-color:var(--high);background:var(--high-bg)}.medium{border-left-color:var(--med);background:var(--med-bg)}.pass{border-left-color:var(--ok);background:var(--ok-bg)}.sev{font-weight:750}.sev-high{color:var(--high)}.sev-med{color:var(--med)}.sev-low{color:var(--low)}.muted{color:var(--muted)}.compact li{margin:.28rem 0}.status-pass{color:var(--ok);font-weight:700}.status-fail{color:var(--high);font-weight:700}.status-partial{color:var(--med);font-weight:700}@media(max-width:900px){.layout{grid-template-columns:1fr}nav{position:static}table{display:block;overflow-x:auto}}@media print{nav{display:none}.layout{display:block;max-width:none;padding:0}.finding{break-inside:avoid}}
   </style>
 </head>
 <body>
-<main>
-  <h1>Chapter 6 Independent Final Review</h1>
-  <p class="small">Technical, statistical and editorial audit completed on 13 August 2026.</p>
+<div class="layout">
+  <nav aria-label="Review navigation">
+    <strong>Chapter 6 review</strong>
+    <a href="#verdict">Verdict</a>
+    <a href="#snapshot">Snapshot</a>
+    <a href="#findings">Findings</a>
+    <a href="#numbers">Numerical audit</a>
+    <a href="#claims">Claim audit</a>
+    <a href="#redundancy">Redundancy</a>
+    <a href="#visuals">Visuals</a>
+    <a href="#latex">LaTeX and citations</a>
+    <a href="#appendix">Appendix boundary</a>
+    <a href="#edits">Edit list</a>
+    <a href="#acceptance">Acceptance checklist</a>
+  </nav>
 
-  <div class="meta">
-    <strong>Inspected implementation:</strong>
-    <code>497da90f564c97fb9ffc38b264398150467173f5</code>.<br>
-    <strong>Working tree:</strong> modified <code>.gitignore</code> and <code>README.md</code>; untracked
-    <code>k8s/</code>. The evaluation artefacts are therefore not represented by the recorded commit.
-    This is treated as a traceability limitation, not as evidence that the reported observations are false.
-  </div>
+  <main>
+    <h1>Independent Technical, Statistical and Editorial Review of Chapter 6</h1>
+    <p class="muted">Review date: 19 August 2026. Findings are ordered by severity and are based on regenerated values from the retained raw artefacts, not on the editorial synthesis.</p>
 
-  <h2>Verdict</h2>
-  <div class="verdict">
-    <strong>Conditionally acceptable after targeted revision.</strong>
-    No numerical error was found in the functional counts, timing spans or performance aggregates selected by
-    the chapter. The functional narrative correctly distinguishes client outcome, kernel evidence and detector
-    alert outcome. The principal unresolved issue is evidential rather than arithmetic: the archive does not
-    preserve the applied monitor configuration and image identity for each performance replica, so the chapter
-    currently states the causal effect of exact UID filtering more strongly than the archived evidence permits.
-  </div>
+    <section id="verdict">
+      <h2>Verdict</h2>
+      <div class="box high">
+        <strong>Changes required before first-draft acceptance.</strong> The
+        chapter has a sound structure and its principal functional and
+        performance observations are reproducible. It is not ready to circulate
+        in its present form because both Chapter 6 figures contain material
+        factual errors, and the prose misidentifies the ownership boundary of
+        the measured cgroup CPU, memory and RSS values.
+      </div>
+      <p>
+        After those corrections, the chapter should be suitable as a bounded
+        experimental evaluation. It already avoids general accuracy, loss-free,
+        cross-node, enforcement and total-overhead claims. The approved length
+        and visual budgets are respected.
+      </p>
+    </section>
 
-  <h2>Findings by Severity</h2>
+    <section id="snapshot">
+      <h2>Inspected Snapshot and Evidence Boundary</h2>
+      <table>
+        <thead><tr><th>Item</th><th>Verified state</th><th>Review consequence</th></tr></thead>
+        <tbody>
+          <tr><td><code>demo_project</code> commit</td><td><code>e8795fea7afb12079844031a1a8b69d7091e0dfd</code><br>13 August 2026<br><code>test(process): added minkube-ctf process evaluation</code></td><td>Recorded as the implementation baseline named by both authoritative datasets.</td></tr>
+          <tr><td>Dirty state</td><td><code>M Dockerfile</code><br><code>M pkg/policy/loader_test.go</code><br><code>?? k8s/minikube-ctf-cross-pod/</code><br><code>?? rules/policies/aes-beta-process-observation.yaml</code></td><td>The complete cross-Pod laboratory and its evidence are untracked. This is a reproducibility risk, not evidence established by the commit.</td></tr>
+          <tr><td>Functional dataset</td><td><code>k8s/minikube-ctf-cross-pod/evidence/cross-pod-20260817T052019Z</code></td><td>Authoritative for the six functional runs.</td></tr>
+          <tr><td>Performance dataset</td><td><code>k8s/minikube-ctf-cross-pod/evidence/cross-pod-performance-20260819T070557Z</code></td><td>Authoritative for the nine rotated-profile runs.</td></tr>
+          <tr><td>Older evidence requested by the prompt</td><td><code>k8s/minikube-ctf/evidence</code></td><td>Inspected as historical material. Its shared-Pod and five-repetition results do not support the current Chapter 6 and must remain excluded.</td></tr>
+          <tr><td>Thesis working tree</td><td><code>content/chapters.tex</code> and <code>chapter6.tex</code> were already modified before this review.</td><td>No thesis source was changed by the reviewer.</td></tr>
+        </tbody>
+      </table>
+    </section>
 
-  <section class="finding major">
-    <h3><span class="tag major">Major 1</span>Filtered/unfiltered attribution is not independently reproducible per run</h3>
-    <p>
-      The selected raw samples reproduce the reported difference between the two monitored profiles. However,
-      each Step 10 run directory contains deployment logs and measurements but not the rendered Pod manifest,
-      monitor command line, image digest, or policy/detector hashes applied for that replica. The current scripts
-      indicate that the intended profile difference is the exact UID filter, but the archive cannot prove after
-      the fact that this was the only realised difference in all ten monitored runs.
-    </p>
-    <p>
-      Revise the claims around Chapter 6 lines 348--354 and 382--385 from a definitive causal statement to an
-      observed profile comparison, for example: “Under the scripted profiles, enabling exact UID admission was
-      associated with a reduction from 4.87% to 0.39% of one logical core.” Retain the causal interpretation as
-      plausible, but qualify it until a rerun archives the applied manifest, exact command line, image ID and
-      configuration hashes for every replica.
-    </p>
-  </section>
+    <section id="findings">
+      <h2>Findings Ordered by Severity</h2>
 
-  <section class="finding moderate">
-    <h3><span class="tag moderate">Moderate 2</span>Sampling-window alignment needs a more exact limitation</h3>
-    <p>
-      Samples are selected when their endpoint timestamp lies between the workload start and end epochs, while
-      each CPU value is a delta over the preceding sampling interval. The first selected interval can therefore
-      include pre-workload activity, and the final partial workload interval can be omitted. The existing threat
-      to validity mentions omitted boundary fractions but not possible first-interval contamination. State both
-      effects explicitly. This does not invalidate the recomputed aggregates, but it constrains their temporal
-      interpretation.
-    </p>
-  </section>
+      <article class="finding">
+        <h3><span class="sev sev-high">High 1.</span> The topology figure contradicts the applied experiment</h3>
+        <p><strong>Location:</strong> <code>chapter6.tex:121-138</code>; <code>kubernetes-testbed-topology.drawio.png</code>.</p>
+        <p>
+          The figure does not contain the monitor Pod even though the caption
+          says it shows the privileged monitor observing the node kernel. It
+          labels two boxes as the AES-beta ClusterIP Service, although the final
+          box is evidently intended to represent the mounted flag Secret. It
+          also contains two boxes both labelled “Benign client”, one green and
+          one red; the red one should be the exploit client. As drawn, the
+          figure cannot support the cross-Pod topology claim and may cause the
+          reader to infer a second Service instead of the Secret boundary.
+        </p>
+        <p><strong>Required correction:</strong> redraw it with four unambiguous elements: trigger Pod, ClusterIP Service, target Pod and monitor DaemonSet Pod on one node. Show the Secret only inside the target boundary, and show eBPF observation through the shared node kernel rather than through the Service path.</p>
+      </article>
 
-  <section class="finding moderate">
-    <h3><span class="tag moderate">Moderate 3</span>Some environment facts are documented but not preserved in raw evidence</h3>
-    <p>
-      The raw archive establishes Kubernetes client/server version 1.30.0, the applied Pod specification,
-      container security contexts and image IDs. It does not independently preserve the claimed Minikube
-      version 1.38.1, the complete Rocky Linux/kernel identity, or realised node capacity/allocatable resources.
-      The chapter already distinguishes requested node sizing from realised capacity, which is correct. It should
-      similarly identify the Minikube and host-version values as lab records unless those command outputs are
-      added to the archive.
-    </p>
-  </section>
+      <article class="finding">
+        <h3><span class="sev sev-high">High 2.</span> The exploit-flow figure uses the wrong flag and overstates client success</h3>
+        <p><strong>Location:</strong> <code>chapter6.tex:171-188</code>; <code>ctf_exploitation_flow_II.drawio.png</code>.</p>
+        <p>
+          The lower panel says that receiving <code>THESIS{...}</code> proves
+          client-side success. The cross-Pod raw runs recovered
+          <code>openECSC{ebpf_cross_pod_evaluation}</code>, and the client harness
+          accepted only one of three exploit outputs because the first two
+          checks used defective patterns. The figure therefore conflicts with
+          both the dataset and the chapter's own oracle separation. It also
+          calls the flow an event sequence without displaying the four logical
+          event names or distinguishing LSM mediation from the successful
+          <code>open</code> return.
+        </p>
+        <p><strong>Required correction:</strong> use a neutral “synthetic flag recovered” label, separate application recovery from client validation, and map the final command to the four observed events with their evidential boundaries.</p>
+      </article>
 
-  <section class="finding moderate">
-    <h3><span class="tag moderate">Moderate 4</span>Technical claims require primary-source citations</h3>
-    <p>
-      Chapter 6 currently cites ATT&amp;CK but leaves several externally verifiable claims unsupported. Add official
-      references for Kubernetes Pod namespace sharing and security-context semantics, Minikube’s Docker driver,
-      cgroup-v1 CPU-accounting units, and the upstream openECSC challenge provenance. Cite the exact ATT&amp;CK
-      technique pages if the individual technique meanings are discussed. Repository artefacts remain the source
-      for this experiment’s concrete configuration; citations should support platform semantics, not replace the
-      raw evidence.
-    </p>
-  </section>
+      <article class="finding">
+        <h3><span class="sev sev-high">High 3.</span> CPU, memory and RSS are attributed to the wrong measurement owner</h3>
+        <p><strong>Location:</strong> <code>chapter6.tex:48</code>, <code>312-316</code>, <code>327-389</code>, <code>434-436</code>, <code>469-470</code>.</p>
+        <p>
+          The sampler resolves the monitor <em>container ID</em> and reads
+          <code>cpuacct.usage</code>, <code>memory.usage_in_bytes</code> and
+          <code>memory.stat</code> from the matching container cgroup. These are
+          not Pod-cgroup counters. Moreover, “process RSS” is incorrect: the
+          reported RSS is the cgroup-v1 <code>total_rss</code> field, not a
+          process value read from <code>/proc</code>. The current terms
+          “monitor Pod's cgroup” and “resident memory of the monitor process”
+          materially misstate what was measured.
+        </p>
+        <p><strong>Required correction:</strong> consistently use “monitor-container cgroup CPU”, “monitor-container cgroup memory usage” and “monitor-container cgroup <code>total_rss</code>”. Apply the same correction to the target metric. Retain the existing qualification that eBPF kernel execution charged elsewhere is excluded.</p>
+      </article>
 
-  <section class="finding moderate">
-    <h3><span class="tag moderate">Moderate 5</span>Upstream revision pinning is not enforced by the preparation script</h3>
-    <p>
-      The preparation path verifies checksums for selected challenge artefacts, and the documentation records
-      revision <code>2602f22c664eb98398413e6a7dfe03ea88b2d296</code>. The script does not itself verify that the checked-out
-      repository is at that revision. Describe the revision as a recorded experimental input, or add an explicit
-      revision check and archive its output. The synthetic flag is correctly separated from upstream provenance.
-    </p>
-  </section>
+      <article class="finding">
+        <h3><span class="sev sev-med">Medium 1.</span> The 91.97% reduction is calculated from rounded aggregates</h3>
+        <p><strong>Location:</strong> <code>chapter6.tex:386-389</code>, <code>455-456</code>, <code>469-470</code>.</p>
+        <p>
+          The archived summariser first rounds profile means to 0.46 and 5.73,
+          then computes <code>(5.73 - 0.46) / 5.73 = 91.97%</code>. Regeneration
+          from the raw run-window samples gives means of approximately
+          0.45697 and 5.73178, producing 92.027%, or 92.03% at two decimals.
+          Computing a two-decimal effect from already rounded inputs introduces
+          avoidable precision error.
+        </p>
+        <p><strong>Required correction:</strong> recompute before rounding and report “approximately 92.0% lower” or 92.03% with the precise formula and monitor-container cgroup denominator.</p>
+      </article>
 
-  <section class="finding minor">
-    <h3><span class="tag minor">Minor 6</span>Small editorial and presentation issues remain</h3>
-    <ul>
-      <li>Replace the subjective description of the exploit workload as “more demanding” with a neutral statement of why it was selected.</li>
-      <li>Table 6.3 should state directly that cgroup memory and RSS entries are maxima over all selected samples and replicas, unlike the CPU mean.</li>
-      <li>The event sequence is introduced before the functional results and described again afterwards. Keep the protocol description brief and reserve field-level interpretation for the results.</li>
-      <li>The applied Pod automatically mounts the default service-account token. This need not dominate the body, but it belongs in the reproducibility record or deployment limitations.</li>
-      <li><code>RSS</code> and <code>Capture the Flag (CTF)</code> are expanded in prose. Glossary entries are optional, but would improve consistency if these terms recur elsewhere.</li>
-    </ul>
-  </section>
+      <article class="finding">
+        <h3><span class="sev sev-med">Medium 2.</span> Causal language exceeds the experimental control</h3>
+        <p><strong>Location:</strong> <code>chapter6.tex:380-384</code>, <code>401-409</code>.</p>
+        <p>
+          The text says the comparison “attributes” the reduction to early
+          rejection and that filtering “reduced” CPU. The mechanism is
+          plausible and the observed difference is large, but profiles were
+          executed sequentially on a node averaging about 94% CPU, with three
+          runs per profile and uncontrolled background load. Rotated ordering
+          limits simple order bias but does not establish full causal control.
+        </p>
+        <p><strong>Required correction:</strong> state that enabling exact UID admission was <em>associated with</em> the lower monitor-container CPU in this campaign and that the result is consistent with early rejection reducing transport and user-space work.</p>
+      </article>
 
-  <h2>Independent Numerical Verification</h2>
-  <p>
-    Functional values were derived from the JSONL and per-run summaries/logs. Performance values were recomputed
-    from every Step 10 TSV sample whose endpoint timestamp falls within the workload interval recorded in that
-    run’s summary. Population standard deviation is appropriate here because the chapter describes the five
-    observed replicas rather than estimating an external population parameter.
-  </p>
+      <article class="finding">
+        <h3><span class="sev sev-med">Medium 3.</span> Not every CPU percentage states its denominator and boundary</h3>
+        <p><strong>Location:</strong> <code>chapter6.tex:48-49</code>, <code>312-321</code>, <code>366-368</code>.</p>
+        <p>
+          Monitor CPU is correctly expressed as a percentage of one core, but
+          target CPU is not explicitly defined as target-container cgroup CPU
+          with the same one-core denominator. Node CPU is a different construct:
+          the busy fraction of aggregate node CPU jiffies across the two CPUs.
+          The prose lists all three percentages without defining these two
+          denominators.
+        </p>
+        <p><strong>Required correction:</strong> define target CPU and node CPU separately before reporting percentages. Do not place them under a shared “CPU percentage” description.</p>
+      </article>
 
-  <h3>Functional evidence</h3>
-  <table>
-    <thead><tr><th>Claim</th><th>Independent result</th><th>Verdict</th></tr></thead>
-    <tbody>
-      <tr><td>UID 10001 telemetry records</td><td>9 of 7,289 records: 1 <code>execve</code>, 4 <code>open</code>, 1 <code>sched_process_exec</code>, 3 <code>security_file_open</code></td><td>Matches</td></tr>
-      <tr><td>Shared process identity in the workload trace</td><td>All nine records use process PID 327 and host PID 3016236</td><td>Matches</td></tr>
-      <tr><td>Benign controls</td><td>3/3 client passes; 0 alerts; 0 matched perf-loss diagnostics</td><td>Matches</td></tr>
-      <tr><td>Exploit outcomes</td><td>E1 pass, E2 pass, E3 client fail, diagnostic rerun pass</td><td>Matches</td></tr>
-      <tr><td>Detector outcomes</td><td>1 alert in each of the four exploit-related runs</td><td>Matches; not an accuracy estimate</td></tr>
-      <tr><td>Alert sequence</td><td><code>sched_process_exec</code> → <code>sched_process_exec</code> → <code>security_file_open</code> → <code>open</code>; one host PID; returned descriptor 2</td><td>Matches</td></tr>
-      <tr><td>Sequence spans</td><td>0.941, 0.625, 0.650 and 0.725 ms after conversion from raw nanoseconds</td><td>Matches</td></tr>
-    </tbody>
-  </table>
+      <article class="finding">
+        <h3><span class="sev sev-med">Medium 4.</span> The live negative controls are too narrow for detector-quality implications</h3>
+        <p><strong>Location:</strong> <code>chapter6.tex:244-294</code>, <code>420-458</code>.</p>
+        <p>
+          The three benign repetitions execute the same encryption interaction.
+          They are repetitions of one control, not three distinct benign
+          behaviours. No live case tests wrong event order, shell without flag
+          access, access to a different file, a failed final open, UID mismatch,
+          parent-child correlation or expiry after five seconds. The chapter
+          already rejects a false-positive-rate claim, but the threats section
+          should explicitly identify these missing near-miss controls.
+        </p>
+      </article>
 
-  <h3>Replicated performance evidence</h3>
-  <table>
-    <thead>
-      <tr><th>Profile</th><th>Run means (% one logical core)</th><th>Mean ± population SD</th><th>Other checked values</th></tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>Filtered monitor</td>
-        <td>0.41, 0.38, 0.40, 0.36, 0.39</td>
-        <td>0.388 ± 0.019</td>
-        <td>Mean p95 0.92%; maximum cgroup memory 100.51 MiB; maximum RSS 39.36 MiB</td>
-      </tr>
-      <tr>
-        <td>Unfiltered monitor</td>
-        <td>4.97, 4.98, 4.89, 4.77, 4.73</td>
-        <td>4.868 ± 0.114</td>
-        <td>Mean p95 7.72%; maximum cgroup memory 112.16 MiB; maximum RSS 46.02 MiB</td>
-      </tr>
-      <tr>
-        <td>No-monitor target</td>
-        <td>37.74, 35.90, 36.59, 35.11, 28.66</td>
-        <td>34.800 ± 3.566</td>
-        <td>Mean p95 67.72%; maximum cgroup memory 19.02 MiB; maximum RSS 6.88 MiB</td>
-      </tr>
-    </tbody>
-  </table>
-  <p>
-    The filtered/unfiltered monitor-CPU reduction recomputes to
-    <code>(4.868 - 0.388) / 4.868 × 100 = 92.03%</code>, reported as 92.0%.
-    The denominator is the unfiltered monitor’s mean cgroup CPU consumption, not total system overhead.
-    All ten monitored Step 10 runs contain one alert and no matched perf-loss diagnostic. This supports only the
-    chapter’s qualified diagnostic statement; it does not prove loss-free transport.
-  </p>
+      <article class="finding">
+        <h3><span class="sev sev-med">Medium 5.</span> The evidence package is not versioned or immutably archived</h3>
+        <p><strong>Location:</strong> reproducibility claims at <code>chapter6.tex:52-58</code> and the underlying repository state.</p>
+        <p>
+          Both authoritative datasets, the cross-Pod manifests and the sampling
+          scripts are under an untracked directory. The datasets record the Git
+          commit, but a checkout of that commit cannot reproduce or independently
+          inspect the experiment. The chapter's “supports repeatability within
+          this laboratory” wording is defensible only if this external bundle is
+          preserved with stable hashes and submitted beside the thesis.
+        </p>
+      </article>
 
-  <h2>Claim-Boundary Audit</h2>
-  <table>
-    <thead><tr><th>Risk checked</th><th>Assessment</th></tr></thead>
-    <tbody>
-      <tr><td>Total overhead below 5%</td><td>Not claimed. The chapter correctly identifies the metric as monitor-cgroup CPU and avoids treating the no-monitor target row as a counterfactual total-overhead estimate.</td></tr>
-      <tr><td>Detection quality or coverage</td><td>No precision, recall, false-positive rate or general coverage claim is made. Three benign and four exploit-related observations are reported as scenario outcomes.</td></tr>
-      <tr><td>Loss-free transport</td><td>Not claimed. Zero matched loss diagnostics is explicitly distinguished from proof of zero loss.</td></tr>
-      <tr><td>Client success versus detection</td><td>Correctly separated, including exploit run E3, where the client failed after 48 seconds but the monitor still produced the expected alert.</td></tr>
-      <tr><td>Syscall/LSM evidence versus completed operation</td><td>Correctly separated. The successful <code>open</code> return is used as outcome evidence; <code>security_file_open</code> is described as mediation-stage evidence.</td></tr>
-      <tr><td>ATT&amp;CK</td><td>Used as alert classification metadata, not proof of correctness or coverage.</td></tr>
-      <tr><td>Kubernetes scope</td><td>The chapter evaluates one Pod on one Minikube node and does not generalise to cluster-wide operation.</td></tr>
-      <tr><td>Node CPU and contention</td><td>The near-saturated node CPU is reported and treated as a confounder. No isolated kernel-space cost is inferred.</td></tr>
-    </tbody>
-  </table>
+      <article class="finding">
+        <h3><span class="sev sev-med">Medium 6.</span> Metric sampling has an unreported edge-window limitation</h3>
+        <p><strong>Location:</strong> <code>chapter6.tex:306-321</code>.</p>
+        <p>
+          Samples are one-second deltas and are selected when their ending
+          timestamp falls between workload start and end. The first accepted
+          delta can include a fraction before workload start, while work after
+          the final accepted sample and before workload end is not represented.
+          This is small relative to 41-58 second runs but should be recorded as
+          a measurement limitation, especially because sample counts differ
+          from 38 to 52.
+        </p>
+      </article>
 
-  <h2>Controls and Threats to Validity</h2>
-  <p>The existing threats-to-validity section is appropriately cautious. It should retain and sharpen the following controls and limitations:</p>
-  <ul>
-    <li>One Minikube node, one Pod topology and one challenge workload limit external validity.</li>
-    <li>Five replicas support descriptive comparison only; no inferential population claim should be added.</li>
-    <li>The no-monitor profile measures target behaviour without the monitor but does not isolate total tool overhead.</li>
-    <li>Node-level contention, SSH-mediated sampling jitter and cgroup-v1 accounting constrain attribution.</li>
-    <li>Per-run order was fixed rather than randomised or counterbalanced, so temporal drift can remain.</li>
-    <li>Boundary-selected intervals can include pre-workload CPU and omit final partial workload activity.</li>
-    <li>Exact configuration and image provenance are not archived for every Step 10 replica.</li>
-    <li>Three benign runs are a control for this scenario only, not a false-positive-rate study.</li>
-  </ul>
+      <article class="finding">
+        <h3><span class="sev sev-low">Low 1.</span> Some discussion and summary prose repeats earlier chapters or restates results</h3>
+        <p><strong>Location:</strong> <code>chapter6.tex:393-418</code>, <code>461-476</code>.</p>
+        <p>
+          The explanation that filtering before transport avoids unnecessary
+          user-space processing repeats the architecture rationale owned by
+          Chapters 3 and 4. The final summary then repeats the exact functional
+          and performance values already stated in the results and discussion.
+          This is not severe, but the discussion can focus on interpretation and
+          the summary can be shortened to the three bounded conclusions.
+        </p>
+      </article>
 
-  <h2>Redundancy and Chapter Boundaries</h2>
-  <p>
-    No substantial repetition against Chapters 2--5 was found. Chapter 6 does not repeat eBPF theory, the hook
-    catalogue, the YAML schema or the user-space runtime walkthrough. The brief detector description is necessary
-    to define the evaluated sequence, while the later result paragraph explains observed evidence. The latter can
-    be shortened slightly, but neither passage should be removed entirely.
-  </p>
-  <p>
-    Full commands, manifests, raw JSON, per-sample TSV data, complete Pod descriptions, configuration hashes and
-    image-build instructions correctly remain outside the body. They belong in the documentation archive or a
-    reproducibility appendix. If an appendix is added, prioritise the exact applied-profile manifests and evidence
-    inventory rather than reproducing all logs.
-  </p>
+      <article class="finding">
+        <h3><span class="sev sev-low">Low 2.</span> The chapter has unresolved citation and typesetting issues</h3>
+        <p>
+          The citation used for <code>hostPID</code> describes sharing a process
+          namespace between containers in one Pod, not the PodSpec
+          <code>hostPID</code> field. The AES-beta bibliography URL points to the
+          repository's <code>main</code> branch despite the prose claiming a
+          pinned revision. Cgroup-v1 memory and <code>/proc/stat</code> node CPU
+          semantics lack primary citations. The first use of TCP is not expanded
+          or linked to a glossary entry.
+        </p>
+        <p>
+          Isolated parsing also reports a 30.53 pt overfull line around the long
+          <code>sched_process_exec</code> name at lines 221-228 and a 5.44 pt
+          overfull table header around line 274. These should be broken or
+          reformatted before final layout review.
+        </p>
+      </article>
+    </section>
 
-  <h2>Figures, Tables and Length</h2>
-  <table>
-    <thead><tr><th>Constraint</th><th>Observed</th><th>Status</th></tr></thead>
-    <tbody>
-      <tr><td>Approximate chapter length</td><td>2,961 words</td><td>Within the approved 2,800--3,500 range</td></tr>
-      <tr><td>Figures</td><td>0</td><td>Within the maximum of 3</td></tr>
-      <tr><td>Result/environment tables</td><td>3</td><td>At the approved maximum of 3</td></tr>
-      <tr><td>Source-code listings</td><td>0</td><td>Compliant</td></tr>
-      <tr><td>Operational tutorial or full commands</td><td>None</td><td>Compliant</td></tr>
-      <tr><td>Percentages and boundaries</td><td>Primary CPU denominator and 92.0% comparison denominator are stated; node CPU is separately identified</td><td>Compliant</td></tr>
-    </tbody>
-  </table>
-  <p>
-    No misleading figure was found because no figure is currently used. The three tables answer distinct
-    questions: environment definition, functional outcomes and profile-level resource observations. Table 6.3’s
-    caption or headers should make the aggregation of memory maxima explicit.
-  </p>
+    <section id="numbers">
+      <h2>Independent Numerical Audit</h2>
+      <h3>Functional campaign</h3>
+      <table>
+        <thead><tr><th>Claim</th><th>Regenerated from raw files</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Benign application result</td><td>Expected ciphertext and client pass in 3/3 runs.</td><td class="status-pass">Reproduced</td></tr>
+          <tr><td>Benign alert count</td><td>0 alerts in all three run-local monitor logs.</td><td class="status-pass">Reproduced for one repeated control</td></tr>
+          <tr><td>Exploit application result</td><td>1,793 workers and non-empty <code>openECSC{...}</code> flag in 3/3 runs.</td><td class="status-pass">Reproduced</td></tr>
+          <tr><td>Exploit client validation</td><td>Fail, fail, pass because of harness pattern handling.</td><td class="status-pass">Reproduced</td></tr>
+          <tr><td>Detector result</td><td>Exactly one high-severity, four-event alert in each exploit run.</td><td class="status-pass">Reproduced</td></tr>
+          <tr><td>Event order and identity</td><td><code>sched_process_exec</code> shell, <code>sched_process_exec</code> cat, <code>security_file_open</code> flag, <code>open</code> returning fd 2; one host PID and UID 10001 per alert.</td><td class="status-pass">Reproduced</td></tr>
+          <tr><td>Health checks</td><td>Zero restart delta and no matching loss diagnostic in the six retained intervals.</td><td class="status-partial">Reproduced as diagnostics, not proof of zero loss</td></tr>
+        </tbody>
+      </table>
 
-  <h2>LaTeX, Language and References</h2>
-  <ul>
-    <li>British-English usage is consistent: examples include “behaviour”, “characterise” and “randomised”.</li>
-    <li>No duplicate Chapter 6 labels were found, and internal references resolve after a normal second pass.</li>
-    <li>The sole Chapter 6 citation key, <code>strom2020attack</code>, exists in <code>bibliography.bib</code>.</li>
-    <li>The full build is blocked locally before chapter processing because <code>biblatex.sty</code> is unavailable.</li>
-    <li>An isolated Chapter 6 pass reached the end of the source, but PDF generation then failed because the local TeX installation lacks <code>gftopk</code>.</li>
-    <li>The isolated log reports overfull boxes around the long kernel version, container names and the “AES-beta Workload and Controlled Attack Scenario” heading. The long kernel string is the most visible issue and should use a breakable form or be moved to the environment table.</li>
-  </ul>
+      <h3>Performance campaign</h3>
+      <table>
+        <thead><tr><th>Profile/run</th><th>Samples</th><th>Mean monitor-container CPU</th><th>Nearest-rank P95</th><th>Peak cgroup memory</th><th>Peak cgroup total RSS</th></tr></thead>
+        <tbody>
+          <tr><td>Filtered R1</td><td>45</td><td>0.46%</td><td>1.01%</td><td>90.46 MiB</td><td>36.97 MiB</td></tr>
+          <tr><td>Filtered R2</td><td>38</td><td>0.47%</td><td>1.12%</td><td>91.20 MiB</td><td>36.09 MiB</td></tr>
+          <tr><td>Filtered R3</td><td>46</td><td>0.44%</td><td>0.87%</td><td>92.17 MiB</td><td>36.67 MiB</td></tr>
+          <tr><td>Unfiltered R1</td><td>52</td><td>6.43%</td><td>9.54%</td><td>93.72 MiB</td><td>40.20 MiB</td></tr>
+          <tr><td>Unfiltered R2</td><td>48</td><td>5.48%</td><td>8.06%</td><td>110.21 MiB</td><td>41.24 MiB</td></tr>
+          <tr><td>Unfiltered R3</td><td>52</td><td>5.28%</td><td>7.53%</td><td>96.20 MiB</td><td>40.98 MiB</td></tr>
+        </tbody>
+      </table>
+      <p>
+        The archived profile means (0.46% filtered and 5.73% unfiltered), sample
+        SDs (0.02 and 0.61 percentage points), ranges, mean run P95 values and
+        memory maxima all reproduce. All three filtered means are below the 5%
+        gate. The only numerical correction is the relative reduction, which is
+        approximately 92.03% from unrounded sample-derived run means rather than
+        91.97% from rounded profile means.
+      </p>
+    </section>
 
-  <h2>Ordered Edit List</h2>
-  <ol>
-    <li>Qualify the filtered/unfiltered result as an observed scripted-profile comparison, or rerun while archiving exact per-run configurations and image identities.</li>
-    <li>Expand the sampling threat to include first-interval pre-workload contamination and final-interval omission.</li>
-    <li>Clarify which host and Minikube values come from preserved evidence and which come from lab records; preferably archive the missing command outputs.</li>
-    <li>Add primary citations for Kubernetes semantics, Minikube/Docker, cgroup-v1 accounting and upstream challenge provenance.</li>
-    <li>Enforce or explicitly qualify the pinned openECSC revision.</li>
-    <li>Clarify Table 6.3’s memory/RSS aggregation and trim the small repetition around the four-event sequence.</li>
-    <li>Resolve the reported overfull boxes during the next compilation on the complete thesis environment.</li>
-  </ol>
+    <section id="claims">
+      <h2>Claim and Statistical Boundary Audit</h2>
+      <table>
+        <thead><tr><th>Claim class</th><th>Review result</th><th>Required boundary</th></tr></thead>
+        <tbody>
+          <tr><td>Cross-Pod visibility</td><td class="status-pass">Supported</td><td>Node-local observation of separate Pods on one kernel; not cross-node or Kubernetes-aware correlation.</td></tr>
+          <tr><td>Detector quality</td><td class="status-partial">Narrowly supported</td><td>3/3 selected exploit sequences matched and one benign interaction repeated three times did not. No accuracy, precision, recall or error-rate claim.</td></tr>
+          <tr><td>Loss</td><td class="status-pass">Correctly qualified</td><td>No matching perf-event loss diagnostic; never “no events were lost”.</td></tr>
+          <tr><td>Open success</td><td class="status-pass">Correctly separated</td><td>LSM mediation identifies the resolved object; non-negative syscall return supplies successful-open evidence.</td></tr>
+          <tr><td>Client outcome</td><td class="status-pass">Correctly separated in prose</td><td>Flag recovery 3/3; harness validation 1/3. Fix the contradictory figure.</td></tr>
+          <tr><td>5% target</td><td class="status-pass">Supported after metric rename</td><td>Mean CPU charged to the monitor-container cgroup, percentage of one core, in filtered runs only.</td></tr>
+          <tr><td>Total overhead</td><td class="status-pass">Explicitly rejected</td><td>Kernel-side cost charged to observed tasks is outside the monitor-container cgroup.</td></tr>
+          <tr><td>Filtering effect</td><td class="status-partial">Descriptive association</td><td>Approximately 92.0% lower monitor-container cgroup CPU in this sequential campaign; avoid universal or causal wording.</td></tr>
+          <tr><td>Production/Kubernetes coverage</td><td class="status-pass">Explicitly rejected</td><td>No least privilege, multi-node, cluster-wide, production-readiness or ATT&amp;CK coverage claim.</td></tr>
+        </tbody>
+      </table>
+    </section>
 
-  <h2>Final Acceptance Checklist</h2>
-  <ul class="checklist">
-    <li>☐ Filter-effect wording matches the provenance strength of the archive.</li>
-    <li>☐ Sampling-boundary limitation covers both contamination and omission.</li>
-    <li>☐ Environment versions are archived or explicitly attributed to lab records.</li>
-    <li>☐ Required platform and provenance citations have been added.</li>
-    <li>☐ No total-overhead, accuracy, coverage or loss-free claim has been introduced.</li>
-    <li>☐ Table 6.3 clearly distinguishes CPU means from memory maxima.</li>
-    <li>☐ Long unbreakable text no longer creates material overfull boxes.</li>
-    <li>☐ Full thesis build passes on the intended machine with bibliography and glossary generation.</li>
-    <li>☐ Final PDF is manually inspected for table width, pagination and cross-references.</li>
-  </ul>
+    <section id="redundancy">
+      <h2>Redundancy against Chapters 2-5</h2>
+      <table>
+        <thead><tr><th>Material</th><th>Primary owner</th><th>Chapter 6 assessment</th></tr></thead>
+        <tbody>
+          <tr><td>eBPF model, hooks and transport</td><td>Chapters 2 and 4</td><td>No tutorial repetition. Event semantics are used only to interpret evidence.</td></tr>
+          <tr><td>Rocky Linux target and 5% requirement</td><td>Chapter 3</td><td>Repetition is justified where the experimental instance and acceptance gate are recorded.</td></tr>
+          <tr><td>Point/collective theory and state engine</td><td>Chapters 3 and 5</td><td>The chapter largely avoids re-explaining implementation. Keep the five-second and <code>process_tree</code> values as evaluated configuration only.</td></tr>
+          <tr><td>Kernel UID filtering mechanism</td><td>Chapter 4</td><td>Section 6.6 repeats part of the architectural rationale. Compress it to observed effect and refer back.</td></tr>
+          <tr><td>ATT&amp;CK propagation</td><td>Chapter 5</td><td>Correctly limited to metadata observed in the alerts.</td></tr>
+          <tr><td>Results and limitations</td><td>Chapter 6</td><td>Sections 6.6 and 6.8 repeat headline values. Shorten one of them rather than removing the discussion.</td></tr>
+        </tbody>
+      </table>
+    </section>
 
-  <div class="note pass">
-    <strong>Acceptance position:</strong> the numerical and functional core is sound. Chapter 6 can become a
-    defensible first draft through limited revisions; a new experiment is necessary only if the thesis wishes to
-    preserve a strong causal statement that exact UID filtering alone produced the measured reduction.
-  </div>
-</main>
+    <section id="visuals">
+      <h2>Visual and Length Budget</h2>
+      <table>
+        <thead><tr><th>Constraint</th><th>Observed</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>3,000-3,500 words</td><td>3,375 whitespace-delimited source tokens; prose remains within the approved band after excluding LaTeX commands.</td><td class="status-pass">Pass</td></tr>
+          <tr><td>Approximately 12-14 pages</td><td>Isolated LaTeX parsing laid out 12 pages. The current checked-in <code>main.pdf</code> is stale and does not contain Chapter 6, so final-template pagination is not yet verified.</td><td class="status-partial">Provisional pass</td></tr>
+          <tr><td>At most two figures</td><td>Two figure environments; the second contains two panels.</td><td class="status-pass">Budget pass; content fails</td></tr>
+          <tr><td>At most three tables</td><td>Three tables.</td><td class="status-pass">Pass</td></tr>
+          <tr><td>No source-code listings</td><td>Zero <code>lstlisting</code> environments.</td><td class="status-pass">Pass</td></tr>
+          <tr><td>No operational tutorial</td><td>No command sequence, manifest dump or procedural walkthrough.</td><td class="status-pass">Pass</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="latex">
+      <h2>Citations, Glossary, Labels and LaTeX</h2>
+      <ul class="compact">
+        <li>All seven Chapter 6 citation keys exist in <code>bibliography.bib</code>.</li>
+        <li>All Chapter 6 figure/table references have matching labels, and no duplicate Chapter 6 labels were found.</li>
+        <li>British-English usage is consistent; no material American spellings were found.</li>
+        <li>The glossary contains CPU, CTF, RSS, UID, GID, SD and ATT&amp;CK. TCP should be expanded at first use or added as an acronym.</li>
+        <li><code>kubernetes_process_namespace</code> is not the best source for <code>hostPID</code>; add the official PodSpec/API field documentation.</li>
+        <li>Pin the <code>openecsc2024_aes_beta</code> bibliography URL to revision <code>2602f22c664eb98398413e6a7dfe03ea88b2d296</code>, not the moving <code>main</code> branch.</li>
+        <li>Add primary Linux documentation for cgroup-v1 <code>memory.usage_in_bytes</code>/<code>total_rss</code> and <code>/proc/stat</code> if those metric semantics remain in the body.</li>
+      </ul>
+      <div class="box medium">
+        <strong>Build result.</strong> The complete build could not run in this
+        environment because <code>biblatex.sty</code> is missing. An isolated
+        Chapter 6 syntax pass parsed the entire chapter and laid out 12 pages,
+        but final PDF emission was blocked by the local TeX installation's
+        missing <code>gftopk</code> font utility. The pass exposed a 30.53 pt
+        overfull line near <code>sched_process_exec</code>, a 5.44 pt table-header
+        overflow and two minor overfull lines. The existing 87-page
+        <code>main.pdf</code> predates Chapter 6 and cannot serve as final visual
+        validation.
+      </div>
+    </section>
+
+    <section id="appendix">
+      <h2>Material Better Kept in an Appendix or Evidence Bundle</h2>
+      <ul class="compact">
+        <li>Complete manifests, security contexts, image identifiers, cgroup paths, command history, raw alerts and sampling TSV files.</li>
+        <li>Observed ClusterIP and endpoint addresses unless they are needed directly in the topology figure; they are ephemeral rather than reproducibility inputs.</li>
+        <li>The separate host Docker CLI and node runtime versions can move to the reproducibility appendix if the environment table becomes crowded.</li>
+        <li>Detailed chronology of the stale B1 connection and both client-pattern corrections. Keep one concise disclosure in the body and preserve the operational details externally.</li>
+        <li>Low-level exploit reconstruction steps beyond the minimum needed to explain why shell, <code>cat</code> and flag access are expected.</li>
+      </ul>
+    </section>
+
+    <section id="edits">
+      <h2>Ordered Edit List</h2>
+      <ol>
+        <li>Redraw both Chapter 6 figures and update their captions to match the cross-Pod raw evidence.</li>
+        <li>Rename every performance measurement boundary from Pod/process to monitor-container or target-container cgroup as appropriate.</li>
+        <li>Replace process RSS with cgroup <code>total_rss</code> and define its relationship to <code>memory.usage_in_bytes</code>.</li>
+        <li>Define target-container CPU as a percentage of one core and node CPU as aggregate busy time across the two configured CPUs.</li>
+        <li>Recompute the reduction before rounding and report approximately 92.0% (or 92.03%).</li>
+        <li>Replace causal filtering language with a scoped association consistent with the expected early-rejection mechanism.</li>
+        <li>Add the sample-edge limitation and missing near-miss controls to threats to validity.</li>
+        <li>Archive the untracked cross-Pod lab and evidence with immutable hashes and record where the thesis examiner can access them.</li>
+        <li>Correct the <code>hostPID</code> and pinned openECSC citations; add primary memory and node-CPU sources.</li>
+        <li>Break the long event-name line, tighten the functional table header and rerun the complete build on the thesis compilation machine.</li>
+        <li>Shorten the architecture recap in the discussion and avoid repeating all exact values in the final summary.</li>
+      </ol>
+    </section>
+
+    <section id="acceptance">
+      <h2>Final Acceptance Checklist</h2>
+      <ul class="compact">
+        <li>&#9744; Both figures represent the actual three-Pod topology, synthetic flag and four-event evidence without contradictory labels.</li>
+        <li>&#9744; CPU, memory and RSS are attributed to the correct container-cgroup counters.</li>
+        <li>&#9744; Every percentage states its denominator and measurement boundary.</li>
+        <li>&#9744; The filtering comparison reports approximately 92.0% from unrounded values and uses non-causal wording.</li>
+        <li>&#9744; The three benign repetitions are described as one repeated control, not a broad benign corpus.</li>
+        <li>&#9744; Missing near-miss, timeout and parent-child live controls are disclosed.</li>
+        <li>&#9744; Application recovery, client validation, LSM mediation, successful syscall return and alert completion remain distinct.</li>
+        <li>&#9744; “No matching perf-event loss diagnostic” is retained; no zero-loss claim appears.</li>
+        <li>&#9744; No total-overhead, accuracy, coverage, enforcement, cross-node or production-readiness claim is introduced.</li>
+        <li>&#9744; The authoritative cross-Pod datasets and scripts are immutably archived with hashes.</li>
+        <li>&#9744; The <code>hostPID</code>, openECSC, cgroup-memory and node-CPU references are corrected.</li>
+        <li>&#9744; Full thesis compilation succeeds with no unresolved references or citations and no material overfull boxes.</li>
+        <li>&#9744; The regenerated PDF contains Chapter 6 within the 12-14 page and two-figure/three-table budgets.</li>
+      </ul>
+      <div class="box high"><strong>Current acceptance status: NOT YET ACCEPTED.</strong> Resolve High findings 1-3 and Medium findings 1-3 before editorial sign-off. The remaining findings should be closed before thesis submission.</div>
+    </section>
+  </main>
+</div>
 </body>
 </html>

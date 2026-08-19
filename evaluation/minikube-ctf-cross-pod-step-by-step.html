@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cross-Pod Minikube Experiment: Chronological Record</title>
+  <style>
+    :root{--ink:#172033;--muted:#5d6878;--line:#cfd7e2;--panel:#f6f8fb;--blue:#2457a6;--green:#176b43;--amber:#8a5a00;--red:#963838}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);font:16px/1.58 system-ui,sans-serif;background:#fff}main{max-width:1080px;margin:auto;padding:42px 28px 72px}
+    h1,h2,h3{line-height:1.22}h1{margin-top:0}h2{margin-top:42px;border-bottom:1px solid var(--line);padding-bottom:7px}p,li{max-width:96ch}
+    code,pre{font-family:Consolas,monospace}code{background:#eef1f5;padding:.08rem .25rem}pre{overflow:auto;padding:13px;background:#111827;color:#edf2f8}
+    table{width:100%;border-collapse:collapse;margin:18px 0 28px}th,td{padding:10px 11px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:#eef2f7}
+    .box{padding:14px 17px;margin:17px 0;border-left:4px solid var(--blue);background:#f3f7fc}.ok{border-left-color:var(--green);background:#f0f8f4}.warn{border-left-color:var(--amber);background:#fff9ed}.fail{border-left-color:var(--red);background:#fff5f5}
+    .status{display:inline-block;padding:4px 8px;border:1px solid var(--line);background:var(--panel);font-weight:700;color:var(--amber)}
+    @media(max-width:760px){main{padding:28px 18px 52px}table{font-size:14px}}
+  </style>
+</head>
+<body><main>
+  <h1>Cross-Pod Minikube Experiment: Chronological Record</h1>
+  <p><span class="status">FUNCTIONAL AND PERFORMANCE EVALUATION COMPLETE</span></p>
+  <div class="box warn">
+    This document now covers isolation, Service communication, controlled
+    telemetry, three benign controls, three exploit runs and their independent
+    evidence audit. The final synthesis is linked at the end of this record.
+  </div>
+
+  <h2>Step 1 — Requirements Inspection</h2>
+  <p><strong>Purpose.</strong> Verify the components required by the cross-Pod laboratory without changing runtime or repository state.</p>
+  <p><strong>Observed result.</strong> The target can bind <code>0.0.0.0:1337</code>; trigger clients accept <code>TARGET_HOST</code> and <code>TARGET_PORT</code>. The monitor supports exact effective-UID filtering for UID 10001 and the required four-step AES-beta collective detector is available.</p>
+  <p><strong>Interpretation.</strong> The three-Pod topology requires orchestration and configuration changes, not application, eBPF or detector source changes.</p>
+  <p><strong>Files affected.</strong> None.</p>
+
+  <h2>Step 2 — Design</h2>
+  <p><strong>Purpose.</strong> Separate monitor, target and trigger while preserving the single Minikube node, images, detector semantics and process identities.</p>
+  <p><strong>Observed result.</strong> A DaemonSet monitor, one-replica target Deployment, ClusterIP Service and long-running trigger Pod were selected. Runtime properties remain <strong>NOT YET TESTED</strong>.</p>
+  <p><strong>Files affected.</strong> <code>documentation/evaluation/minikube-ctf-cross-pod-design.html</code>.</p>
+
+  <h2>Step 3 — Static Implementation</h2>
+  <p><strong>Purpose.</strong> Create the cross-Pod implementation without deploying it or changing unrelated resources.</p>
+  <p><strong>Actions.</strong> Added six static manifests, a local evidence exclusion, a Markdown README, five operational scripts and one shared command-logging helper under <code>demo_project/k8s/minikube-ctf-cross-pod/</code>.</p>
+  <p><strong>Implementation correction.</strong> The first script draft referred to the detector as if it were under <code>manifests/</code> and used a mismatched <code>part-of</code> selector. Inspection of the committed baseline located the detector under <code>k8s/minikube-ctf/detectors/</code>. Both paths/selectors were corrected before runtime use.</p>
+  <p><strong>Interpretation.</strong> The implementation is isolated under the dedicated cross-Pod directory.</p>
+
+  <h3>Static Checks</h3>
+  <table>
+    <thead><tr><th>Command</th><th>Observed result</th><th>Interpretation</th></tr></thead>
+    <tbody>
+      <tr><td><code>bash -n k8s/minikube-ctf-cross-pod/scripts/*.sh k8s/minikube-ctf-cross-pod/scripts/lib/*.sh</code></td><td>Exit 0.</td><td>All shell files passed Bash syntax parsing.</td></tr>
+      <tr><td><code>git diff --check -- k8s/minikube-ctf-cross-pod</code></td><td>Exit 0.</td><td>No whitespace error was detected.</td></tr>
+      <tr><td>Run each operational script with <code>EVIDENCE_DIR</code> unset.</td><td>Each returned exit 2 with the required-directory diagnostic.</td><td>Deployment, validation, collection, scenarios and cleanup cannot start without an evidence location.</td></tr>
+      <tr><td><code>command -v shellcheck</code></td><td>No executable found.</td><td><code>shellcheck</code> was unavailable; no result is claimed.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Kubernetes Dry-Run Attempts</h3>
+  <div class="box fail">
+    <strong>Static Kubernetes validation was attempted but not completed.</strong>
+    This is an unresolved environment limitation, not a manifest PASS or a
+    deployment failure.
+  </div>
+  <p><strong>Attempt 1.</strong></p>
+  <pre>kubectl apply --dry-run=client --validate=false \
+  -f k8s/minikube-ctf-cross-pod/manifests/</pre>
+  <p><strong>Observed failure.</strong> Exit 1. The installed client attempted API discovery at <code>http://localhost:8080/api</code>; access was unavailable in the current execution environment.</p>
+  <p><strong>Attempt 2.</strong></p>
+  <pre>kubectl create --dry-run=client --validate=false \
+  -f k8s/minikube-ctf-cross-pod/manifests/</pre>
+  <p><strong>Observed failure.</strong> Exit 1 with the same discovery dependency.</p>
+  <p><strong>Diagnosis.</strong> This <code>kubectl</code> build requires REST mapping even for these client dry-run paths. No API server was used and no resource was created.</p>
+  <p><strong>Proposed verification.</strong> Repeat dry-run and API-server validation against the actual Minikube context during the approved deployment phase, preserving both commands and results.</p>
+
+  <h3>Documentation Validation</h3>
+  <p><strong>Attempt.</strong> The three cross-Pod HTML files were parsed with <code>xmllint --html --noout</code>.</p>
+  <p><strong>Observed failure and fix.</strong> The first pass found three malformed closing <code>code</code> tags in the design document. They were corrected and the check was repeated.</p>
+  <p><strong>Remaining diagnostic.</strong> The parser reports the HTML5 <code>main</code> element as unknown because its HTML grammar predates HTML5. No malformed closing tag remains.</p>
+
+  <h2>Step 4 — Environment Baseline and Deployment</h2>
+  <p><strong>Purpose.</strong> Record the actual host and cluster state, create a usable single-node environment and deploy the statically implemented topology without running either scenario.</p>
+
+  <h3>Observed Baseline</h3>
+  <table>
+    <tbody>
+      <tr><th>Host</th><td><code>security-thesis-1</code>, Rocky Linux 8.10</td></tr>
+      <tr><th>Kernel</th><td><code>4.18.0-553.137.1.el8_10.x86_64</code></td></tr>
+      <tr><th>Docker</th><td><code>26.1.3</code></td></tr>
+      <tr><th>Minikube</th><td><code>v1.38.1</code></td></tr>
+      <tr><th>demo_project</th><td><code>e8795fea7afb12079844031a1a8b69d7091e0dfd</code>, branch <code>test/process-evaluation</code></td></tr>
+      <tr><th>Kernel resources</th><td>Host BTF, bpffs and tracefs were present.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Failed Existing-Profile Start</h3>
+  <p><strong>Command.</strong></p>
+  <pre>minikube start -p minikube</pre>
+  <p><strong>Observed failure.</strong> The existing profile reported Kubernetes <code>v1.35.1</code>, remained in startup and then failed Minikube status checks because SSH authentication to the node container was unavailable.</p>
+  <p><strong>Diagnosis.</strong> The profile configuration had been rewritten on 17 August, while its SSH key pair dated from 7 August. This current state also contradicted the historical document that reported a validated <code>v1.30.0</code> profile.</p>
+  <p><strong>Rejected repair.</strong> Deleting the profile was not authorised because it could destroy residual cluster state. No deletion occurred.</p>
+  <p><strong>Applied fix.</strong> The inconsistent profile was stopped without deletion. A separate profile was created:</p>
+  <pre>minikube start -p cross-pod --driver=docker \
+  --kubernetes-version=v1.30.0 --cpus=2 --memory=4096</pre>
+  <p><strong>Verification.</strong> Profile <code>cross-pod</code> reached Running status with one Ready control-plane node. The old <code>minikube</code> profile remains preserved and Stopped.</p>
+
+  <h3>Images, Validation and Deployment</h3>
+  <p>The three required host images were inspected and loaded into <code>cross-pod</code> without rebuilding them:</p>
+  <pre>minikube image load -p cross-pod demo-project-ebpf:latest
+minikube image load -p cross-pod aes-beta-target:local
+minikube image load -p cross-pod aes-beta-trigger:local</pre>
+  <p>The client dry-run that failed in Phase 3 was repeated against real Kubernetes discovery and passed for all six static manifests.</p>
+  <pre>EVIDENCE_DIR=... KUBECTL='kubectl --context cross-pod' \
+  ./k8s/minikube-ctf-cross-pod/scripts/deploy-cross-pod-lab.sh</pre>
+  <p><strong>Observed result.</strong> Namespace, policy, detector ConfigMap, synthetic flag Secret, target Deployment, Service, trigger Pod and monitor DaemonSet were created. All rollout waits completed successfully.</p>
+
+  <h3>Stable Deployment State</h3>
+  <table>
+    <thead><tr><th>Pod</th><th>Pod UID</th><th>IP</th><th>Node</th><th>Restarts</th></tr></thead>
+    <tbody>
+      <tr><td><code>aes-beta-target-cross-pod-86846476fc-2zqhb</code></td><td><code>57451b8e-2020-46e4-a74c-e4bf2e1beb64</code></td><td><code>10.244.0.3</code></td><td><code>cross-pod</code></td><td>0</td></tr>
+      <tr><td><code>aes-beta-trigger-cross-pod</code></td><td><code>85137950-028f-41bd-9e28-8bc0ecbdb75f</code></td><td><code>10.244.0.4</code></td><td><code>cross-pod</code></td><td>0</td></tr>
+      <tr><td><code>project-monitor-cross-pod-f28xm</code></td><td><code>99fe4721-589b-4cfc-88a6-89dd01d64cfd</code></td><td><code>10.244.0.5</code></td><td><code>cross-pod</code></td><td>0</td></tr>
+    </tbody>
+  </table>
+  <p>The ClusterIP Service received address <code>10.102.19.49</code> and its EndpointSlice referenced target IP <code>10.244.0.3:1337</code>. This establishes control-plane configuration only; traffic has <strong>NOT YET BEEN TESTED</strong>.</p>
+  <p>The target reported listener readiness on <code>[::]:1337</code> as UID/GID 10001. The monitor reported one loaded policy, one loaded detector, event scope <code>open</code>, <code>sched_process_exec</code> and <code>security_file_open</code>, and exact kernel UID filtering for 10001. A second check after three minutes still showed all Pods Ready, zero restarts, no Warning events and no monitor error.</p>
+
+  <p><strong>Evidence.</strong> Complete command provenance and raw output are stored under <code>demo_project/k8s/minikube-ctf-cross-pod/evidence/cross-pod-20260817T052019Z/</code>.</p>
+
+  <h2>Step 5 — Isolation, Networking and eBPF Visibility</h2>
+  <p><strong>Purpose.</strong> Test the assumptions required by the later scenarios without executing either the benign client or the exploit.</p>
+
+  <h3>Independent Pod Evidence</h3>
+  <p><strong>Expected result.</strong> Three distinct Pod UIDs, IPs, container identities and pod cgroups on the same node, with <code>hostPID: false</code>.</p>
+  <p><strong>Observed result.</strong> Target, trigger and monitor had different Pod UIDs, IP addresses and Docker container IDs. Their <code>/proc/1/cgroup</code> paths contained different Kubernetes Pod UIDs, and all three cgroup evidence files had different hashes. The effective specification reported <code>hostPID=false</code> for every Pod.</p>
+  <p><strong>Interpretation.</strong> <strong>PASS.</strong> The workloads are separate Pods and containers while sharing the node kernel required for node-local eBPF observation.</p>
+
+  <h3>Service Communication</h3>
+  <p><strong>Command.</strong> A Python standard-library client in the trigger resolved the configured <code>TARGET_HOST</code> and opened one TCP connection. It did not invoke the benign or exploit runner.</p>
+  <pre>python3 -c '... socket.create_connection((TARGET_HOST, TARGET_PORT), 3) ...'</pre>
+  <p><strong>Observed result.</strong> <code>aes-beta-target-cross-pod</code> resolved to ClusterIP <code>10.102.19.49</code>. The socket peer was <code>10.102.19.49:1337</code>, the EndpointSlice referenced <code>10.244.0.3:1337</code>, and the target logged a session from trigger IP <code>10.244.0.4</code>.</p>
+  <p><strong>Interpretation.</strong> <strong>PASS.</strong> Communication used the Kubernetes Service and independent Pod network, not <code>127.0.0.1</code>.</p>
+
+  <h3>Controlled Target Telemetry</h3>
+  <p>The DaemonSet was temporarily patched to remove only <code>--alerts-only</code>. The exact UID filter, policy and detector remained unchanged. The first orchestration command returned status 1 after rollout because newline-free <code>jsonpath</code> output caused Bash <code>read</code> to return EOF. Runtime inspection showed that the Pod itself was Ready, had zero restarts and correctly reported <code>alerts_only=false</code>. The two affected repository scripts were corrected to use direct Bash file expansion and passed <code>bash -n</code>.</p>
+  <p><strong>Controlled command.</strong></p>
+  <pre>kubectl --context cross-pod -n ebpf-ctf-cross-pod exec \
+  aes-beta-target-cross-pod-86846476fc-2zqhb -- \
+  /bin/cat /proc/self/status</pre>
+  <p><strong>Observed result.</strong> The command reported real/effective UID 10001. The independent monitor recorded eight UID-10001 records, including one <code>sched_process_exec</code> for <code>/bin/cat</code>, resolved <code>security_file_open</code> evidence and a successful <code>open</code> for <code>/proc/self/status</code>.</p>
+  <p><strong>Interpretation.</strong> <strong>PASS.</strong> A monitor in its own Pod observed controlled process and file activity generated in the target Pod while <code>hostPID</code> remained false.</p>
+
+  <h3>UID Filter Sanity Check</h3>
+  <p>The same command was executed in the trigger Pod and its own <code>/proc/self/status</code> confirmed UID 10002. The monitor interval starting immediately before this command contained zero lines and zero UID-10002 records.</p>
+  <p><strong>Interpretation.</strong> The controlled positive and negative cases are consistent with exact kernel admission for UID 10001. This does not prove isolation from every unrelated node process that might also use UID 10001.</p>
+  <p>Two initial <code>grep</code> counts used incorrect quoting or assumed direct JSON keys instead of the actual <code>name</code>/<code>value</code> argument representation. Both failed attempts remain in <code>commands.log</code>; corrected counts were then recorded from the unchanged raw logs.</p>
+
+  <h3>Canonical Restoration</h3>
+  <p>The committed DaemonSet manifest was reapplied after telemetry collection. The replacement monitor <code>project-monitor-cross-pod-wx5zq</code> reported <code>alerts_only=true</code>, exact UID filter 10001, one policy and one detector. All three Pods were Ready with zero restarts, no Warning events were present, and the loss-diagnostic scan returned no match.</p>
+
+  <h2>Step 6 — Benign Functional Evaluation</h2>
+  <p><strong>Purpose.</strong> Establish a negative control by exercising the normal AES-beta encryption workflow three times without invoking the exploit client.</p>
+  <p><strong>Expected result.</strong> Three successful benign workloads, no <code>aes-beta-command-execution</code> alert, no reported perf-event loss and no Pod restart.</p>
+  <p><strong>Commands.</strong> Each run used the scenario runner with a distinct <code>RUN_ID</code> and evidence directory:</p>
+  <pre>EVIDENCE_DIR=... KUBECTL='kubectl --context cross-pod' \
+RUN_ID=benign-cross-pod-0N RUN_DIR_NAME=benign-run-0N \
+./scripts/run-cross-pod-scenario.sh benign</pre>
+  <table>
+    <thead><tr><th>Run</th><th>UTC interval</th><th>Client duration</th><th>Worker</th><th>Application</th><th>AES-beta alerts</th><th>Loss diagnostics</th><th>Restarts</th></tr></thead>
+    <tbody>
+      <tr><td><code>benign-cross-pod-01</code></td><td>05:59:09–06:01:29</td><td>138,181 ms</td><td>33</td><td>PASS</td><td>0</td><td>0</td><td>0</td></tr>
+      <tr><td><code>benign-cross-pod-02</code></td><td>06:01:47–06:01:48</td><td>13 ms</td><td>35</td><td>PASS</td><td>0</td><td>0</td><td>0</td></tr>
+      <tr><td><code>benign-cross-pod-03</code></td><td>06:01:59–06:02:00</td><td>14 ms</td><td>37</td><td>PASS</td><td>0</td><td>0</td><td>0</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Observed result.</strong> All clients returned the expected ciphertext <code>12070011170f1311</code> with status zero. Their bounded monitor intervals contained no alert and no loss diagnostic. Pod snapshots before and after every run showed all three workloads Running with zero restarts.</p>
+  <div class="box warn"><strong>Preserved anomaly.</strong> The controlled TCP connection opened during Phase 5 remained active because it sent no challenge protocol data. The single-session target closed it after approximately 900 seconds. The first benign client waited behind that session and therefore reported 138,181 ms; once admitted, its target session completed in 6 ms. Runs 2 and 3 completed normally in 13 and 14 ms. The first duration is not used as a workload-performance measurement.</div>
+  <p><strong>Interpretation at the end of Phase 6.</strong> <strong>PASS.</strong> The benign workflow succeeded in 3/3 runs and produced 0 AES-beta exploitation alerts. At that checkpoint, exploit detection had not yet been executed; the following step records its later evaluation.</p>
+
+  <h2>Step 7 — Exploit Functional Evaluation</h2>
+  <p><strong>Purpose.</strong> Execute the AES-beta exploit from the independent trigger Pod and evaluate application success separately from the node-local detector result.</p>
+  <p><strong>Expected evidence.</strong> Each successful attack should create 1,793 workers, recover the synthetic flag and produce one alert containing <code>sched_process_exec</code> for <code>/bin/sh</code>, <code>sched_process_exec</code> for <code>/bin/cat</code>, <code>security_file_open</code> for <code>/opt/aes-beta/flag</code> and a successful relative <code>open</code>.</p>
+  <table>
+    <thead><tr><th>Run</th><th>UTC interval</th><th>Duration</th><th>Workers</th><th>Flag recovered</th><th>Client result</th><th>Alert</th><th>Evidence</th><th>Losses</th><th>Restarts</th></tr></thead>
+    <tbody>
+      <tr><td><code>exploit-cross-pod-01</code></td><td>06:07:07–06:07:55</td><td>46,766 ms</td><td>1,793</td><td>Yes</td><td>FAIL: pattern mismatch</td><td>1</td><td>Complete</td><td>0</td><td>0</td></tr>
+      <tr><td><code>exploit-cross-pod-02</code></td><td>06:09:00–06:09:47</td><td>45,877 ms</td><td>1,793</td><td>Yes</td><td>FAIL: malformed first fix</td><td>1</td><td>Complete</td><td>0</td><td>0</td></tr>
+      <tr><td><code>exploit-cross-pod-03</code></td><td>06:10:50–06:11:39</td><td>47,577 ms</td><td>1,793</td><td>Yes</td><td>PASS</td><td>1</td><td>Complete</td><td>0</td><td>0</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Observed monitoring result.</strong> All three alerts used detector <code>aes-beta-command-execution</code>, contained four events in the required order and carried UID 10001. Within each alert, the four records shared one stable host PID, while the corresponding parent host PID was also consistent.</p>
+  <div class="box warn"><strong>Validation discrepancy and correction.</strong> Runs 1 and 2 recovered <code>openECSC{ebpf_cross_pod_evaluation}</code> and triggered the detector, but the client labelled the result as failed. The cross-Pod deployment creates an <code>openECSC{...}</code> flag while the reused client image defaults to <code>THESIS{...}</code>. The first attempted pattern fix was malformed by Bash parameter-expansion parsing and run 2 remained failed. A separate literal default was then syntax-checked and tested directly; run 3 validated the same flag successfully. Neither failed run was retried or replaced.</div>
+  <p><strong>Interpretation.</strong> Application exploitation succeeded in 3/3 runs because each attack recovered the mounted flag. Detection succeeded in 3/3 runs and the expected collective evidence was complete in 3/3 runs. Client-side result validation succeeded in 1/3 runs, with the two failures explained by the preserved configuration defect rather than by exploit or detector failure.</p>
+
+  <h2>Step 8 — Evidence Audit and Result Analysis</h2>
+  <p><strong>Purpose.</strong> Determine whether the preserved evidence supports the research question without executing additional workloads.</p>
+  <table>
+    <thead><tr><th>Criterion group</th><th>Evidence</th><th>Result</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Experiment isolation and implementation</td><td>Git state and dedicated cross-Pod directory</td><td>PASS</td><td>The manifests, scripts and evidence are owned by the cross-Pod laboratory.</td></tr>
+      <tr><td>Three-Pod isolation</td><td>Pod metadata, IPs, container identities and cgroup files</td><td>PASS</td><td>Three Pod UIDs, IPs and cgroup paths; one shared node.</td></tr>
+      <tr><td>Security boundaries</td><td>Effective manifests and validation output</td><td>PASS</td><td><code>hostPID=false</code>; target UID 10001, trigger UID 10002; flag Secret only in target.</td></tr>
+      <tr><td>Service path</td><td>Service, EndpointSlice and target session source</td><td>PASS</td><td>Trigger source <code>10.244.0.4</code> reached target <code>10.244.0.3</code> through ClusterIP <code>10.102.19.49</code>.</td></tr>
+      <tr><td>Node-local telemetry</td><td>Controlled Phase 5 exec and file records</td><td>PASS</td><td>The independent monitor observed UID-10001 target activity.</td></tr>
+      <tr><td>Benign control</td><td>Three run directories and monitor intervals</td><td>PASS</td><td>3/3 workloads, zero AES-beta alerts.</td></tr>
+      <tr><td>Exploit application</td><td>Three trigger outputs</td><td>PASS</td><td>Flag recovered in 3/3; client validator anomaly preserved separately.</td></tr>
+      <tr><td>Detection</td><td>Three alert records</td><td>PASS</td><td>3/3 matches with complete four-event evidence and UID 10001.</td></tr>
+      <tr><td>Loss and stability checks</td><td>Six monitor intervals and Pod snapshots</td><td>PASS</td><td>Zero loss-diagnostic matches and zero restarts.</td></tr>
+      <tr><td>Command and raw-evidence preservation</td><td><code>commands.log</code> and evidence inventory</td><td>PASS</td><td>More than 377 timestamped command records plus per-run raw files.</td></tr>
+      <tr><td>Cross-node detection</td><td>Single-node design</td><td>NOT VERIFIED</td><td>No claim beyond the shared Minikube node.</td></tr>
+      <tr><td>Least privilege and production readiness</td><td>Privileged DaemonSet and laboratory scope</td><td>NOT VERIFIED</td><td>The setup remains a scenario-specific prototype evaluation.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Evaluated Topology</h3>
+  <table>
+    <thead><tr><th>Property</th><th>Observed configuration</th></tr></thead>
+    <tbody>
+      <tr><td>Workload boundary</td><td>Three Pods with distinct UIDs, IPs and cgroups on one node</td></tr>
+      <tr><td>Network path</td><td>ClusterIP Service between trigger and target</td></tr>
+      <tr><td>Monitor placement</td><td>Independent privileged DaemonSet Pod</td></tr>
+      <tr><td>Detection scope</td><td>Target UID 10001, three logical events and the AES-beta collective detector</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>Functional verdict: PASS.</strong> In this evaluated single-node environment, the monitor observed and detected the exploit across the target process tree. The monitor remained node-local and privileged; no cross-node, cluster-wide or production-readiness conclusion follows.</p>
+
+  <h2>Step 9 — Final Documentation</h2>
+  <p><strong>Purpose.</strong> Separate the preserved design, chronological procedure, stable deployment, functional results and thesis-oriented conclusion into five linked documents.</p>
+  <p><strong>Observed result.</strong> The final report records a <strong>functional PASS</strong> constrained to the evaluated single-node Minikube environment. It links to this chronological record and to the detailed design, deployment and functional evidence documents.</p>
+  <p><strong>Final synthesis.</strong> <a href="minikube-ctf-cross-pod-final-report.html">Cross-Pod Minikube Final Report</a>.</p>
+
+  <h2>Step 10 — Replicated Performance Evaluation</h2>
+  <p><strong>Purpose.</strong> Measure monitor CPU and memory, node utilisation, exploit duration, detection integrity and runtime stability on this same cross-Pod node.</p>
+  <p><strong>Status.</strong> <strong>EXECUTED.</strong> The approved method used filtered, unfiltered and no-monitor profiles with three runs each, for nine official runs. No value from another topology was imported.</p>
+  <p><strong>Implementation.</strong> Profile selection, cross-Pod cgroup sampling, single-run coordination, calibration, rotated execution and offline aggregation scripts are present. Bash syntax, profile rendering, alert-evidence validation and synthetic aggregation passed; <code>shellcheck</code> was unavailable. Runtime calibration remains pending.</p>
+  <p><strong>First calibration attempt.</strong> The filtered workload completed successfully in 45,652 ms with 1,793 workers, flag recovery, one complete alert, no loss diagnostic and no restart. The CPU columns were empty, so the apparent <code>0.00</code> summary was rejected. The cause was an AWK parsing ambiguity in three CPU calculations. Explicit branches and structural TSV validation were added; the malformed evidence is preserved under <code>performance-calibration-20260819T065500Z</code>. A replacement calibration was then required.</p>
+  <p><strong>Post-fix smoke test.</strong> A three-second read-only sample produced numeric monitor, target and node CPU fields. It did not execute an exploit and is not included in the evaluation dataset.</p>
+  <p><strong>Corrected calibration.</strong> The second attempt produced 72 valid rows with no blank CPU fields and 45 samples inside the workload interval. The exploit passed in 47,101 ms, used 1,793 workers, recovered the flag and generated one complete alert. Monitor CPU was 0.50% mean, 1.03% P95 and 1.39% peak; losses and restarts were zero. The calibration is approved but excluded from the official dataset.</p>
+  <p><strong>Official execution.</strong> The nine runs completed without retry. Filtered monitor CPU averaged 0.46% of one core (SD 0.02; range 0.44--0.47%), against 5.73% unfiltered, a measured reduction of 91.97%. Every monitored run recovered the flag and produced one complete alert; losses and restarts were zero.</p>
+  <p><strong>Post-run audit.</strong> The snapshots taken immediately after each no-monitor profile change still showed the old monitor Pod as <code>Terminating</code>. A ten-second sampler warm-up preceded each exploit, but final Pod deletion was not independently timestamped. The no-monitor controls are retained and their durations are not used for a causal overhead claim. The profile script was then changed to wait for and verify complete monitor-Pod deletion.</p>
+  <p><strong>Protocol.</strong> <a href="minikube-ctf-cross-pod-performance-plan.html">Cross-Pod Minikube Performance Evaluation Plan</a>.</p>
+  <p><strong>Results.</strong> <a href="minikube-ctf-cross-pod-performance-evaluation.html">Cross-Pod Performance Evaluation</a>.</p>
+
+  <h2>Implemented Safety Boundaries</h2>
+  <ul>
+    <li>Every operational script requires a timestamped <code>EVIDENCE_DIR</code>.</li>
+    <li>The shared helper records UTC time, working directory, purpose, shell-escaped command, stdout/stderr paths, exit status and interpretation.</li>
+    <li>An already active monitor outside this namespace stops deployment unless <code>STOP_PREVIOUS_MONITOR=1</code> is supplied explicitly.</li>
+    <li>Scenario execution performs no automatic retry.</li>
+    <li>Cleanup removes only <code>ebpf-ctf-cross-pod</code>.</li>
+  </ul>
+
+  <h2>Runtime Status</h2>
+  <table>
+    <tbody>
+      <tr><th>Environment baseline</th><td>COLLECTED</td></tr>
+      <tr><th>Images available in Minikube</th><td>VERIFIED</td></tr>
+      <tr><th>Resources deployed</th><td>DEPLOYED AND READY</td></tr>
+      <tr><th>Pod identities, IPs, cgroups and placement</th><td>PASS</td></tr>
+      <tr><th>Service communication</th><td>PASS</td></tr>
+      <tr><th>Target telemetry</th><td>PASS</td></tr>
+      <tr><th>UID filter controlled sanity check</th><td>PASS WITH STATED SCOPE</td></tr>
+      <tr><th>Canonical alerts-only restoration</th><td>PASS</td></tr>
+      <tr><th>Benign scenarios</th><td>PASS: 3/3 workloads, 0 AES-beta alerts</td></tr>
+      <tr><th>Exploit scenarios</th><td>3/3 flag recovery; client validation 1/3 after two documented pattern failures</td></tr>
+      <tr><th>Exploit detector result</th><td>PASS: 3/3 alerts with complete four-event evidence</td></tr>
+      <tr><th>Replicated performance evaluation</th><td>PRIMARY GATES PASS; no-monitor timing limitation documented</td></tr>
+    </tbody>
+  </table>
+</main></body>
+</html>

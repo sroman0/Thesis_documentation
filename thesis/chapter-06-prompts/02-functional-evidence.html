@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agent 2: Functional Evidence</title>
+<style>body{max-width:1000px;margin:2rem auto;padding:0 1.25rem;font:16px/1.55 system-ui,sans-serif;color:#18202a}h1{line-height:1.2}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f2f4f6;border:1px solid #cbd2d9;padding:1rem;font:13px/1.45 ui-monospace,Consolas,monospace}.note{border-left:5px solid #0f5e75;background:#e8f3f6;padding:.8rem 1rem}code{background:#edf0f3;padding:.08rem .28rem}</style></head>
+<body><h1>Agent 2: Functional Evidence</h1><p class="note"><strong>Output:</strong> <code>functional-evidence-audit.html</code>. Copy the complete prompt below into one agent.</p><pre>You are the functional-evidence and detection-oracle auditor for Chapter 6 of an MSc thesis about an eBPF runtime security monitor.
+
+Read completely:
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-06-cross-pod-agent-workflow.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-cross-pod-functional-evaluation.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-cross-pod-final-report.html
+- /home/simone/project/documentation/evaluation/aes-beta-adaptation-specification.html
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+- /home/simone/project/Thesis/content/chapters/chapter5.tex
+- /home/simone/project/Thesis/content/chapters/chapter6.tex
+
+Inspect completely:
+- /home/simone/project/demo_project/k8s/minikube-ctf-cross-pod/evidence/cross-pod-20260817T052019Z
+- /home/simone/project/demo_project/k8s/minikube-ctf/detectors/aes-beta-command-execution.yaml
+- /home/simone/project/demo_project/rules/policies/aes-beta-process-observation.yaml
+- relevant target and trigger sources under /home/simone/project/demo_project/k8s/minikube-ctf
+
+Record commit and dirty state. Derive every count from raw artefacts. Audit the three benign and three exploit runs, application status, worker and flag results, ordered shell/cat/resolved-file/successful-open evidence, UID and process-tree consistency, detector identity and window, application versus detector success, diagnostics, restarts, anomalies and current Chapter 6 accuracy.
+
+Produce per-run and aggregate tables, an oracle-to-evidence matrix, accepted/rejected claims, paragraph plan, visual guidance and unresolved issues. ATT&amp;CK is classification metadata. Do not analyse performance or modify another file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-06/functional-evidence-audit.html</pre></body></html>

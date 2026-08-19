@@ -1,311 +1,113 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Chapter 6 Performance Evidence Audit</title>
-  <style>
-    :root {
-      color-scheme: light;
-      --ink: #17212b;
-      --muted: #586574;
-      --line: #cbd3db;
-      --panel: #f5f7f9;
-      --accent: #155e75;
-      --accent-soft: #e9f4f6;
-      --good: #23633d;
-      --good-soft: #eaf6ee;
-      --warn: #8a4b08;
-      --warn-soft: #fff4df;
-      --bad: #9b2c2c;
-      --bad-soft: #fff0f0;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      color: var(--ink);
-      background: #fff;
-      font: 16px/1.58 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-    main { max-width: 1160px; margin: 0 auto; padding: 2.5rem 1.4rem 5rem; }
-    h1, h2, h3 { line-height: 1.2; letter-spacing: 0; }
-    h1 { margin-top: 0; }
-    h2 { margin-top: 2.6rem; padding-bottom: .35rem; border-bottom: 2px solid var(--line); }
-    h3 { margin-top: 1.7rem; }
-    p, li { max-width: 92ch; }
-    code { padding: .08rem .28rem; background: #edf0f3; overflow-wrap: anywhere; }
-    table { width: 100%; margin: 1rem 0 1.5rem; border-collapse: collapse; font-size: .92rem; }
-    th, td { padding: .62rem; border: 1px solid var(--line); text-align: left; vertical-align: top; }
-    th { background: var(--panel); }
-    .scroll { overflow-x: auto; }
-    .box { margin: 1rem 0; padding: .85rem 1rem; border-left: 5px solid var(--accent); background: var(--accent-soft); }
-    .good { border-left-color: var(--good); background: var(--good-soft); }
-    .warn { border-left-color: var(--warn); background: var(--warn-soft); }
-    .bad { border-left-color: var(--bad); background: var(--bad-soft); }
-    .muted { color: var(--muted); }
-    .diagram { display: grid; grid-template-columns: 1fr auto 1.2fr auto 1fr; gap: .65rem; align-items: stretch; margin: 1.2rem 0; }
-    .node { padding: .85rem; border: 1px solid var(--line); background: var(--panel); }
-    .node strong { display: block; margin-bottom: .35rem; color: var(--accent); }
-    .arrow { align-self: center; font-size: 1.45rem; color: var(--accent); }
-    .verdict { padding: 1rem 1.1rem; border: 2px solid var(--warn); background: var(--warn-soft); }
-    .status-valid { color: var(--good); font-weight: 700; }
-    .status-qualified { color: var(--warn); font-weight: 700; }
-    .status-invalid { color: var(--bad); font-weight: 700; }
-    @media (max-width: 820px) {
-      .diagram { grid-template-columns: 1fr; }
-      .arrow { transform: rotate(90deg); justify-self: center; }
-    }
-    @media print {
-      main { max-width: none; padding: 0; }
-      .scroll { overflow: visible; }
-    }
-  </style>
-</head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chapter 6 Cross-Pod Performance Evidence Audit</title>
+<style>body{max-width:1160px;margin:2rem auto;padding:0 1.3rem 4rem;font:16px/1.56 system-ui,sans-serif;color:#17212b}h1,h2,h3{line-height:1.2}h2{margin-top:2.2rem;border-bottom:1px solid #ccd5dd;padding-bottom:.35rem}table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.94rem}th,td{border:1px solid #ccd5dd;padding:.55rem;text-align:left;vertical-align:top}th{background:#f3f6f8}code{background:#eef2f4;padding:.08rem .25rem}.box{padding:.85rem 1rem;border-left:5px solid #166534;background:#eef8f1;margin:1rem 0}.warn{border-color:#a16207;background:#fff8e7}.bad{border-color:#b91c1c;background:#fff1f1}.muted{color:#596775}.pass{color:#166534;font-weight:700}.qualified{color:#9a6700;font-weight:700}.reject{color:#b91c1c;font-weight:700}.scroll{overflow-x:auto}</style></head>
 <body>
-<main>
-  <h1>Chapter 6 Performance Methodology, Statistics and Attribution Audit</h1>
-  <p class="muted">Audit date: 13 August 2026. All numerical results below were recomputed from the retained TSV samples rather than copied from narrative reports.</p>
+<h1>Cross-Pod Performance Methodology, Statistics and Attribution Audit</h1>
+<p class="muted">Audit date: 19 August 2026. Authoritative dataset: <code>cross-pod-performance-20260819T070557Z</code>.</p>
+<div class="box"><strong>Evidence status: FINAL for scoped filtered/unfiltered reporting.</strong> The raw samples, run summaries and official aggregates are internally consistent and reproducible. The no-monitor runs are final as preserved observations but are excluded from causal duration or total-overhead conclusions because final monitor-Pod deletion was not independently timestamped.</div>
 
-  <section>
-    <h2>Inspected State and Evidence</h2>
-    <table>
-      <tbody>
-        <tr><th>Repository</th><td><code>demo_project</code></td></tr>
-        <tr><th>Inspected commit</th><td><code>497da90f564c97fb9ffc38b264398150467173f5</code></td></tr>
-        <tr><th>Working tree</th><td>Dirty: <code>.gitignore</code> is modified and <code>k8s/minikube-ctf/</code> is untracked. The complete laboratory, scripts and evidence are therefore working-tree artefacts rather than content established by the recorded commit.</td></tr>
-        <tr><th>Calibration evidence</th><td><code>step9-performance-calibration/</code>: one exploratory run for filtered idle, filtered exploit, unfiltered exploit and no-monitor exploit.</td></tr>
-        <tr><th>Replicated evidence</th><td><code>step10-replicated-performance-20260812T072832Z/</code>: five runs for each of three profiles, 15 runs in total.</td></tr>
-        <tr><th>Integrity checks</th><td>All Step 10 scenario statuses are zero; all scenario results are <code>pass</code>; all sampler, runner and deployment stderr files are empty; timestamps in the inspected TSV files are monotonic; all ten monitored runs contain one alert and no textual perf-loss diagnostic.</td></tr>
-      </tbody>
-    </table>
-    <div class="box warn"><strong>Evidence provenance:</strong> Chapter 6 may use these results, but it must identify the laboratory state or archive it in a committed revision before claiming commit-level reproducibility.</div>
-  </section>
+<h2>1. Inspected State and Independent Regeneration</h2>
+<table><tbody>
+<tr><th>Implementation revision</th><td><code>e8795fea7afb12079844031a1a8b69d7091e0dfd</code></td><td>Traceability only; no relevant monitored behaviour differs from the preceding implementation baseline.</td></tr>
+<tr><th>Repository state</th><td>Cross-Pod laboratory and policy untracked; unrelated modifications present.</td><td>The official campaign is identified by its evidence directory rather than by a later commit containing the lab.</td></tr>
+<tr><th>Official runs</th><td>Nine runs: three filtered, three unfiltered and three no-monitor, in a rotated 3x3 order.</td><td>No automatic retry. Each profile occurs once in each position.</td></tr>
+<tr><th>Regeneration</th><td>The summariser was rerun on a temporary copy of the official evidence.</td><td><code>runs.tsv</code>, <code>aggregate.tsv</code> and <code>acceptance.txt</code> matched the archived files byte for byte.</td></tr>
+<tr><th>Raw sample files</th><td>Nine files, 642 lines including headers.</td><td>Per-run workload selections contain the observations used by each summary.</td></tr>
+</tbody></table>
 
-  <section>
-    <h2>Measurement Boundary</h2>
-    <div class="diagram" role="img" aria-label="Measurement boundary from workload tasks through eBPF hooks to the monitor container">
-      <div class="node"><strong>Target and trigger tasks</strong>Generate the controlled workload. Their container CPU and the scenario duration describe workload behaviour.</div>
-      <div class="arrow">&#8594;</div>
-      <div class="node"><strong>Kernel and eBPF hooks</strong>Programs execute in the context of observed tasks. This cost is not reliably charged to the monitor container's cgroup.</div>
-      <div class="arrow">&#8594;</div>
-      <div class="node"><strong>Monitor container</strong>Consumes perf records, decodes events and evaluates the detector. Its cgroup counters are the primary 5% gate.</div>
-    </div>
-    <p>The sampler runs on the Minikube node, outside the measured container. It reads cgroup v1 counters found under <code>/sys/fs/cgroup/cpu,cpuacct/kubepods</code>, <code>/sys/fs/cgroup/memory/kubepods</code> and <code>/sys/fs/cgroup/pids/kubepods</code>. Node activity is sampled separately from <code>/proc/stat</code>.</p>
-    <table>
-      <thead><tr><th>Measure</th><th>Source and formula</th><th>Meaning</th><th>Boundary</th></tr></thead>
-      <tbody>
-        <tr><td>Container CPU</td><td><code>delta(cpuacct.usage) / delta(wall-clock ns) * 100</code></td><td>Percentage of one CPU core. Values above 100% are possible for concurrent tasks.</td><td>CPU charged to tasks in that container cgroup, including their charged kernel time; it is not a direct measure of all eBPF execution.</td></tr>
-        <tr><td>Node CPU</td><td>Deltas from the first eight counters in <code>/proc/stat</code></td><td>Busy fraction of the complete node capacity, reported on a 0-100% scale.</td><td>Available in all Step 10 runs, but too coarse under near-saturation to isolate a sub-percentage monitor effect.</td></tr>
-        <tr><td>Cgroup memory</td><td><code>memory.usage_in_bytes</code></td><td>Total charged cgroup memory observed at a sample point.</td><td>Includes more than anonymous resident pages and must not be labelled RSS.</td></tr>
-        <tr><td>RSS</td><td><code>total_rss</code> from <code>memory.stat</code></td><td>Resident set charged to the cgroup.</td><td>Reported separately from cgroup memory.</td></tr>
-        <tr><td>PID count</td><td><code>pids.current</code></td><td>Number of tasks in the measured cgroup at the sample point.</td><td>The monitor has 7-8 tasks; the target reaches 255-265 during the exploit.</td></tr>
-      </tbody>
-    </table>
-    <div class="box"><strong>Attribution wording:</strong> “monitor-container CPU” or “CPU charged to the monitor cgroup” is more exact than “pure user-space CPU”. The latter is acceptable only as shorthand accompanied by the explicit exclusion of eBPF work charged to observed tasks.</div>
-  </section>
+<h2>2. Measurement Boundary</h2>
+<p>The sampler runs on the Minikube node, outside the measured monitor cgroup. It discovers cgroup-v1 paths for the monitor and target and reads their counters together with node <code>/proc/stat</code>.</p>
+<table><thead><tr><th>Metric</th><th>Definition</th><th>Permitted interpretation</th></tr></thead><tbody>
+<tr><td>Monitor CPU</td><td><code>delta(cpuacct.usage) / delta(wall-clock ns) * 100</code></td><td>CPU charged to the monitor container cgroup, expressed as a percentage of one core.</td></tr>
+<tr><td>Target CPU</td><td>Same cgroup formula for the target container.</td><td>Workload context, not monitor overhead.</td></tr>
+<tr><td>Node CPU</td><td>Busy-time deltas from <code>/proc/stat</code>.</td><td>Utilisation of the complete two-CPU node on a 0-100% scale; denominator differs from container CPU.</td></tr>
+<tr><td>Cgroup memory</td><td><code>memory.usage_in_bytes</code>.</td><td>Total monitor cgroup memory charge.</td></tr>
+<tr><td>RSS</td><td><code>total_rss</code> from <code>memory.stat</code>.</td><td>Resident memory charged to the monitor cgroup.</td></tr>
+<tr><td>P95</td><td>Nearest-rank 95th percentile of workload-window samples for each run; averaged across runs.</td><td>Descriptive high-use observation, not uncertainty or a confidence interval.</td></tr>
+</tbody></table>
+<div class="warn box"><strong>Attribution boundary.</strong> Monitor-cgroup CPU measures user-space processing and kernel time charged to monitor tasks. eBPF programs execute in the context of observed tasks, so this is not total eBPF, application, node or system overhead.</div>
 
-  <section>
-    <h2>Sampling and Workload Window</h2>
-    <ol>
-      <li>The sampler starts before the workload and is configured for a 10-second warm-up, a 90-second maximum duration and a nominal one-second interval.</li>
-      <li>The runner sleeps for ten seconds and records <code>workload_start_ns</code> immediately before <code>kubectl exec</code>.</li>
-      <li>The trigger records an internal <code>duration_ms</code> for the exploit. The runner records <code>workload_end_ns</code> after <code>kubectl exec</code> returns.</li>
-      <li>Run summaries select samples whose endpoint timestamp lies between the external start and end timestamps. They do not merely select every row marked <code>measure</code>.</li>
-    </ol>
-    <p>The nominal one-second sampling period was not exact. Across the Step 10 files, observed intervals were approximately 1.02-1.70 seconds because each loop performs remote reads and calculations before sleeping again. CPU percentages remain normalised by the actual nanosecond interval, so this jitter does not invalidate the CPU formula.</p>
-    <div class="box warn"><strong>Boundary qualification:</strong> each CPU sample is a delta over the interval ending at its timestamp. Selecting by endpoint means the first accepted interval may begin before the external workload start, while the last fraction before workload end may be omitted. The first accepted endpoints occurred 0.02-1.02 seconds after start; the final accepted endpoints occurred 0.01-1.02 seconds before end. The current method is adequate for minute-long descriptive runs, but not for fine-grained latency attribution.</div>
-    <p>The scenario's internal duration and the external sampling window are deliberately different. The former measures the exploit logic; the latter includes the surrounding <code>kubectl exec</code> overhead and is used only to select resource samples. Chapter 6 must not present them as the same clock interval.</p>
-  </section>
+<h2>3. Protocol and Workload Window</h2>
+<ol>
+<li>Require explicit approval of a corrected calibration before the official campaign.</li>
+<li>Rotate profiles by round: F/U/N, U/N/F, N/F/U.</li>
+<li>Apply the profile, recreate the relevant monitor Pod when present and capture before-state.</li>
+<li>Start a nominal 75-second sampler and wait ten seconds before the exploit.</li>
+<li>Record host-side workload start/end nanoseconds around one 1,793-worker exploit invocation.</li>
+<li>Keep only samples whose timestamps fall within that workload interval.</li>
+<li>Capture alert completeness, losses and restart delta independently of the numeric metrics.</li>
+<li>Wait a ten-second cooldown before the next profile; do not retry failed runs.</li>
+</ol>
+<p>The 75-second setting is the sampling horizon, not the workload duration. Duration comes from the trigger's run-end record. The sampler validates numeric CPU fields and divides by measured elapsed time rather than assuming exact one-second intervals.</p>
 
-  <section>
-    <h2>Profile Comparison Matrix</h2>
-    <div class="scroll">
-      <table>
-        <thead><tr><th>Property</th><th>Filtered</th><th>Unfiltered</th><th>No monitor</th><th>Audit assessment</th></tr></thead>
-        <tbody>
-          <tr><td>Target and trigger</td><td>Present</td><td>Present</td><td>Present</td><td>Same images and scenario configuration.</td></tr>
-          <tr><td>Monitor</td><td>Present</td><td>Present</td><td>Removed</td><td>No-monitor is a workload reference, not a monitor-CPU profile.</td></tr>
-          <tr><td>Policy and detector</td><td>Same process policy and collective detector</td><td>Same process policy and collective detector</td><td>Not applicable</td><td>Filtered/unfiltered preserve analytical functionality.</td></tr>
-          <tr><td>Kernel UID admission</td><td>Enabled for UID 10001</td><td>Disabled</td><td>Not applicable</td><td>This is the intended treatment difference between monitored profiles.</td></tr>
-          <tr><td>Primary TSV container</td><td>Monitor</td><td>Monitor</td><td>Target</td><td>The generic “primary” columns change meaning. Tables must rename columns by role.</td></tr>
-          <tr><td>Target telemetry</td><td>Secondary columns</td><td>Secondary columns</td><td>Primary columns</td><td>Target CPU, memory, RSS and PID count are available for all profiles after role normalisation.</td></tr>
-          <tr><td>Pod lifecycle</td><td>Recreated</td><td>Recreated</td><td>Recreated</td><td>Fresh cgroups reduce carry-over, but startup state may still vary.</td></tr>
-          <tr><td>Run order</td><td colspan="3">Cyclic rotation over five rounds</td><td>Order is counterbalanced but not randomised or perfectly balanced because five is not a multiple of three.</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p>The monitored profiles are suitable for estimating the effect associated with exact UID admission in this laboratory. The no-monitor profile supports workload context, but it cannot by itself isolate total monitor overhead because the node is saturated, duration is variable and eBPF CPU attribution is incomplete.</p>
-  </section>
+<h2>4. Profile Comparability</h2>
+<table><thead><tr><th>Property</th><th>Filtered</th><th>Unfiltered</th><th>No monitor</th></tr></thead><tbody>
+<tr><td>Target, trigger and exploit</td><td>Same</td><td>Same</td><td>Same</td></tr>
+<tr><td>Policy, detector and output</td><td>Same</td><td>Same</td><td>Not applicable</td></tr>
+<tr><td>Exact UID admission</td><td>Enabled for UID 10001</td><td>Disabled</td><td>Not applicable</td></tr>
+<tr><td>Monitor Pod</td><td>Present</td><td>Present</td><td>DaemonSet deleted</td></tr>
+<tr><td>Primary valid comparison</td><td colspan="2">Monitor-cgroup CPU and memory under one intended treatment difference.</td><td>Descriptive target/node context only.</td></tr>
+</tbody></table>
+<p>Immediately after DaemonSet deletion, the no-monitor snapshots still showed the old monitor Pod as <code>Terminating</code>. A ten-second warm-up followed, but the evidence does not timestamp final deletion. The script was fixed after the campaign; existing no-monitor data were not rewritten.</p>
 
-  <section>
-    <h2>Recomputed Metrics</h2>
-    <p>Per-run means are the independent summary units. Standard deviations below are sample standard deviations across the five run means, not variability among one-second samples. P95 is computed inside each run using the nearest-rank rule and then averaged across runs; it is not a confidence interval.</p>
-    <div class="scroll">
-      <table>
-        <thead>
-          <tr><th>Profile</th><th>Runs</th><th>Monitor CPU mean ± SD</th><th>Median; range</th><th>Mean run P95</th><th>Largest peak</th><th>Monitor cgroup memory max</th><th>Monitor RSS max</th><th>Monitor PID max</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>Filtered</td><td>5</td><td><strong>0.39% ± 0.02</strong></td><td>0.39%; 0.36-0.41%</td><td>0.92%</td><td>1.32%</td><td>100.51 MiB</td><td>39.36 MiB</td><td>7</td></tr>
-          <tr><td>Unfiltered</td><td>5</td><td>4.87% ± 0.11</td><td>4.89%; 4.73-4.98%</td><td>7.72%</td><td>9.27%</td><td>112.16 MiB</td><td>46.02 MiB</td><td>8</td></tr>
-          <tr><td>No monitor</td><td>5</td><td>Not applicable</td><td>Not applicable</td><td>Not applicable</td><td>Not applicable</td><td>Not applicable</td><td>Not applicable</td><td>Not applicable</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="scroll">
-      <table>
-        <thead><tr><th>Profile</th><th>Target CPU mean</th><th>Target CPU mean run P95</th><th>Target CPU largest peak</th><th>Target cgroup memory max</th><th>Target RSS max</th><th>Target PID max</th><th>Node CPU mean</th><th>Workload duration mean ± SD</th><th>Median</th></tr></thead>
-        <tbody>
-          <tr><td>Filtered</td><td>34.38%</td><td>Not aggregated by current script</td><td>84.60%</td><td>20.33 MiB</td><td>6.12 MiB</td><td>264</td><td>94.70%</td><td>54.85 ± 4.09 s</td><td>52.79 s</td></tr>
-          <tr><td>Unfiltered</td><td>30.81%</td><td>Not aggregated by current script</td><td>92.99%</td><td>25.36 MiB</td><td>7.42 MiB</td><td>264</td><td>95.11%</td><td>61.33 ± 3.04 s</td><td>61.87 s</td></tr>
-          <tr><td>No monitor</td><td>34.80%</td><td>67.72%</td><td>82.44%</td><td>19.02 MiB</td><td>6.88 MiB</td><td>265</td><td>94.89%</td><td>56.27 ± 7.22 s</td><td>52.93 s</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p>The target P95 exists in every monitored raw TSV as <code>secondary_cpu_percent</code>, but the summarisation script retains only its mean and peak, not its P95. A role-normalised regeneration should add this statistic if it is required in the thesis.</p>
+<h2>5. Regenerated Per-Run Values</h2>
+<div class="scroll"><table><thead><tr><th>Round/position</th><th>Profile</th><th>Monitor mean</th><th>Run P95</th><th>Peak</th><th>Target mean</th><th>Node mean</th><th>Peak memory</th><th>Peak RSS</th><th>Duration</th></tr></thead><tbody>
+<tr><td>1/1</td><td>Filtered</td><td>0.46%</td><td>1.01%</td><td>1.74%</td><td>38.09%</td><td>93.64%</td><td>90.46 MiB</td><td>36.97 MiB</td><td>48,490 ms</td></tr>
+<tr><td>1/2</td><td>Unfiltered</td><td>6.43%</td><td>9.54%</td><td>10.09%</td><td>32.07%</td><td>95.18%</td><td>93.72 MiB</td><td>40.20 MiB</td><td>57,738 ms</td></tr>
+<tr><td>1/3</td><td>No monitor</td><td>NA</td><td>NA</td><td>NA</td><td>40.70%</td><td>93.93%</td><td>NA</td><td>NA</td><td>46,215 ms</td></tr>
+<tr><td>2/1</td><td>Unfiltered</td><td>5.48%</td><td>8.06%</td><td>8.38%</td><td>35.57%</td><td>94.15%</td><td>110.21 MiB</td><td>41.24 MiB</td><td>52,427 ms</td></tr>
+<tr><td>2/2</td><td>No monitor</td><td>NA</td><td>NA</td><td>NA</td><td>42.07%</td><td>93.60%</td><td>NA</td><td>NA</td><td>45,852 ms</td></tr>
+<tr><td>2/3</td><td>Filtered</td><td>0.47%</td><td>1.12%</td><td>1.28%</td><td>40.42%</td><td>93.78%</td><td>91.20 MiB</td><td>36.09 MiB</td><td>41,051 ms</td></tr>
+<tr><td>3/1</td><td>No monitor</td><td>NA</td><td>NA</td><td>NA</td><td>35.27%</td><td>93.79%</td><td>NA</td><td>NA</td><td>44,224 ms</td></tr>
+<tr><td>3/2</td><td>Filtered</td><td>0.44%</td><td>0.87%</td><td>1.00%</td><td>38.11%</td><td>94.55%</td><td>92.17 MiB</td><td>36.67 MiB</td><td>49,439 ms</td></tr>
+<tr><td>3/3</td><td>Unfiltered</td><td>5.28%</td><td>7.53%</td><td>8.77%</td><td>33.28%</td><td>94.14%</td><td>96.20 MiB</td><td>40.98 MiB</td><td>56,309 ms</td></tr>
+</tbody></table></div>
 
-    <h3>Run-Level Reconciliation</h3>
-    <div class="scroll">
-      <table>
-        <thead><tr><th>Round</th><th>Position</th><th>Profile</th><th>Samples</th><th>Primary role</th><th>CPU mean</th><th>P95</th><th>Peak</th><th>Duration</th></tr></thead>
-        <tbody>
-          <tr><td>1</td><td>1</td><td>Filtered</td><td>48</td><td>Monitor</td><td>0.41%</td><td>0.89%</td><td>1.01%</td><td>51.905 s</td></tr>
-          <tr><td>1</td><td>2</td><td>Unfiltered</td><td>56</td><td>Monitor</td><td>4.97%</td><td>7.68%</td><td>9.27%</td><td>59.875 s</td></tr>
-          <tr><td>1</td><td>3</td><td>No monitor</td><td>48</td><td>Target</td><td>37.74%</td><td>67.53%</td><td>81.83%</td><td>51.633 s</td></tr>
-          <tr><td>2</td><td>1</td><td>Unfiltered</td><td>56</td><td>Monitor</td><td>4.98%</td><td>7.59%</td><td>8.19%</td><td>61.871 s</td></tr>
-          <tr><td>2</td><td>2</td><td>No monitor</td><td>50</td><td>Target</td><td>35.90%</td><td>68.39%</td><td>69.93%</td><td>52.826 s</td></tr>
-          <tr><td>2</td><td>3</td><td>Filtered</td><td>49</td><td>Monitor</td><td>0.38%</td><td>0.87%</td><td>1.32%</td><td>52.792 s</td></tr>
-          <tr><td>3</td><td>1</td><td>No monitor</td><td>50</td><td>Target</td><td>36.59%</td><td>74.05%</td><td>82.44%</td><td>52.929 s</td></tr>
-          <tr><td>3</td><td>2</td><td>Filtered</td><td>57</td><td>Monitor</td><td>0.40%</td><td>0.95%</td><td>1.08%</td><td>60.927 s</td></tr>
-          <tr><td>3</td><td>3</td><td>Unfiltered</td><td>52</td><td>Monitor</td><td>4.89%</td><td>7.20%</td><td>7.69%</td><td>56.879 s</td></tr>
-          <tr><td>4</td><td>1</td><td>Filtered</td><td>52</td><td>Monitor</td><td>0.36%</td><td>0.98%</td><td>1.31%</td><td>57.168 s</td></tr>
-          <tr><td>4</td><td>2</td><td>Unfiltered</td><td>56</td><td>Monitor</td><td>4.77%</td><td>7.76%</td><td>8.55%</td><td>63.591 s</td></tr>
-          <tr><td>4</td><td>3</td><td>No monitor</td><td>51</td><td>Target</td><td>35.11%</td><td>70.92%</td><td>75.94%</td><td>54.976 s</td></tr>
-          <tr><td>5</td><td>1</td><td>Unfiltered</td><td>59</td><td>Monitor</td><td>4.73%</td><td>8.35%</td><td>8.79%</td><td>64.436 s</td></tr>
-          <tr><td>5</td><td>2</td><td>No monitor</td><td>63</td><td>Target</td><td>28.66%</td><td>57.69%</td><td>64.41%</td><td>69.006 s</td></tr>
-          <tr><td>5</td><td>3</td><td>Filtered</td><td>49</td><td>Monitor</td><td>0.39%</td><td>0.92%</td><td>1.32%</td><td>51.450 s</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p>The per-run recalculation reproduces every value in <code>runs.tsv</code> to its recorded precision. Reapplying the aggregation script reproduces <code>aggregate.tsv</code>. The comparison file also reproduces correctly from its inputs: it reads the already rounded aggregate means 0.39 and 4.87, giving 91.99%.</p>
-  </section>
+<h2>6. Official Aggregate</h2>
+<table><thead><tr><th>Profile</th><th>Runs</th><th>Mean monitor CPU</th><th>Sample SD/range</th><th>Mean run P95</th><th>Maximum memory</th><th>Maximum RSS</th><th>Health</th></tr></thead><tbody>
+<tr><td>Filtered</td><td>3</td><td>0.46% of one core</td><td>0.02; 0.44-0.47%</td><td>1.00%</td><td>92.17 MiB</td><td>36.97 MiB</td><td>3 flags, 3 alerts, 0 diagnosed losses, 0 restarts</td></tr>
+<tr><td>Unfiltered</td><td>3</td><td>5.73% of one core</td><td>0.61; 5.28-6.43%</td><td>8.38%</td><td>110.21 MiB</td><td>41.24 MiB</td><td>3 flags, 3 alerts, 0 diagnosed losses, 0 restarts</td></tr>
+<tr><td>No monitor</td><td>3</td><td>Not applicable</td><td>Not applicable</td><td>Not applicable</td><td>Not applicable</td><td>Not applicable</td><td>3 flags; duration excluded from causal interpretation</td></tr>
+</tbody></table>
+<p>The project gate is defined on each filtered run's mean monitor-cgroup CPU. All three filtered means are below 5%. Using the rounded official profile means, the reduction relative to unfiltered is <code>(1 - 0.46 / 5.73) x 100 = 91.97%</code>.</p>
 
-  <section>
-    <h2>Five-Percent Gate and Filtering Effect</h2>
-    <div class="box good"><strong>Gate result:</strong> all five filtered run means are below 5% of one core. The largest filtered run mean is 0.41%, the mean of run means is 0.388% before display rounding, and the largest observed sample peak is 1.32%.</div>
-    <p>The 5% value is a predeclared engineering acceptance objective in NFR-07 and in the performance methodology. It is valid as a project-specific gate for explicitly defined profiles. No external evidence in the inspected material establishes 5% as a universal acceptability threshold, and it must not be generalised beyond this monitor configuration and workload.</p>
-    <p>The filtered-versus-unfiltered calculation is sensitive only in its last decimal place:</p>
-    <ul>
-      <li><strong>Published pipeline:</strong> <code>(1 - 0.39 / 4.87) * 100 = 91.99%</code>, using rounded aggregate values.</li>
-      <li><strong>Unrounded run means:</strong> filtered 0.388%, unfiltered 4.868%, giving 92.03%.</li>
-      <li><strong>Round-blocked reductions:</strong> 91.75%, 92.37%, 91.82%, 92.45% and 91.75%; mean 92.03%, sample SD 0.35 percentage points.</li>
-    </ul>
-    <p><strong>Recommended thesis wording:</strong> “In this controlled scenario, exact UID filtering was associated with an approximately 92.0% reduction in CPU charged to the monitor container relative to the otherwise equivalent unfiltered profile.” This preserves the result while avoiding false precision and total-overhead attribution.</p>
-  </section>
+<h2>7. Calibration History</h2>
+<ul>
+<li>The calibration ending <code>20260819T065500Z</code> is rejected because CPU columns were empty. Its workload and detector output are not performance results.</li>
+<li>The AWK calculation and numeric validation were corrected.</li>
+<li>The calibration ending <code>20260819T070018Z</code> validated the method with numeric samples and correct functional evidence, but remains excluded from the official aggregate.</li>
+<li>Only <code>cross-pod-performance-20260819T070557Z</code> supplies Chapter 6 performance numbers.</li>
+</ul>
 
-  <section>
-    <h2>Statistical Plan for a Small Repeated Experiment</h2>
-    <ol>
-      <li><strong>Experimental unit:</strong> treat each complete run as one observation. Do not treat the 48-63 time samples inside a run as independent replications.</li>
-      <li><strong>Primary summary:</strong> report the mean, sample SD, median, minimum and maximum of per-run monitor CPU means for filtered and unfiltered profiles.</li>
-      <li><strong>Tail behaviour:</strong> report each run's nearest-rank P95 and peak, then summarise the five P95 values descriptively. Never call P95 a confidence interval.</li>
-      <li><strong>Blocked comparison:</strong> compare filtered and unfiltered results within round as an exploratory blocked analysis because each round includes both profiles. Report the five differences or reductions, not only a ratio of grand means.</li>
-      <li><strong>Uncertainty:</strong> an exploratory Student-t interval may accompany a mean, clearly labelled as unstable with <code>n=5</code>. From rounded run means, filtered CPU is approximately 0.388% with a 95% t interval of 0.364-0.412%; unfiltered CPU is 4.868% with an interval of 4.726-5.010%. These intervals describe run-to-run uncertainty under this protocol, not future workloads or total overhead.</li>
-      <li><strong>Duration:</strong> retain mean, SD, median and full range. Avoid significance claims: one no-monitor run lasted 69.006 seconds and the node was nearly saturated.</li>
-      <li><strong>Memory:</strong> report run-level maxima and the maximum across runs. A future experiment should also retain per-run memory maxima in the aggregate input rather than only the overall maximum.</li>
-      <li><strong>Multiplicity and scope:</strong> designate filtered monitor CPU as the sole gate. Treat P95, peak, memory, target CPU, node CPU and duration as secondary descriptive outcomes.</li>
-    </ol>
-    <div class="box warn"><strong>Do not over-test five observations.</strong> Formal normality tests and precise inferential claims add little at this sample size. Transparent run-level values, blocked differences and bounded claims are more defensible.</div>
-  </section>
+<h2>8. Claim Ledger</h2>
+<table><thead><tr><th>Claim</th><th>Status</th><th>Required wording</th></tr></thead><tbody>
+<tr><td>Filtered monitor CPU met the 5% gate in 3/3 runs.</td><td class="pass">Accepted</td><td>Specify mean CPU charged to the monitor cgroup as a percentage of one core.</td></tr>
+<tr><td>Filtered mean was 0.46% with sample SD 0.02.</td><td class="pass">Accepted</td><td>State that SD is across three run means.</td></tr>
+<tr><td>UID admission reduced monitor-cgroup CPU by 91.97% relative to unfiltered.</td><td class="pass">Accepted for this scenario</td><td>Call it an association in the controlled filtered/unfiltered comparison.</td></tr>
+<tr><td>Total eBPF or system overhead stayed below 5%.</td><td class="reject">Rejected</td><td>The metric does not include all kernel-side execution or system work.</td></tr>
+<tr><td>The unfiltered monitor stayed below 5%.</td><td class="reject">Rejected</td><td>Its profile mean and all three run means exceed 5%.</td></tr>
+<tr><td>No events were lost.</td><td class="reject">Unsupported</td><td>Say no matching loss diagnostic was recorded in six monitored runs.</td></tr>
+<tr><td>The monitor caused or did not cause the duration differences.</td><td class="reject">Unsupported</td><td>The node was near saturation and no-monitor deletion timing is unresolved.</td></tr>
+<tr><td>The result demonstrates production performance.</td><td class="reject">Rejected</td><td>One node, one workload and three repetitions per profile support only scoped descriptive reporting.</td></tr>
+</tbody></table>
 
-  <section>
-    <h2>Sources of Variability</h2>
-    <ul>
-      <li>The exploit runtime varies despite a constant reported worker count of 1793. Internal workload duration ranges from 51.450 to 69.006 seconds.</li>
-      <li>The two-vCPU node is close to saturation: profile-average node CPU is 94.70-95.11%, and every profile reaches 100% in at least one sample.</li>
-      <li>The sampling loop is nominally one second but includes command and file-read overhead, producing unequal intervals.</li>
-      <li>Every profile redeploys the Pod, creating fresh containers and cgroups but also introducing startup, cache and scheduling variation.</li>
-      <li>The cyclic order reduces simple monotonic drift but is deterministic and incompletely balanced over five rounds.</li>
-      <li>The trigger and monitor share node resources. Target CPU is lower on average in the unfiltered profile, so elapsed-time differences cannot be attributed solely to monitoring.</li>
-      <li>All measurements come from one node, one kernel, one day, one detector and one exploit scenario.</li>
-    </ul>
-  </section>
+<h2>9. Visual and Paragraph Plan</h2>
+<p><strong>Visual:</strong> a paired run-point plot for filtered and unfiltered monitor CPU. Label the axis “CPU charged to monitor cgroup (% of one core)”, connect or label points by round and show the 5% project gate. Do not plot no-monitor as monitor CPU.</p>
+<ol>
+<li>Define the cgroup measurement and one-core denominator.</li>
+<li>Explain filtered/unfiltered comparability, rotated rounds and workload-window selection.</li>
+<li>Report the three raw run means and aggregate descriptive statistics.</li>
+<li>Interpret the 5% gate and filtering reduction within the attribution boundary.</li>
+<li>Report memory/RSS and operational checks as secondary observations.</li>
+<li>Close with node saturation, small sample size and no-monitor deletion timing.</li>
+</ol>
 
-  <section>
-    <h2>Figure Specification</h2>
-    <h3>Primary figure: monitor CPU by profile</h3>
-    <ul>
-      <li>Use a paired dot plot with five round identifiers on the connecting lines between filtered and unfiltered run means.</li>
-      <li>Y-axis: “CPU charged to monitor cgroup (% of one core)”. Add a horizontal dashed line at 5% labelled “project gate”.</li>
-      <li>Show raw run means, not bars alone. Add median or mean markers without hiding points.</li>
-      <li>Exclude no-monitor from this panel because its primary CPU column measures the target, not a monitor.</li>
-    </ul>
-    <h3>Secondary figure: workload context</h3>
-    <ul>
-      <li>Use two aligned small panels: target-container mean CPU by profile and scenario duration by profile.</li>
-      <li>Normalise the target role across TSV columns before plotting: secondary for monitored profiles, primary for no-monitor.</li>
-      <li>Display all five values per profile and identify the 69.006-second no-monitor run rather than deleting it.</li>
-      <li>Caption the node's 92.82-96.89% per-run average CPU range as a validity constraint.</li>
-    </ul>
-    <p>A bar chart of the three generic “primary CPU” aggregates is invalid because the no-monitor bar measures a different container.</p>
-  </section>
-
-  <section>
-    <h2>Claim Ledger</h2>
-    <div class="scroll">
-      <table>
-        <thead><tr><th>Candidate claim</th><th>Status</th><th>Required wording or correction</th></tr></thead>
-        <tbody>
-          <tr><td>Filtered monitor CPU satisfied the 5% gate in all five runs.</td><td class="status-valid">Valid</td><td>Specify that the gate applies to each run's mean CPU charged to the monitor cgroup in this profile.</td></tr>
-          <tr><td>Filtered monitor CPU was 0.39% ± 0.02.</td><td class="status-valid">Valid</td><td>Identify 0.02 as sample SD across five run means, not across samples.</td></tr>
-          <tr><td>UID filtering reduced monitor CPU by 91.99%.</td><td class="status-qualified">Valid with qualification</td><td>The script reproduces 91.99% from rounded aggregates. Prefer “approximately 92.0%”; unrounded run means give 92.03%.</td></tr>
-          <tr><td>UID filtering reduced total monitor overhead by 92%.</td><td class="status-invalid">Invalid</td><td>The cgroup metric does not capture all eBPF execution charged to observed tasks.</td></tr>
-          <tr><td>The complete system uses less than 5% of one core.</td><td class="status-invalid">Invalid</td><td>Only monitor-cgroup CPU is gated; kernel and workload costs are not fully attributed.</td></tr>
-          <tr><td>The unfiltered profile passed the 5% gate.</td><td class="status-qualified">Technically true but misleading</td><td>All five rounded run means are below 5%, but the profile is not the operational filtered gate, has little margin, and has P95 values above 7%.</td></tr>
-          <tr><td>Filtered P95 remained below 5%.</td><td class="status-valid">Valid descriptively</td><td>All per-run P95 values are below 1%; do not imply P95 was the predefined gate or a confidence bound.</td></tr>
-          <tr><td>No perf events were lost.</td><td class="status-invalid">Unsupported</td><td>Say “no perf-loss diagnostic was recorded”. The logs cannot prove absence of every loss.</td></tr>
-          <tr><td>The monitor did not increase exploit duration.</td><td class="status-invalid">Unsupported</td><td>Five variable, saturated-node runs do not isolate causal end-to-end overhead.</td></tr>
-          <tr><td>Node CPU was available and similar across profiles.</td><td class="status-valid">Valid descriptively</td><td>Means are 94.70%, 95.11% and 94.89%. Similarity does not establish equivalence or resolve a sub-percentage effect.</td></tr>
-          <tr><td>Target CPU was unavailable in the monitored profiles.</td><td class="status-invalid">False</td><td>It is present in the secondary columns. The aggregate report simply does not role-normalise every target metric.</td></tr>
-          <tr><td>The benchmark generalises to production Kubernetes workloads.</td><td class="status-invalid">Invalid</td><td>Evidence is limited to one Minikube node, one kernel, one detector and one controlled exploit.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section>
-    <h2>Discrepancies and Documentation Corrections</h2>
-    <ul>
-      <li><code>aggregate.tsv</code> and the replicated report label the generic primary role correctly in prose, but future thesis tables should separate monitor and target metrics explicitly.</li>
-      <li>The phrase “0.02 sample standard deviation” in the Chapter 6 brief is ambiguous. It is the sample SD of five run-level means.</li>
-      <li>The 91.99% comparison is arithmetically reproducible but derives from rounded aggregate values. Retain no more than one decimal place in thesis prose.</li>
-      <li>The report's “P95 mean” is the arithmetic mean of five run-level nearest-rank P95 values. It is neither the P95 of pooled samples nor an uncertainty interval.</li>
-      <li>The current aggregate omits target P95, target maximum memory/RSS/PIDs and the primary peak CPU across runs, although these can be recovered from raw TSV and per-run summaries.</li>
-      <li>The Step 9 filtered exploit has <code>scenario_status=1</code>. It is valid as calibration of instrumentation and detection, but not as a successful workload repetition.</li>
-    </ul>
-  </section>
-
-  <section>
-    <h2>Missing Evidence</h2>
-    <ul>
-      <li>Direct attribution of eBPF execution cost, for example through a controlled hook-on/hook-off workload comparison with suitable system-level accounting.</li>
-      <li>A quieter or larger node where total CPU differences are not hidden by 93-97% average utilisation and repeated 100% peaks.</li>
-      <li>More repetitions, randomised or fully balanced order, and preferably independent experimental sessions.</li>
-      <li>A workload whose execution time is less variable, or a fixed-duration load generator with throughput as an outcome.</li>
-      <li>An interval-aware summary that clips counter deltas at workload boundaries or synchronises workload start with sampler intervals.</li>
-      <li>Longer stability measurements for memory growth, detector-state cleanup and sustained perf-loss behaviour.</li>
-      <li>A committed, immutable laboratory revision with image digests and retained host configuration sufficient to reproduce the exact evidence set.</li>
-    </ul>
-  </section>
-
-  <section>
-    <h2>Readiness Verdict</h2>
-    <div class="verdict">
-      <strong>Ready for scoped descriptive reporting; not ready for a total-overhead conclusion.</strong>
-      <p>The replicated evidence is internally consistent and sufficient to support three Chapter 6 results: the filtered profile satisfies the project-specific 5% monitor-cgroup CPU gate in five of five runs; filtered and unfiltered profiles preserve the expected alert and show no recorded loss diagnostic; and early UID admission is associated with an approximately 92.0% reduction in monitor-cgroup CPU in this controlled scenario.</p>
-      <p>The evidence does not establish total eBPF overhead, workload-latency equivalence, production performance or generality across nodes and workloads. Those claims remain blocked by attribution limits, near-saturated node CPU, five repetitions and a single experimental environment.</p>
-    </div>
-  </section>
-</main>
-</body>
-</html>
+<h2>10. Unresolved Boundaries</h2>
+<ul>
+<li>The evidence remains untracked and requires an immutable archive with hashes.</li>
+<li>Three repetitions are adequate for the scoped engineering demonstration, not general statistical inference.</li>
+<li>No-monitor duration must remain excluded unless the control is rerun with verified Pod disappearance.</li>
+<li>Long-duration stability, total-system attribution and other workloads remain unevaluated.</li>
+</ul>
+<div class="box"><strong>Performance audit verdict: FINAL AND READY for scoped descriptive reporting.</strong> The filtered/unfiltered evidence passes the Chapter 6 gate. No shared-Pod result or five-run statistic remains in this report.</div>
+</body></html>

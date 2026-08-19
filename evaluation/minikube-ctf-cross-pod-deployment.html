@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cross-Pod Minikube Deployment</title>
+  <style>
+    :root{--ink:#172033;--line:#cfd7e2;--panel:#f6f8fb;--blue:#2457a6;--green:#176b43;--amber:#8a5a00}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);font:16px/1.58 system-ui,sans-serif;background:#fff}main{max-width:1050px;margin:auto;padding:42px 28px 72px}
+    h1,h2{line-height:1.22}h1{margin-top:0}h2{margin-top:40px;border-bottom:1px solid var(--line);padding-bottom:7px}p,li{max-width:96ch}
+    code,pre{font-family:Consolas,monospace}code{background:#eef1f5;padding:.08rem .25rem}pre{overflow:auto;padding:13px;background:#111827;color:#edf2f8}
+    table{width:100%;border-collapse:collapse;margin:18px 0 28px}th,td{padding:10px 11px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:#eef2f7}
+    .box{padding:14px 17px;margin:17px 0;border-left:4px solid var(--blue);background:#f3f7fc}.ok{border-left-color:var(--green);background:#f0f8f4}.warn{border-left-color:var(--amber);background:#fff9ed}.status{display:inline-block;padding:4px 8px;border:1px solid var(--line);background:var(--panel);font-weight:700;color:var(--green)}
+    @media(max-width:760px){main{padding:28px 18px 52px}table{font-size:14px}}
+  </style>
+</head>
+<body><main>
+  <h1>Cross-Pod Minikube Deployment</h1>
+  <p><span class="status">FINAL STABLE DEPLOYMENT</span></p>
+  <div class="box ok">
+    This document describes the final stable deployment observed on 17 August
+    2026. Three independent Pods were Running on one Minikube node with zero
+    restarts. Experiment history and failures are retained in the chronological
+    record rather than repeated here.
+  </div>
+
+  <h2>Environment</h2>
+  <table>
+    <tbody>
+      <tr><th>Host</th><td>Rocky Linux 8.10, kernel <code>4.18.0-553.137.1.el8_10.x86_64</code></td></tr>
+      <tr><th>Docker</th><td><code>26.1.3</code></td></tr>
+      <tr><th>Minikube</th><td><code>v1.38.1</code>, profile <code>cross-pod</code>, Docker driver</td></tr>
+      <tr><th>Kubernetes</th><td>Server <code>v1.30.0</code>; client <code>v1.36.3</code>. The client reported that this exceeds its supported minor-version skew.</td></tr>
+      <tr><th>Node</th><td><code>cross-pod</code>, Ready, IP <code>192.168.58.2</code>, two CPUs and 4096 MiB configured</td></tr>
+      <tr><th>Source</th><td><code>demo_project</code> commit <code>e8795fea7afb12079844031a1a8b69d7091e0dfd</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Final Resources</h2>
+  <table>
+    <thead><tr><th>Resource</th><th>Observed state</th></tr></thead>
+    <tbody>
+      <tr><td>Namespace <code>ebpf-ctf-cross-pod</code></td><td>Created with privileged Pod Security admission labels.</td></tr>
+      <tr><td>DaemonSet <code>project-monitor-cross-pod</code></td><td>Desired 1, Ready 1, Available 1.</td></tr>
+      <tr><td>Deployment <code>aes-beta-target-cross-pod</code></td><td>One replica, Ready 1, Available 1.</td></tr>
+      <tr><td>Pod <code>aes-beta-trigger-cross-pod</code></td><td>Ready 1/1.</td></tr>
+      <tr><td>Service <code>aes-beta-target-cross-pod</code></td><td>ClusterIP <code>10.102.19.49</code>, TCP/1337.</td></tr>
+      <tr><td>EndpointSlice</td><td>Target endpoint <code>10.244.0.3:1337</code>.</td></tr>
+      <tr><td>Monitor policy</td><td>The canonical policy catalogue is copied into the monitor image; the DaemonSet selects <code>/etc/project/policies/aes-beta-process-observation.yaml</code>.</td></tr>
+      <tr><td>Detector ConfigMap</td><td>Generated from the committed AES-beta detector and loaded successfully.</td></tr>
+      <tr><td>Flag Secret</td><td>Generated and mounted only in the target at <code>/opt/aes-beta/flag</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Actual Pod Placement</h2>
+  <table>
+    <thead><tr><th>Role</th><th>Pod</th><th>IP</th><th>Node</th><th>Restarts</th></tr></thead>
+    <tbody>
+      <tr><td>Target</td><td><code>aes-beta-target-cross-pod-86846476fc-2zqhb</code></td><td><code>10.244.0.3</code></td><td><code>cross-pod</code></td><td>0</td></tr>
+      <tr><td>Trigger</td><td><code>aes-beta-trigger-cross-pod</code></td><td><code>10.244.0.4</code></td><td><code>cross-pod</code></td><td>0</td></tr>
+      <tr><td>Monitor</td><td><code>project-monitor-cross-pod-wx5zq</code></td><td><code>10.244.0.7</code></td><td><code>cross-pod</code></td><td>0</td></tr>
+    </tbody>
+  </table>
+  <p>Distinct Pod UIDs, IPs, container IDs and <code>/proc/1/cgroup</code> paths were recorded. Each cgroup path contains its corresponding Pod UID, establishing separate pod cgroups on the shared node.</p>
+
+  <h2>Security Contexts and Mounts</h2>
+  <ul>
+    <li>All effective Pod specifications preserve <code>hostPID: false</code>, <code>hostNetwork: false</code> and <code>shareProcessNamespace: false</code>; a false Boolean may be omitted from API-rendered YAML and is also preserved in the last-applied configuration.</li>
+    <li>Target and trigger run as UID/GID 10001 and 10002 respectively, drop all capabilities and use read-only root filesystems.</li>
+    <li>The monitor alone is privileged and mounts host BTF, bpffs and tracefs.</li>
+    <li>The Secret volume appears only in the target Deployment.</li>
+    <li>Automatic ServiceAccount token mounting is disabled.</li>
+  </ul>
+
+  <h2>Monitor Startup</h2>
+  <p>The monitor opened its embedded eBPF object with host BTF, loaded one policy from the image and one detector from the mounted ConfigMap, selected <code>open</code>, <code>sched_process_exec</code> and <code>security_file_open</code>, and enabled exact kernel UID filtering for UID 10001. It remained in <code>alerts-only</code> mode. The image-backed policy configuration was revalidated on 19 August 2026 after replacing a stale Minikube image; the resulting monitor Pod was Ready with zero restarts.</p>
+  <p>The target listener reported readiness on <code>[::]:1337</code> as UID/GID 10001. Listener startup alone did not establish reachability; the later Phase 5 connection through the ClusterIP Service did.</p>
+
+  <h2>Deployment Validation</h2>
+  <table>
+    <thead><tr><th>Criterion</th><th>Observed evidence</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Pod independence</td><td>Distinct Pod UIDs, IPs, container IDs and pod cgroups.</td><td>PASS</td></tr>
+      <tr><td><code>hostPID: false</code></td><td>Effective value false for target, trigger and monitor.</td><td>VERIFIED</td></tr>
+      <tr><td>Service communication</td><td>Trigger resolved and connected to <code>10.102.19.49:1337</code>; target recorded source <code>10.244.0.4</code>.</td><td>PASS</td></tr>
+      <tr><td>Canonical profile restored</td><td>Replacement monitor reports <code>alerts_only=true</code> and UID filter 10001.</td><td>PASS</td></tr>
+    </tbody>
+  </table>
+  <p>Controlled telemetry and UID-filter tests are reported in the functional and chronological documents. The temporary telemetry rollout created replacement DaemonSet Pods rather than container restarts; the final canonical monitor remained at restart count zero.</p>
+
+  <h2>Commands Used</h2>
+  <pre>minikube start -p cross-pod --driver=docker \
+  --kubernetes-version=v1.30.0 --cpus=2 --memory=4096
+
+minikube image load -p cross-pod demo-project-ebpf:latest
+minikube image load -p cross-pod aes-beta-target:local
+minikube image load -p cross-pod aes-beta-trigger:local
+
+kubectl --context cross-pod apply --dry-run=client --validate=true \
+  -f k8s/minikube-ctf-cross-pod/manifests/
+
+EVIDENCE_DIR=... KUBECTL='kubectl --context cross-pod' \
+  ./k8s/minikube-ctf-cross-pod/scripts/deploy-cross-pod-lab.sh</pre>
+
+  <h2>Evidence</h2>
+  <p>Raw evidence is stored locally under:</p>
+  <pre>demo_project/k8s/minikube-ctf-cross-pod/evidence/
+  cross-pod-20260817T052019Z/</pre>
+  <p>It contains <code>commands.log</code>, complete stdout/stderr files, environment and Git state, effective manifests, Pod descriptions, Kubernetes events, resource summaries and startup logs.</p>
+
+  <h2>Related Documents</h2>
+  <ul>
+    <li><a href="minikube-ctf-cross-pod-design.html">Experiment design</a></li>
+    <li><a href="minikube-ctf-cross-pod-step-by-step.html">Chronological record</a></li>
+    <li><a href="minikube-ctf-cross-pod-functional-evaluation.html">Functional evaluation</a></li>
+    <li><a href="minikube-ctf-cross-pod-final-report.html">Final report</a></li>
+    <li><a href="minikube-ctf-cross-pod-performance-evaluation.html">Completed performance evaluation</a></li>
+  </ul>
+</main></body>
+</html>

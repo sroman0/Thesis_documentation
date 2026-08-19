@@ -427,8 +427,12 @@ RUN_ID='exploit-manual-01' \
 <section id="commands">
   <h2>8. I comandi manuali e le flag del monitor</h2>
   <p>
-    Gli script rendono il test ripetibile, ma le operazioni decisive possono
-    essere eseguite direttamente per capire che cosa avviene.
+    Gli script della sezione precedente rendono la prova ripetibile, ma
+    nascondono volutamente alcuni dettagli operativi. Questa sezione scompone
+    gli stessi passaggi in comandi manuali, così da mostrare quale processo
+    viene creato, in quale container viene eseguito, quali dati produce e come
+    il risultato viene confrontato con l'output del monitor. I comandi devono
+    essere lanciati soltanto dopo che il Pod risulta <code>3/3 Running</code>.
   </p>
 
   <h3>8.1 Invocare direttamente i client</h3>
@@ -442,25 +446,139 @@ sudo /usr/local/bin/minikube kubectl -- -n ebpf-ctf-lab \
   exec aes-beta-lab -c attack-trigger -- \
   env RUN_ID=exploit-direct-01 /opt/trigger/run-exploit</code></pre>
   <p>
-    <code>exec</code> avvia un processo nel container già in esecuzione. Il
-    separatore <code>--</code> termina le opzioni di kubectl; ciò che segue è il
-    comando eseguito nel container. <code>env RUN_ID=...</code> imposta la
-    variabile solo per quel processo, senza modificare il Pod.
+    La parte iniziale è comune ai due comandi. <code>sudo</code> è necessario in
+    questo ambiente perché il profilo Minikube e il relativo file di
+    configurazione appartengono all'utente privilegiato.
+    <code>/usr/local/bin/minikube kubectl --</code> chiede a Minikube di usare il
+    client <code>kubectl</code> associato al cluster di laboratorio: il primo
+    <code>--</code> separa le opzioni di Minikube da quelle destinate a
+    <code>kubectl</code>. In questo modo non si dipende da un contesto Kubernetes
+    globale che potrebbe puntare a un cluster differente.
   </p>
+  <p>
+    <code>-n ebpf-ctf-lab</code> limita l'operazione al namespace del test.
+    <code>exec aes-beta-lab</code> crea un nuovo processo all'interno del Pod già
+    in esecuzione, senza ricrearlo; <code>-c attack-trigger</code> seleziona il
+    container che contiene i client, necessario perché il Pod ne contiene tre.
+    Il secondo <code>--</code> termina le opzioni di <code>kubectl exec</code>:
+    tutto ciò che segue viene eseguito nel container. Infine,
+    <code>env RUN_ID=...</code> assegna un identificatore soltanto a quella
+    invocazione. Non modifica il manifest o l'ambiente permanente del Pod e non
+    viene inserito automaticamente negli eventi eBPF o nell'alert; serve a
+    riconoscere le righe <code>run_start</code> e <code>run_end</code> prodotte
+    dal client e ad associarle temporalmente ai log raccolti.
+  </p>
+
+  <h4>Controllo benigno</h4>
+  <p>
+    <code>/opt/trigger/run-benign</code> apre una connessione TCP verso
+    <code>127.0.0.1:1337</code>. L'indirizzo locale raggiunge il target perché i
+    container dello stesso Pod condividono il network namespace. Il client
+    invia una chiave nota e un blocco di testo, chiede al servizio di cifrarlo e
+    confronta la risposta con il valore calcolato localmente. Il comando termina
+    con codice zero e stampa <code>"result":"pass"</code> soltanto se il
+    protocollo e la cifratura si concludono correttamente.
+  </p>
+  <p>
+    Questo passaggio verifica che target, rete e protocollo siano funzionanti
+    senza esercitare la vulnerabilità. Produce un normale worker del servizio,
+    ma non dovrebbe creare la catena <code>/bin/sh</code> →
+    <code>/bin/cat</code> → apertura del flag. È quindi il controllo negativo:
+    nelle condizioni osservate ci aspettiamo il successo del client e nessun
+    alert <code>aes-beta-command-execution</code>.
+  </p>
+
+  <h4>Exploit</h4>
+  <p>
+    <code>/opt/trigger/run-exploit</code> usa lo stesso endpoint, ma segue il
+    percorso offensivo della challenge. Recupera la base della libc attraverso
+    la vulnerabilità di format string e ricostruisce il canary un byte alla
+    volta. Per ogni byte prova i 256 valori possibili creando numerosi worker;
+    nel run completo il contatore atteso è 1.793. Dopo aver ricostruito il
+    canary, prepara una ROP chain che invoca <code>system("cat flag")</code>.
+    Il target avvia quindi una shell, la shell esegue <code>cat</code> e il file
+    sintetico viene aperto e restituito al client.
+  </p>
+  <p>
+    Il client considera riuscita la prova solo se il valore ottenuto corrisponde
+    al formato controllato <code>THESIS{...}</code>; in tal caso stampa un
+    <code>run_end</code> con <code>"result":"pass"</code> e termina con codice
+    zero. Questo risultato dimostra il successo lato client, non ancora la
+    detection. La verifica del monitor è separata perché un exploit può riuscire
+    senza essere rilevato e, viceversa, un alert non prova da solo che il client
+    abbia ricevuto il flag.
+  </p>
+  <div class="box note">
+    <strong>Perché i comandi vengono eseguiti nel trigger.</strong> Il target
+    deve rimanere il servizio sottoposto a prova e il monitor deve limitarsi a
+    osservare. Avviare i client nel container <code>attack-trigger</code>
+    mantiene distinti input sperimentale, workload vulnerabile e sensore.
+  </div>
 
   <h3>8.2 Osservare e validare l'alert</h3>
   <pre><code>sudo /usr/local/bin/minikube kubectl -- -n ebpf-ctf-lab \
   logs aes-beta-lab -c project-monitor --timestamps \
+  | tee /tmp/aes-beta-monitor.log \
+  | sed -E 's/^[^[:space:]]+[[:space:]]+//' \
   | jq 'select(.type == "alert" and .detector == "aes-beta-command-execution")'</code></pre>
   <p>
-    <code>--timestamps</code> antepone l'orario fornito da Kubernetes. Il filtro
-    <code>jq</code> conserva soltanto gli oggetti JSON di tipo alert prodotti dal
-    detector del laboratorio. L'oggetto risultante deve riportare severità
-    <code>high</code>, quattro evidenze e i metadati ATT&amp;CK previsti.
+    Il prefisso fino a <code>-n ebpf-ctf-lab</code> seleziona lo stesso cluster e
+    namespace dei comandi precedenti. <code>logs aes-beta-lab</code> legge
+    l'output già raccolto da Kubernetes per il Pod;
+    <code>-c project-monitor</code> evita di confonderlo con l'output del target
+    o del trigger. <code>--timestamps</code> antepone a ogni riga l'orario di
+    acquisizione, necessario per confrontare l'alert con l'intervallo delimitato
+    da <code>run_start</code> e <code>run_end</code> del client. La prima pipe
+    invia lo stream a <code>tee</code>, che conserva in
+    <code>/tmp/aes-beta-monitor.log</code> una copia completa con i timestamp e,
+    nello stesso tempo, inoltra le righe al comando successivo.
+  </p>
+  <p>
+    Il prefisso aggiunto da <code>--timestamps</code> non fa parte dell'oggetto
+    JSON. <code>sed</code> rimuove quindi dalla copia inoltrata il primo campo
+    separato da spazio, lasciando intatto il file temporizzato salvato da
+    <code>tee</code>. A questo punto <code>jq</code> può interpretare ogni riga
+    come un oggetto; <code>select(...)</code> conserva soltanto quelli per cui
+    <code>type</code> vale <code>alert</code> e <code>detector</code> coincide con
+    <code>aes-beta-command-execution</code>. Vengono così esclusi i messaggi
+    operativi e gli eventuali alert di altri detector.
+  </p>
+  <p>
+    Il comando legge l'intera cronologia disponibile del container e può quindi
+    mostrare alert prodotti da run precedenti. Per una verifica manuale pulita è
+    preferibile avviarlo con <code>-f</code> in un primo terminale prima di
+    lanciare il client in un secondo terminale:
+  </p>
+  <pre><code>sudo /usr/local/bin/minikube kubectl -- -n ebpf-ctf-lab \
+  logs -f aes-beta-lab -c project-monitor --tail=0 \
+  | jq --unbuffered \
+      'select(.type == "alert" and .detector == "aes-beta-command-execution")'</code></pre>
+  <p>
+    <code>-f</code> mantiene aperto lo stream, mentre <code>--tail=0</code> evita
+    di ristampare le righe già presenti e limita l'osservazione ai nuovi record.
+    In questa variante i timestamp Kubernetes sono omessi affinché ogni riga
+    rimanga JSON valido; <code>--unbuffered</code> evita che <code>jq</code> ne
+    ritardi la visualizzazione. Durante il controllo benigno non deve comparire
+    alcun oggetto entro la finestra osservata. Durante l'exploit deve comparire
+    un solo alert di severità <code>high</code> con quattro evidenze ordinate:
+    esecuzione di <code>/bin/sh</code>, esecuzione di <code>/bin/cat</code>,
+    mediazione sull'oggetto risolto <code>/opt/aes-beta/flag</code> e syscall
+    <code>open</code> conclusa con un file descriptor non negativo. I metadati
+    ATT&amp;CK classificano questa evidenza, ma non sostituiscono il controllo
+    dei quattro eventi.
+  </p>
+  <p>
+    Lo stream si interrompe con <code>Ctrl+C</code>. L'interruzione arresta
+    soltanto <code>kubectl logs -f</code> e <code>jq</code>: non termina il Pod, il
+    target o il monitor.
   </p>
 
   <h3>8.3 Comprendere le flag del monitor</h3>
-  <p>Nel manifest il container <code>project-monitor</code> viene avviato con:</p>
+  <p>
+    I comandi precedenti non avviano il monitor: esso è già in esecuzione nel
+    terzo container del Pod. Il manifest lo avvia con le opzioni seguenti, che
+    restringono progressivamente la raccolta e rendono l'output verificabile:
+  </p>
   <pre><code>--policy /etc/project/policies/process-observation.yaml
 --detectors /etc/project/detectors/aes-beta-command-execution.yaml
 --alerts-only
@@ -472,16 +590,25 @@ sudo /usr/local/bin/minikube kubectl -- -n ebpf-ctf-lab \
   <table>
     <thead><tr><th>Flag</th><th>Effetto</th><th>Perché viene usata</th></tr></thead>
     <tbody>
-      <tr><td><code>--policy</code></td><td>Carica la policy che seleziona il dominio degli eventi.</td><td>Evita di elaborare eventi non necessari alla prova.</td></tr>
-      <tr><td><code>--detectors</code></td><td>Carica la definizione del detector AES-beta.</td><td>Isola la detection in esame dagli altri detector del catalogo.</td></tr>
-      <tr><td><code>--alerts-only</code></td><td>Non stampa ogni evento ammesso, ma continua a valutarlo.</td><td>Impedisce che i molti worker dell'exploit rendano il risultato illeggibile.</td></tr>
-      <tr><td><code>--alerts-output json</code></td><td>Serializza gli alert come JSON.</td><td>Permette validazione strutturale e conservazione dell'evidenza ordinata.</td></tr>
-      <tr><td><code>--kernel-filter-uid-enabled</code></td><td>Attiva l'ammissione UID nel programma eBPF.</td><td>Scarta prima del trasporto il rumore prodotto da altri utenti del nodo.</td></tr>
-      <tr><td><code>--kernel-filter-uid 10001</code></td><td>Imposta l'effective UID ammesso.</td><td>10001 è l'identità assegnata al container target.</td></tr>
-      <tr><td><code>--log-format json</code></td><td>Emette la diagnostica operativa Zap in JSON.</td><td>Separa e rende interrogabili errori, lifecycle e perdite.</td></tr>
-      <tr><td><code>--log-level info</code></td><td>Mostra messaggi informativi e di severità maggiore.</td><td>Conserva lo stato operativo senza il volume del debug.</td></tr>
+      <tr><td><code>--policy /etc/project/policies/process-observation.yaml</code></td><td>Legge dal volume ConfigMap la policy che ammette soltanto <code>sched_process_exec</code>, <code>security_file_open</code> e <code>open</code>.</td><td>I tre eventi sono esattamente quelli consumati dal detector. Lo scope esplicito evita di trasportare nel percorso analitico eventi estranei alla domanda sperimentale.</td></tr>
+      <tr><td><code>--detectors /etc/project/detectors/aes-beta-command-execution.yaml</code></td><td>Carica una sola definizione collective con finestra di cinque secondi e correlazione <code>process_tree</code>.</td><td>Isola la detection valutata. La sequenza richiede shell, <code>cat</code>, oggetto flag risolto e apertura riuscita nello stesso albero locale di processi.</td></tr>
+      <tr><td><code>--alerts-only</code></td><td>Continua a decodificare, filtrare e valutare gli eventi ammessi, ma non stampa ogni evento individuale.</td><td>L'exploit genera migliaia di transizioni di processo; mostrare tutti i record renderebbe difficile distinguere il risultato finale e aumenterebbe il costo di output.</td></tr>
+      <tr><td><code>--alerts-output json</code></td><td>Serializza ogni alert come oggetto JSON, mantenendo identità del detector, severità, metadati e sequenza di evidenze.</td><td>Il formato può essere filtrato con <code>jq</code> e conserva una struttura verificabile, a differenza di una riga pensata soltanto per la lettura umana.</td></tr>
+      <tr><td><code>--kernel-filter-uid-enabled</code></td><td>Abilita nel codice eBPF il controllo esatto dell'effective UID prima della sottomissione del record al perf buffer.</td><td>Il filtro anticipa lo scarto al kernel boundary, riducendo record e lavoro user-space prodotti da utenti non appartenenti al target.</td></tr>
+      <tr><td><code>--kernel-filter-uid 10001</code></td><td>Configura come unico effective UID ammesso il valore <code>10001</code>.</td><td>È l'UID assegnato al container <code>ctf-target</code>. Il trigger usa <code>10002</code> e il monitor UID 0, quindi la loro attività non entra nel flusso osservato.</td></tr>
+      <tr><td><code>--log-format json</code></td><td>Formatta in JSON i messaggi diagnostici prodotti dal logger Zap.</td><td>Errori di caricamento, lifecycle, decodifica e perdite segnalate possono essere interrogati automaticamente senza confonderne la struttura con quella degli alert.</td></tr>
+      <tr><td><code>--log-level info</code></td><td>Conserva messaggi informativi, warning ed errori ed esclude la diagnostica di debug.</td><td>Rende visibili stato operativo e anomalie importanti senza aggiungere il volume dettagliato usato durante lo sviluppo.</td></tr>
     </tbody>
   </table>
+  <p>
+    L'ordine concettuale è quindi: il filtro UID riduce alla sorgente gli eventi
+    estranei al target; la policy ammette solo i tre tipi necessari; il detector
+    cerca la relazione e l'ordine richiesti; <code>--alerts-only</code> nasconde
+    i record intermedi dalla presentazione; infine JSON e Zap rendono separabili
+    risultato di sicurezza e diagnostica del runtime. Nessuna singola flag
+    dimostra la detection: il risultato deriva dalla loro configurazione
+    congiunta e dal confronto con gli output del client.
+  </p>
   <div class="box warn">
     <strong>Eventi e log non sono la stessa cosa.</strong> Alert ed eventi di
     sicurezza sono dati del monitor; i messaggi Zap descrivono invece il

@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cross-Pod AES-beta Experiment: Compact Manual</title>
+  <style>
+    :root { --ink:#18202b; --muted:#5f6977; --line:#cfd6df; --panel:#f5f7fa; --accent:#245b9e; --ok:#17663d; --warn:#875600; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); font:15.5px/1.52 system-ui,sans-serif; background:#fff; }
+    .main { max-width:1040px; margin:auto; padding:36px 28px 64px; }
+    h1,h2 { line-height:1.2; }
+    h1 { margin:0 0 8px; font-size:2rem; }
+    h2 { margin:34px 0 12px; padding-bottom:6px; border-bottom:1px solid var(--line); font-size:1.25rem; }
+    p,li { max-width:96ch; }
+    .lead { color:var(--muted); margin-top:0; }
+    .flow,.note { padding:13px 16px; margin:15px 0; border-left:4px solid var(--accent); background:var(--panel); }
+    .warn { border-left-color:var(--warn); background:#fff9eb; }
+    .ok { border-left-color:var(--ok); background:#f0f8f3; }
+    pre { margin:10px 0 18px; padding:13px 15px; overflow:auto; color:#eef3f8; background:#17202c; font:13.5px/1.48 ui-monospace,SFMono-Regular,Consolas,monospace; }
+    code { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; }
+    p code,li code,td code { padding:.08rem .25rem; background:#edf1f5; }
+    table { width:100%; border-collapse:collapse; margin:12px 0 20px; }
+    th,td { padding:8px 10px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { background:#edf1f5; }
+    .purpose { margin-bottom:5px; font-weight:650; }
+    .meaning { margin:-8px 0 22px; padding:10px 14px; border:1px solid var(--line); background:#fafbfc; }
+    .meaning p { margin:4px 0; }
+    .meaning ul { margin:7px 0 4px; padding-left:21px; }
+    .nav { margin:18px 0 24px; padding:12px 16px; border:1px solid var(--line); }
+    .nav a { margin-right:14px; white-space:nowrap; color:#174f90; }
+    @media (max-width:720px) { .main{padding:24px 16px 44px} table{font-size:13px} }
+  </style>
+</head>
+<body>
+<div class="main">
+  <h1>Cross-Pod AES-beta Experiment</h1>
+  <p class="lead">A direct account of how the cross-Pod laboratory is created and tested. Every command is executed manually and followed by its purpose, relevant options and expected evidence.</p>
+
+  <div class="nav">
+    <a href="#concepts">Concepts</a>
+    <a href="#prepare">Prepare</a>
+    <a href="#deploy">Deploy</a>
+    <a href="#validate">Validate</a>
+    <a href="#test">Test</a>
+    <a href="#results">Results</a>
+  </div>
+
+  <h2 id="concepts">1. Minikube, Kubernetes and the Topology</h2>
+  <p><strong>Kubernetes</strong> runs containerised workloads as Pods. A Deployment maintains the target replica, a Service gives that target a stable network endpoint, and a DaemonSet places one monitor on each selected node. <strong>Minikube</strong> creates a local Kubernetes cluster; this experiment uses one Docker-backed node so all three Pods share one Linux kernel.</p>
+  <p>This shared kernel is the central assumption of the experiment. The monitor does not enter the target Pod and does not receive its process namespace. Instead, its eBPF programs attach to the node kernel and observe events produced by workloads scheduled on that node.</p>
+  <div class="flow"><code>trigger Pod → ClusterIP Service:1337 → target Pod → node kernel hooks → monitor Pod</code></div>
+  <table>
+    <thead><tr><th>Resource</th><th>Purpose</th><th>Security identity</th></tr></thead>
+    <tbody>
+      <tr><td>Monitor DaemonSet</td><td>Loads eBPF programs and evaluates the AES-beta detector.</td><td>Privileged UID 0; <code>hostPID: false</code>.</td></tr>
+      <tr><td>Target Deployment</td><td>Runs the vulnerable AES-beta service.</td><td>Non-root UID/GID 10001.</td></tr>
+      <tr><td>Trigger Pod</td><td>Runs the benign client or exploit.</td><td>Non-root UID/GID 10002.</td></tr>
+      <tr><td>ClusterIP Service</td><td>Routes TCP/1337 from trigger to target.</td><td>Cluster-internal endpoint.</td></tr>
+    </tbody>
+  </table>
+  <div class="note"><strong>Two meanings of “flag”.</strong> A command-line flag is an option such as <code>--context</code> or <code>--timeout</code>. The CTF flag is the synthetic value <code>openECSC{ebpf_cross_pod_evaluation}</code>, mounted only in the target. Recovering it proves that the exploit reached and read the protected test file; it is not a real competition secret.</div>
+
+  <h2 id="prepare">2. Prepare the Cluster and Images</h2>
+  <p class="purpose">Work from the project root and record the environment.</p>
+  <pre>cd /home/simone/project/demo_project
+date -u
+cat /etc/os-release
+uname -r
+docker --version
+minikube version
+kubectl version --client</pre>
+  <div class="meaning">
+    <p><strong>Meaning.</strong> <code>cd</code> fixes the working directory so every relative path below is unambiguous. <code>date -u</code> records a UTC reference for later log correlation. <code>/etc/os-release</code> and <code>uname -r</code> identify the host distribution and kernel. The three version commands record the Docker, Minikube and Kubernetes client versions; <code>--client</code> avoids requiring a running cluster at this point.</p>
+  </div>
+
+  <p class="purpose">Create the single-node Minikube profile.</p>
+  <pre>minikube start -p cross-pod --driver=docker \
+  --kubernetes-version=v1.30.0 --cpus=2 --memory=4096
+
+kubectl --context cross-pod get nodes -o wide</pre>
+  <div class="meaning">
+    <p><strong>Purpose.</strong> The first command creates the reproducible single-node cluster. The second confirms that its Kubernetes node is Ready and displays placement information.</p>
+    <ul>
+      <li><code>-p cross-pod</code> names the Minikube profile, keeping its state separate from other clusters.</li>
+      <li><code>--driver=docker</code> runs the Minikube node as a Docker container.</li>
+      <li><code>--kubernetes-version=v1.30.0</code> fixes the Kubernetes server version used in the experiment.</li>
+      <li><code>--cpus=2</code> and <code>--memory=4096</code> allocate two virtual CPUs and 4096 MiB to the node.</li>
+      <li><code>--context cross-pod</code> directs <code>kubectl</code> to this cluster; <code>-o wide</code> adds node address and runtime columns.</li>
+    </ul>
+  </div>
+
+  <p class="purpose">Stage and verify the approved openECSC challenge artefacts.</p>
+  <pre>CHALLENGE=../openECSC-2024/teamitaly-preselection-ctf/pwn01
+STAGE=k8s/minikube-ctf/.build/upstream
+mkdir -p "$STAGE"
+
+sha256sum \
+  "$CHALLENGE/src/build/aes-beta" \
+  "$CHALLENGE/src/glibc/ld-linux-x86-64.so.2" \
+  "$CHALLENGE/src/glibc/libc.so.6"
+
+install -m 0644 "$CHALLENGE/src/build/aes-beta" "$STAGE/aes-beta"
+install -m 0644 "$CHALLENGE/src/glibc/ld-linux-x86-64.so.2" \
+  "$STAGE/ld-linux-x86-64.so.2"
+install -m 0644 "$CHALLENGE/src/glibc/libc.so.6" "$STAGE/libc.so.6"</pre>
+  <div class="meaning">
+    <p><strong>Purpose.</strong> The target and exploit must use the exact challenge binary, loader and C library for which the exploit was prepared.</p>
+    <p><code>CHALLENGE</code> and <code>STAGE</code> are shell variables for the source and Docker build context. <code>mkdir -p</code> creates the staging directory and does not fail if it already exists. <code>sha256sum</code> calculates each artefact digest, which must match the table below. <code>install -m 0644</code> copies the verified file with read permissions for all users and write permission only for its owner.</p>
+  </div>
+  <table>
+    <thead><tr><th>Artefact</th><th>Expected SHA-256</th></tr></thead>
+    <tbody>
+      <tr><td><code>aes-beta</code></td><td><code>44535b44a25e30457bc0c0f5d40cece943b0cb7f7504a37699419c7ea9c30671</code></td></tr>
+      <tr><td><code>ld-linux-x86-64.so.2</code></td><td><code>491c2eb04e0b72ac00beaebadf181ce5c9e9545e223c58924cfc65511d8ffe6a</code></td></tr>
+      <tr><td><code>libc.so.6</code></td><td><code>a7ec5ec30f3bfdc198d1b66cfb99f46d362a228916af64938cc6e2d0439707f6</code></td></tr>
+    </tbody>
+  </table>
+
+  <p class="purpose">Build and load the three images.</p>
+  <pre>docker build --network=host -t demo-project-ebpf:latest .
+
+docker build -f k8s/minikube-ctf/images/target/Dockerfile \
+  -t aes-beta-target:local k8s/minikube-ctf
+
+docker build -f k8s/minikube-ctf/images/trigger/Dockerfile \
+  -t aes-beta-trigger:local k8s/minikube-ctf
+
+minikube image load -p cross-pod demo-project-ebpf:latest
+minikube image load -p cross-pod aes-beta-target:local
+minikube image load -p cross-pod aes-beta-trigger:local
+minikube image ls -p cross-pod</pre>
+  <div class="meaning">
+    <p><strong>Purpose.</strong> Three independent images are required: the monitoring tool, the vulnerable service and the two clients.</p>
+    <ul>
+      <li><code>docker build</code> creates an image from a Dockerfile and build context. <code>--network=host</code> gives the monitor build access to the host network for dependency retrieval. <code>-f</code> selects the target or trigger Dockerfile, and <code>-t</code> assigns the image name expected by the manifests.</li>
+      <li><code>minikube image load</code> copies each local image into profile <code>cross-pod</code>. This is required because the manifests use <code>imagePullPolicy: Never</code> and therefore do not contact an external registry.</li>
+      <li><code>minikube image ls</code> verifies that all three names are available inside the node.</li>
+    </ul>
+  </div>
+  <div class="note warn"><strong>Rebuilding an existing <code>latest</code> tag.</strong> If the DaemonSet keeps starting an older image, verify the image ID on the host and node. A crashing container can keep the old node image referenced. Remove only that stale node tag, reload it, and restart the DaemonSet:
+  <pre>docker image inspect demo-project-ebpf:latest --format '{{.Id}} {{.Created}}'
+minikube -p cross-pod ssh "docker image inspect demo-project-ebpf:latest --format '{{.Id}} {{.Created}}'"
+minikube -p cross-pod ssh "docker image rm --force demo-project-ebpf:latest"
+minikube image load -p cross-pod demo-project-ebpf:latest
+kubectl --context cross-pod -n ebpf-ctf-cross-pod rollout restart daemonset/project-monitor-cross-pod
+kubectl --context cross-pod -n ebpf-ctf-cross-pod rollout status daemonset/project-monitor-cross-pod --timeout=180s</pre>
+  The two inspection commands must report the same image ID before the rollout is accepted.</div>
+
+  <h2 id="deploy">3. Configure and Deploy Kubernetes</h2>
+  <p class="purpose">Validate the manifests and create the namespace.</p>
+  <pre>kubectl --context cross-pod apply --dry-run=client --validate=true \
+  -f k8s/minikube-ctf-cross-pod/manifests/
+
+kubectl --context cross-pod apply \
+  -f k8s/minikube-ctf-cross-pod/manifests/namespace.yaml</pre>
+  <div class="meaning">
+    <p><strong>Purpose.</strong> The dry run checks local YAML structure before changing the cluster. The second command then creates the dedicated namespace that isolates names and experiment resources.</p>
+    <ul>
+      <li><code>apply</code> creates a missing resource or updates an existing one to match the manifest.</li>
+      <li><code>--dry-run=client</code> performs local processing without contacting the API server for creation.</li>
+      <li><code>--validate=true</code> checks fields against the schema known to <code>kubectl</code>.</li>
+      <li><code>-f</code> supplies a manifest file or directory.</li>
+    </ul>
+  </div>
+
+  <p class="purpose">Create the detector ConfigMap and target-only synthetic flag Secret.</p>
+  <pre>kubectl --context cross-pod -n ebpf-ctf-cross-pod create configmap \
+  project-monitor-cross-pod-detector \
+  --from-file=aes-beta-command-execution.yaml=k8s/minikube-ctf/detectors/aes-beta-command-execution.yaml \
+  --dry-run=client -o yaml | kubectl --context cross-pod apply -f -
+
+kubectl --context cross-pod -n ebpf-ctf-cross-pod create secret generic \
+  aes-beta-cross-pod-flag \
+  --from-literal='flag=openECSC{ebpf_cross_pod_evaluation}' \
+  --dry-run=client -o yaml | kubectl --context cross-pod apply -f -</pre>
+  <div class="meaning">
+    <p><strong>Purpose.</strong> The ConfigMap makes the committed detector definition available to the monitor. The Secret stores the synthetic CTF flag and is mounted only at <code>/opt/aes-beta/flag</code> in the target.</p>
+    <ul>
+      <li><code>-n ebpf-ctf-cross-pod</code> selects the experiment namespace.</li>
+      <li><code>--from-file=key=path</code> stores the detector file under the specified ConfigMap key.</li>
+      <li><code>--from-literal=flag=...</code> creates the Secret entry named <code>flag</code>. Quoting prevents the shell from interpreting braces.</li>
+      <li><code>--dry-run=client -o yaml</code> renders the resource instead of creating it immediately. The pipe passes that YAML to <code>kubectl apply -f -</code>, where the final hyphen means “read from standard input”.</li>
+    </ul>
+    <p>The Secret protects the value from being committed in a manifest, but Kubernetes Secrets are not encrypted merely because they are Secrets; this laboratory uses only a synthetic value.</p>
+  </div>
+
+  <p class="purpose">Apply the workloads, Service and monitor.</p>
+  <pre>kubectl --context cross-pod apply \
+  -f k8s/minikube-ctf-cross-pod/manifests/target-deployment.yaml \
+  -f k8s/minikube-ctf-cross-pod/manifests/target-service.yaml \
+  -f k8s/minikube-ctf-cross-pod/manifests/trigger-pod.yaml \
+  -f k8s/minikube-ctf-cross-pod/manifests/monitor-daemonset.yaml
+
+kubectl --context cross-pod -n ebpf-ctf-cross-pod rollout status \
+  deployment/aes-beta-target-cross-pod --timeout=180s
+kubectl --context cross-pod -n ebpf-ctf-cross-pod rollout status \
+  daemonset/project-monitor-cross-pod --timeout=180s
+kubectl --context cross-pod -n ebpf-ctf-cross-pod wait \
+  --for=condition=Ready pod/aes-beta-trigger-cross-pod --timeout=180s</pre>
+  <div class="meaning">
+    <p><strong>Purpose.</strong> The multi-file <code>apply</code> creates the target Deployment, Service, trigger Pod and monitor DaemonSet. The canonical policy catalogue is already present in the monitor image. The following commands block until the components are usable.</p>
+    <ul>
+      <li><code>rollout status deployment/...</code> waits for the target replica to become available.</li>
+      <li><code>rollout status daemonset/...</code> waits for the node monitor to become available.</li>
+      <li><code>wait --for=condition=Ready</code> waits for the standalone trigger Pod.</li>
+      <li><code>--timeout=180s</code> turns a stalled deployment into an explicit failure after three minutes.</li>
+    </ul>
+  </div>
+
+  <p>The DaemonSet starts the monitoring executable with the following options. They are part of the deployed container command even though they are supplied through YAML rather than typed separately in the terminal.</p>
+  <table>
+    <thead><tr><th>Monitor option</th><th>Meaning in this experiment</th></tr></thead>
+    <tbody>
+      <tr><td><code>--policy /etc/project/policies/aes-beta-process-observation.yaml</code></td><td>Loads the canonical image policy that restricts collection to <code>sched_process_exec</code>, <code>security_file_open</code> and <code>open</code>.</td></tr>
+      <tr><td><code>--detectors /etc/project/detectors/aes-beta-command-execution.yaml</code></td><td>Loads the collective detector that recognises the shell, <code>cat</code> and flag-access sequence.</td></tr>
+      <tr><td><code>--alerts-only</code></td><td>Suppresses ordinary event output while preserving detector evaluation and alerts.</td></tr>
+      <tr><td><code>--alerts-output json</code></td><td>Produces structured alerts that retain the four evidence events.</td></tr>
+      <tr><td><code>--kernel-filter-uid-enabled --kernel-filter-uid 10001</code></td><td>Rejects events whose effective UID is not the target UID before transport to user space.</td></tr>
+      <tr><td><code>--log-format json --log-level info</code></td><td>Writes structured operational diagnostics at informational severity or above.</td></tr>
+    </tbody>
+  </table>
+  <p>The target listens on <code>0.0.0.0:1337</code>, making the service reachable outside its Pod. The trigger receives <code>TARGET_HOST=aes-beta-target-cross-pod</code> and <code>TARGET_PORT=1337</code>, so its clients resolve the Kubernetes Service instead of connecting to loopback.</p>
+
+  <h2 id="validate">4. Validate Placement, Isolation and Visibility</h2>
+  <p class="purpose">Verify independent Pod identities, same-node placement and Service routing.</p>
+  <pre>kubectl --context cross-pod -n ebpf-ctf-cross-pod get pods \
+  -o custom-columns='NAME:.metadata.name,POD_UID:.metadata.uid,POD_IP:.status.podIP,NODE:.spec.nodeName,RESTARTS:.status.containerStatuses[0].restartCount,HOST_PID:.spec.hostPID'
+
+kubectl --context cross-pod -n ebpf-ctf-cross-pod get service,endpointslice -o wide
+
+TARGET=$(kubectl --context cross-pod -n ebpf-ctf-cross-pod get pod \
+  -l app.kubernetes.io/component=target -o jsonpath='{.items[0].metadata.name}')
+MONITOR=$(kubectl --context cross-pod -n ebpf-ctf-cross-pod get pod \
+  -l app.kubernetes.io/component=monitor -o jsonpath='{.items[0].metadata.name}')
+
+kubectl --context cross-pod -n ebpf-ctf-cross-pod exec "$TARGET" -- cat /proc/1/cgroup
+kubectl --context cross-pod -n ebpf-ctf-cross-pod exec aes-beta-trigger-cross-pod -- cat /proc/1/cgroup
+kubectl --context cross-pod -n ebpf-ctf-cross-pod exec "$MONITOR" -- cat /proc/1/cgroup</pre>
+  <div class="meaning">
+    <p><strong>Purpose.</strong> These commands establish that the topology actually differs at Pod level while remaining node-local.</p>
+    <ul>
+      <li><code>get pods -o custom-columns=...</code> extracts Pod name, Kubernetes UID, IP, node, restart count and <code>hostPID</code> directly from the API.</li>
+      <li><code>get service,endpointslice -o wide</code> connects the stable Service identity to the selected target Pod endpoint on TCP/1337.</li>
+      <li><code>-l app.kubernetes.io/component=...</code> selects a Pod by label instead of using a generated name. <code>-o jsonpath=...</code> extracts that name into a shell variable.</li>
+      <li><code>kubectl exec POD -- COMMAND</code> runs a command inside a selected container; <code>--</code> separates kubectl options from the in-container command. Reading <code>/proc/1/cgroup</code> exposes the local cgroup path.</li>
+    </ul>
+    <p>Expected evidence is three different Pod UIDs, IPs, container identities and cgroups, with one common node. The EndpointSlice must reference the target Pod on port 1337.</p>
+  </div>
+
+  <p class="purpose">Perform the one-time raw-event visibility check.</p>
+  <pre>kubectl --context cross-pod -n ebpf-ctf-cross-pod patch daemonset \
+  project-monitor-cross-pod --type=json \
+  -p='[{"op":"remove","path":"/spec/template/spec/containers/0/args/4"}]'
+
+kubectl --context cross-pod -n ebpf-ctf-cross-pod rollout status \
+  daemonset/project-monitor-cross-pod --timeout=180s
+TARGET=$(kubectl --context cross-pod -n ebpf-ctf-cross-pod get pod \
+  -l app.kubernetes.io/component=target -o jsonpath='{.items[0].metadata.name}')
+MONITOR=$(kubectl --context cross-pod -n ebpf-ctf-cross-pod get pod \
+  -l app.kubernetes.io/component=monitor -o jsonpath='{.items[0].metadata.name}')
+START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+kubectl --context cross-pod -n ebpf-ctf-cross-pod exec "$TARGET" -- \
+  /bin/cat /proc/self/status
+kubectl --context cross-pod -n ebpf-ctf-cross-pod logs "$MONITOR" \
+  --since-time="$START" --timestamps=true
+
+kubectl --context cross-pod apply \
+  -f k8s/minikube-ctf-cross-pod/manifests/monitor-daemonset.yaml
+kubectl --context cross-pod -n ebpf-ctf-cross-pod rollout status \
+  daemonset/project-monitor-cross-pod --timeout=180s</pre>
+  <div class="meaning">
+    <p><strong>Purpose.</strong> The canonical monitor prints alerts only. This temporary change exposes raw events to prove that a monitor in another Pod can see target activity.</p>
+    <ul>
+      <li><code>patch daemonset --type=json</code> applies an RFC 6902 JSON Patch. <code>-p</code> contains one removal operation for argument index 4, currently <code>--alerts-only</code>.</li>
+      <li><code>START=$(date -u ...)</code> records the UTC boundary immediately before the controlled target command.</li>
+      <li><code>/bin/cat /proc/self/status</code> creates known process-execution and file-access activity under target UID 10001.</li>
+      <li><code>logs --since-time="$START"</code> excludes older records; <code>--timestamps=true</code> preserves their Kubernetes log timestamps.</li>
+      <li>Reapplying the committed DaemonSet manifest restores <code>--alerts-only</code> and the canonical test configuration.</li>
+    </ul>
+    <p>The JSON patch depends on the current argument ordering and is appropriate only for this recorded manifest.</p>
+  </div>
+
+  <h2 id="test">5. Run the Functional Tests Manually</h2>
+  <p class="purpose">Terminal 1: retain monitor output while the scenarios run.</p>
+  <pre>mkdir -p /tmp/cross-pod-manual-evidence
+kubectl --context cross-pod -n ebpf-ctf-cross-pod logs \
+  -f daemonset/project-monitor-cross-pod --timestamps=true \
+  | tee /tmp/cross-pod-manual-evidence/monitor.log</pre>
+  <div class="meaning">
+    <p><strong>Purpose.</strong> This terminal observes the monitor continuously while the second terminal runs workloads. <code>mkdir -p</code> creates the evidence directory. <code>logs -f</code> follows new output, <code>--timestamps=true</code> prefixes Kubernetes timestamps, and <code>tee</code> both displays and stores the stream.</p>
+  </div>
+
+  <p class="purpose">Terminal 2: execute three benign controls.</p>
+  <pre>kubectl --context cross-pod -n ebpf-ctf-cross-pod exec \
+  aes-beta-trigger-cross-pod -- env RUN_ID=benign-cross-pod-01 \
+  /opt/trigger/run-benign
+
+kubectl --context cross-pod -n ebpf-ctf-cross-pod exec \
+  aes-beta-trigger-cross-pod -- env RUN_ID=benign-cross-pod-02 \
+  /opt/trigger/run-benign
+
+kubectl --context cross-pod -n ebpf-ctf-cross-pod exec \
+  aes-beta-trigger-cross-pod -- env RUN_ID=benign-cross-pod-03 \
+  /opt/trigger/run-benign</pre>
+  <div class="meaning">
+    <p><strong>Purpose.</strong> The benign client exercises the same Service and vulnerable application without requesting the flag. Three distinct executions check that ordinary challenge use does not complete the attack sequence.</p>
+    <p><code>exec</code> starts the client inside the independent trigger Pod. <code>env RUN_ID=...</code> assigns a unique identifier to its JSON output, and <code>/opt/trigger/run-benign</code> sends the known plaintext and verifies the returned XOR ciphertext. Each run should report <code>result: pass</code>; the monitor should emit no AES-beta alert.</p>
+  </div>
+
+  <p class="purpose">Execute three exploit runs with the corrected flag pattern.</p>
+  <pre>kubectl --context cross-pod -n ebpf-ctf-cross-pod exec \
+  aes-beta-trigger-cross-pod -- env RUN_ID=exploit-cross-pod-01 \
+  'FLAG_PATTERN=^openECSC\{[A-Za-z0-9_-]+\}$' /opt/trigger/run-exploit
+
+kubectl --context cross-pod -n ebpf-ctf-cross-pod exec \
+  aes-beta-trigger-cross-pod -- env RUN_ID=exploit-cross-pod-02 \
+  'FLAG_PATTERN=^openECSC\{[A-Za-z0-9_-]+\}$' /opt/trigger/run-exploit
+
+kubectl --context cross-pod -n ebpf-ctf-cross-pod exec \
+  aes-beta-trigger-cross-pod -- env RUN_ID=exploit-cross-pod-03 \
+  'FLAG_PATTERN=^openECSC\{[A-Za-z0-9_-]+\}$' /opt/trigger/run-exploit</pre>
+  <div class="meaning">
+    <p><strong>Purpose.</strong> These commands repeat the controlled exploit three times without moving the client into the target Pod.</p>
+    <ul>
+      <li><code>RUN_ID</code> distinguishes each application result.</li>
+      <li><code>FLAG_PATTERN</code> is a regular expression used only by the client to validate the recovered value. <code>^</code> and <code>$</code> anchor the complete string, escaped braces match the literal CTF format, and the character class accepts the controlled payload text.</li>
+      <li><code>/opt/trigger/run-exploit</code> leaks the library base, reconstructs the canary with 1,792 candidate workers and creates one final payload worker.</li>
+    </ul>
+    <p>Each run should recover the synthetic flag, report 1,793 workers and produce one alert containing four ordered events: <code>/bin/sh</code> execution, <code>/bin/cat</code> execution, resolved flag access and successful <code>open</code>. Flag recovery and detector success are checked independently.</p>
+  </div>
+
+  <p class="purpose">Inspect alerts, diagnostics and Pod stability.</p>
+  <pre>grep '"detector_id":"aes-beta-command-execution"' \
+  /tmp/cross-pod-manual-evidence/monitor.log
+
+grep -Ei 'lost|perf.*loss' /tmp/cross-pod-manual-evidence/monitor.log
+
+kubectl --context cross-pod -n ebpf-ctf-cross-pod get pods \
+  -o custom-columns='NAME:.metadata.name,READY:.status.containerStatuses[0].ready,RESTARTS:.status.containerStatuses[0].restartCount'</pre>
+  <div class="meaning">
+    <p><strong>Purpose.</strong> The first <code>grep</code> extracts detector alerts by stable detector ID. The second searches diagnostics for loss-related terms: <code>-E</code> enables the alternative expression, and <code>-i</code> ignores case. The final <code>kubectl get</code> checks readiness and restart counts after the workloads.</p>
+    <p>An empty loss search means no matching diagnostic was printed; it is not an independent proof of zero transport loss.</p>
+  </div>
+
+  <div class="note warn"><strong>Historical test-harness anomaly.</strong> The first two recorded exploit clients recovered the flag and produced complete alerts but returned failure because the reused client expected <code>THESIS{...}</code>; the first correction was malformed. The commands above contain the verified literal <code>openECSC{...}</code> pattern.</div>
+
+  <h2 id="results">6. Observed Result and Boundary</h2>
+  <table>
+    <thead><tr><th>Check</th><th>Observed result</th></tr></thead>
+    <tbody>
+      <tr><td>Topology</td><td>Three independent Pods, distinct identities/IPs/cgroups, same Minikube node.</td></tr>
+      <tr><td>Network</td><td>Trigger reached the target through the ClusterIP Service.</td></tr>
+      <tr><td>Visibility</td><td>Controlled UID 10001 target activity appeared in monitor output.</td></tr>
+      <tr><td>Benign</td><td>3/3 workloads completed; 0 AES-beta alerts.</td></tr>
+      <tr><td>Exploit</td><td>Flag recovered in 3/3; detector matched in 3/3 with complete evidence.</td></tr>
+      <tr><td>Runtime health</td><td>No matching loss diagnostic; zero Pod restarts in the recorded intervals.</td></tr>
+    </tbody>
+  </table>
+  <div class="note ok"><strong>Supported conclusion.</strong> On the evaluated single-node Minikube cluster, the monitoring Pod observed and detected the exploit executed in an independent target Pod. This does not demonstrate cross-node collection, least-privilege deployment, enforcement or general detector coverage.</div>
+
+  <h2>7. Cleanup</h2>
+  <pre>kubectl --context cross-pod delete namespace ebpf-ctf-cross-pod
+minikube stop -p cross-pod
+
+# Remove the complete local cluster only when it is no longer needed:
+minikube delete -p cross-pod</pre>
+
+  <div class="meaning">
+    <p><strong>Meaning.</strong> Deleting the namespace removes only the experiment resources. <code>minikube stop -p cross-pod</code> stops the node but preserves its profile and images for later reuse. <code>minikube delete -p cross-pod</code> permanently removes that local cluster and should be used only after evidence has been collected.</p>
+  </div>
+
+  <p>Raw evidence from the recorded experiment is preserved under <code>demo_project/k8s/minikube-ctf-cross-pod/evidence/cross-pod-20260817T052019Z/</code>.</p>
+  <p>The functional procedure and the separate <a href="minikube-ctf-cross-pod-performance-evaluation.html">cross-Pod performance evaluation</a> are complete. The reported CPU and memory values come from this topology; measurements from the earlier shared-Pod laboratory are not substituted.</p>
+</div>
+</body>
+</html>

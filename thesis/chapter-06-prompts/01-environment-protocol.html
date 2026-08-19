@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agent 1: Environment and Protocol</title>
+<style>body{max-width:1000px;margin:2rem auto;padding:0 1.25rem;font:16px/1.55 system-ui,sans-serif;color:#18202a}h1{line-height:1.2}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f2f4f6;border:1px solid #cbd2d9;padding:1rem;font:13px/1.45 ui-monospace,Consolas,monospace}.note{border-left:5px solid #0f5e75;background:#e8f3f6;padding:.8rem 1rem}code{background:#edf0f3;padding:.08rem .28rem}</style></head>
+<body><h1>Agent 1: Environment and Protocol</h1><p class="note"><strong>Output:</strong> <code>environment-protocol-audit.html</code>. Copy the complete prompt below into one agent.</p><pre>You are the cross-Pod environment, protocol and reproducibility auditor for Chapter 6 of an MSc thesis about an eBPF runtime security monitor.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-06-cross-pod-agent-workflow.html
+- /home/simone/project/documentation/thesis/chapters/chapter-06-cross-pod-evaluation.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-cross-pod-design.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-cross-pod-deployment.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-cross-pod-step-by-step.html
+- /home/simone/project/documentation/evaluation/minikube-ctf-cross-pod-laboratory.html
+- /home/simone/project/demo_project/k8s/minikube-ctf-cross-pod/README.md
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter5.tex
+
+Inspect completely:
+- /home/simone/project/demo_project/k8s/minikube-ctf-cross-pod/manifests
+- /home/simone/project/demo_project/k8s/minikube-ctf-cross-pod/scripts
+- /home/simone/project/demo_project/k8s/minikube-ctf-cross-pod/evidence/cross-pod-20260817T052019Z
+- /home/simone/project/demo_project/rules/policies/aes-beta-process-observation.yaml
+- /home/simone/project/demo_project/k8s/minikube-ctf/detectors/aes-beta-command-execution.yaml
+
+Record the live demo_project commit and dirty state. Prefer applied manifests and raw evidence. Do not import facts from the old shared-Pod experiment.
+
+Audit the environment, three-resource topology, same-node placement, Pod identities/IPs/cgroups, hostPID and hostNetwork, UIDs, privileges, mounts, Secret scope, policy/detector delivery, functional protocol, acceptance criteria, controlled variables, reproducibility boundaries, discrepancies, citations and body-versus-appendix material.
+
+Produce topology and ownership tables, a protocol timeline, controlled-variable matrix, claim-to-evidence ledger, visual proposal, paragraph plan, stale-claim list and unresolved questions. Do not analyse outcomes or performance. Do not modify any other file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-06/environment-protocol-audit.html</pre></body></html>

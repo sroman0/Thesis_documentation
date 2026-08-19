@@ -1,146 +1,123 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en-GB">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Chapter 6 Writing Report</title>
   <style>
-    body { margin: 0; color: #17212b; background: #fff; font: 16px/1.55 system-ui, sans-serif; }
-    main { max-width: 1080px; margin: 0 auto; padding: 40px 28px 70px; }
-    h1, h2 { color: #123f61; line-height: 1.2; }
-    h2 { margin-top: 36px; border-bottom: 2px solid #cbd5dd; padding-bottom: 6px; }
-    code { background: #f1f4f6; padding: 1px 4px; border-radius: 3px; }
-    table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 0.94rem; }
-    th, td { border: 1px solid #cbd5dd; padding: 8px 10px; text-align: left; vertical-align: top; }
-    th { background: #eaf0f4; }
-    .callout { border-left: 5px solid #1b638a; background: #f2f6f8; padding: 13px 17px; margin: 18px 0; }
-    .warning { border-left-color: #9a6300; background: #fff8e8; }
-    .ok { color: #17663a; font-weight: 700; }
-    .blocked { color: #8a2635; font-weight: 700; }
-    li { margin: 4px 0; }
+    :root { --ink:#172033; --muted:#5b6675; --line:#ccd5df; --panel:#f5f7fa; --ok:#176b43; --warn:#8a5a00; }
+    * { box-sizing: border-box; }
+    body { margin:0; color:var(--ink); background:#fff; font:16px/1.55 system-ui, sans-serif; }
+    main { max-width:1120px; margin:auto; padding:40px 28px 64px; }
+    h1,h2 { line-height:1.2; }
+    h2 { margin-top:36px; border-bottom:1px solid var(--line); padding-bottom:6px; }
+    table { width:100%; border-collapse:collapse; margin:16px 0 26px; }
+    th,td { border:1px solid var(--line); padding:9px 10px; text-align:left; vertical-align:top; }
+    th { background:#edf1f5; }
+    code { background:#eef1f5; padding:.08rem .25rem; font-family:Consolas, monospace; }
+    .box { border-left:4px solid var(--ok); background:#f0f8f4; padding:14px 17px; margin:18px 0; }
+    .warn { border-left-color:var(--warn); background:#fff9ed; }
+    .muted { color:var(--muted); }
   </style>
 </head>
 <body>
 <main>
   <h1>Chapter 6 Writing Report</h1>
+  <p class="muted">Experimental Evaluation, cross-Pod evidence baseline</p>
 
-  <div class="callout">
-    <strong>Result:</strong> Chapter 6 was written from the approved synthesis
-    and selected raw evidence. Exactly one Chapter 6 input was appended after
-    Chapter 5. Chapters 1-5 and the abstract were not modified by this task.
+  <div class="box">
+    <strong>Writing result:</strong> Chapter 6 was rewritten according to the
+    approved cross-Pod editorial synthesis and enabled once in the thesis
+    inclusion order. The chapter contains 3,375 words, two figures, three
+    tables and no source-code listings.
   </div>
 
-  <h2>Inspected Repository State</h2>
-  <p><strong>demo_project commit:</strong>
-  <code>497da90f564c97fb9ffc38b264398150467173f5</code>.</p>
-  <p><strong>Working tree:</strong> modified <code>.gitignore</code> and
-  <code>README.md</code>; untracked <code>k8s/</code> laboratory tree. The
-  commit difference is retained as traceability metadata only. No thesis prose
-  attributes the evaluated monitor behaviour to an implementation change after
-  the baseline used by the preceding chapters.</p>
+  <h2>Inspected Baseline</h2>
+  <table>
+    <tbody>
+      <tr><th>demo_project commit</th><td><code>e8795fea7afb12079844031a1a8b69d7091e0dfd</code></td></tr>
+      <tr><th>demo_project working tree</th><td><code>Dockerfile</code> and <code>pkg/policy/loader_test.go</code> modified; <code>k8s/minikube-ctf-cross-pod/</code> and <code>rules/policies/aes-beta-process-observation.yaml</code> untracked.</td></tr>
+      <tr><th>Functional evidence</th><td><code>cross-pod-20260817T052019Z</code></td></tr>
+      <tr><th>Performance evidence</th><td><code>cross-pod-performance-20260819T070557Z</code></td></tr>
+      <tr><th>Challenge revision</th><td><code>2602f22c664eb98398413e6a7dfe03ea88b2d296</code></td></tr>
+    </tbody>
+  </table>
 
-  <h2>Modified Files</h2>
-  <ul>
-    <li><code>Thesis/content/chapters/chapter6.tex</code>: created the complete
-    experimental-evaluation chapter.</li>
-    <li><code>Thesis/content/chapters.tex</code>: added exactly one
-    <code>\input{content/chapters/chapter6}</code> after Chapter 5.</li>
-    <li><code>documentation/thesis/agent-output/chapter-06/writing-report.html</code>:
-    created this report.</li>
-  </ul>
-
-  <h2>Final Structure</h2>
+  <h2>Changed Structure</h2>
   <ol>
     <li>Evaluation Objectives and Experimental Protocol</li>
-    <li>Minikube Environment and Three-Container Testbed</li>
+    <li>Cross-Pod Minikube Experimental Testbed</li>
     <li>AES-beta Workload and Controlled Attack Scenario</li>
-    <li>Functional Evaluation
-      <ul>
-        <li>Cross-Container Event Visibility</li>
-        <li>Collective Detector Validation</li>
-        <li>Benign Control and Repeated Runs</li>
-      </ul>
-    </li>
-    <li>Performance Evaluation
-      <ul>
-        <li>Metrics, Sampling and Benchmark Profiles</li>
-        <li>Resource Consumption and Workload Duration</li>
-        <li>Effect of Kernel-Side UID Filtering</li>
-      </ul>
-    </li>
+    <li>Functional Evaluation, with visibility, detector and repeated-run subsections</li>
+    <li>Performance Evaluation, with metrics, resources and UID-filter subsections</li>
     <li>Discussion of Results</li>
     <li>Threats to Validity and Current Limitations</li>
     <li>Evaluation Summary</li>
   </ol>
-  <p>The approximate static word count is 2,961 words, within the approved
-  2,800-3,500 range.</p>
+  <p>The previously commented Chapter 6 line in <code>content/chapters.tex</code>
+  was enabled. No duplicate Chapter 6 input was added.</p>
 
   <h2>Numerical Claim Ledger</h2>
   <table>
-    <thead><tr><th>Claim</th><th>Value used</th><th>Raw source</th><th>Qualification</th></tr></thead>
+    <thead><tr><th>Claim</th><th>Value used</th><th>Primary evidence and qualification</th></tr></thead>
     <tbody>
-      <tr><td>Functional controls</td><td>3 benign windows; zero alerts</td><td>Step 8 window summaries and monitor logs</td><td>Narrow controls; no false-positive rate</td></tr>
-      <tr><td>Exploit observations</td><td>4 windows; one four-event alert each</td><td>Step 8 windowed monitor logs</td><td>Scenario validation; no accuracy percentage</td></tr>
-      <tr><td>Divergent client result</td><td>E3 returned an empty flag and status 1 while the alert completed</td><td>E3 scenario output and alert JSON</td><td>Client delivery and monitor detection are distinct</td></tr>
-      <tr><td>Event spans</td><td>0.941, 0.625, 0.650 and 0.725 ms</td><td>First/last kernel timestamps in four alerts</td><td>Not detector or output latency</td></tr>
-      <tr><td>Filtered monitor CPU</td><td>0.39% ± 0.02; run-mean range 0.36-0.41%</td><td>Step 10 <code>runs.tsv</code>, recomputed</td><td>Percentage of one core charged to monitor cgroup</td></tr>
-      <tr><td>Unfiltered monitor CPU</td><td>4.87% ± 0.11; run-mean range 4.73-4.98%</td><td>Step 10 <code>runs.tsv</code>, recomputed</td><td>Same metric boundary as filtered profile</td></tr>
-      <tr><td>Filtering comparison</td><td>Approximately 92.0% reduction</td><td>Unrounded means 0.388 and 4.868</td><td>Scenario-specific monitor-cgroup comparison</td></tr>
-      <tr><td>Node CPU</td><td>94.70%, 95.11%, 94.89%</td><td>Step 10 profile aggregates</td><td>Near-saturation blocks causal duration claims</td></tr>
-      <tr><td>Loss diagnostics</td><td>Zero matching diagnostics in selected functional windows and ten monitored performance runs</td><td>Windowed monitor logs</td><td>No proof of loss-free transport</td></tr>
+      <tr><td>Functional controls</td><td>3/3 benign application checks; 0 alerts</td><td><code>summary.tsv</code>. This is not a false-positive-rate estimate.</td></tr>
+      <tr><td>Exploit outcome</td><td>3/3 flag recoveries; client validation 1/3</td><td>Functional <code>summary.tsv</code> and retained trigger output. Client failures were separated from application success.</td></tr>
+      <tr><td>Detector outcome</td><td>3/3 runs with exactly one complete four-event alert</td><td>Run-local monitor logs. The observed branch used the same stable process identity.</td></tr>
+      <tr><td>Health diagnostics</td><td>Zero restart deltas and zero matching loss diagnostics</td><td>Six functional intervals and six monitored performance runs. Wording does not claim loss-free transport.</td></tr>
+      <tr><td>Filtered monitor CPU</td><td>0.46% mean; SD 0.02; range 0.44-0.47%; mean run P95 1.00%</td><td>Three official filtered runs in <code>runs.tsv</code> and <code>aggregate.tsv</code>; percentage of one core charged to the monitor cgroup.</td></tr>
+      <tr><td>Unfiltered monitor CPU</td><td>5.73% mean; SD 0.61; range 5.28-6.43%; mean run P95 8.38%</td><td>Three official unfiltered runs; same attribution boundary.</td></tr>
+      <tr><td>UID-filter effect</td><td>91.97% lower filtered monitor-cgroup mean</td><td>Recomputed as <code>(5.73 - 0.46) / 5.73</code>. Not total eBPF or node overhead.</td></tr>
+      <tr><td>Memory</td><td>Peak cgroup/RSS: 92.17/36.97 MiB filtered; 110.21/41.24 MiB unfiltered</td><td>Campaign maxima, not steady-state estimates.</td></tr>
+      <tr><td>Context only</td><td>Node CPU about 94%; no-monitor target and node observations</td><td>Used only to describe saturation. No duration or total-overhead causality is inferred.</td></tr>
     </tbody>
   </table>
 
   <h2>Visual and Table Inventory</h2>
   <table>
-    <thead><tr><th>Kind</th><th>Count</th><th>Inventory</th></tr></thead>
+    <thead><tr><th>Item</th><th>Question answered</th><th>Asset or source</th></tr></thead>
     <tbody>
-      <tr><td>Figures</td><td>0</td><td>No approved Chapter 6 asset existed at writing time, so no figure was referenced.</td></tr>
-      <tr><td>Result/environment tables</td><td>3</td><td>Environment and controlled configuration; seven functional windows; replicated performance summary.</td></tr>
-      <tr><td>Source-code listings</td><td>0</td><td>Excluded by the synthesis.</td></tr>
+      <tr><td>Figure: cross-Pod topology</td><td>Which components share a node kernel while remaining separate Pods?</td><td><code>figures/chapter6/kubernetes-testbed-topology.drawio.png</code></td></tr>
+      <tr><td>Figure: two-panel exploitation flow</td><td>How does the final exploit effect map to the four monitored observations?</td><td><code>ctf_exploitation_flow.drawio.png</code> and <code>ctf_exploitation_flow_II.drawio.png</code></td></tr>
+      <tr><td>Table: environment</td><td>What was deployed and which isolation or privilege boundary applied?</td><td>Effective manifests and preserved environment evidence.</td></tr>
+      <tr><td>Table: functional runs</td><td>What happened in every retained benign and exploit repetition?</td><td>Functional <code>summary.tsv</code> plus run-local logs.</td></tr>
+      <tr><td>Table: performance profiles</td><td>How did attributable monitor CPU and memory differ with exact UID admission?</td><td>Performance <code>runs.tsv</code> and <code>aggregate.tsv</code>.</td></tr>
     </tbody>
   </table>
 
-  <h2>Validation Results</h2>
+  <h2>Validation</h2>
   <ul>
-    <li><span class="ok">Passed:</span> exactly one Chapter 6 input, preserving chapter order.</li>
-    <li><span class="ok">Passed:</span> no duplicate labels across the current thesis sources.</li>
-    <li><span class="ok">Passed:</span> all Chapter 6 table references resolve to local labels.</li>
-    <li><span class="ok">Passed:</span> the only citation key used,
-    <code>strom2020attack</code>, exists in <code>bibliography.bib</code>.</li>
-    <li><span class="ok">Passed:</span> balanced braces and isolated LaTeX parsing through the end of the chapter.</li>
-    <li><span class="ok">Passed:</span> three tables, no figures and no listings remain within the approved budget.</li>
-    <li><span class="ok">Passed:</span> positive claims about total overhead,
-    loss-free transport and detection accuracy are absent.</li>
+    <li>All seven citation keys used by Chapter 6 exist in <code>bibliography.bib</code>.</li>
+    <li>All three referenced PNG assets exist.</li>
+    <li>No duplicate labels were found across the thesis chapter sources.</li>
+    <li>Environment delimiters are balanced; <code>git diff --check</code> passed.</li>
+    <li>The chapter contains eight sections, six subsections, two figures, three tables and zero listings.</li>
+    <li>Stale shared-Pod values 0.39%, 4.87% and 91.99% are absent.</li>
+    <li>Raw TSV aggregation was independently checked: filtered mean 0.46%, zero filtered runs over 5%, and a 91.97% filtered/unfiltered reduction.</li>
   </ul>
 
-  <h2>Build Status and Warnings</h2>
-  <div class="callout warning">
-    <strong>Full thesis build unavailable in the local environment.</strong>
-    The isolated copy of the thesis stopped before processing the document
-    because <code>biblatex.sty</code> is missing. This is an environment
-    dependency, not a Chapter 6 error.
+  <div class="box warn">
+    <strong>Build blocker:</strong> an isolated invocation of the canonical
+    <code>compile.sh</code> stopped during the first preamble pass because the
+    local TeX Live installation does not provide <code>biblatex.sty</code>.
+    LaTeX therefore did not reach Chapter 6. This is an environment dependency
+    blocker; no PDF-build result or unresolved-reference claim can be made from
+    this machine.
   </div>
-  <p>A second isolated syntax build with a minimal preamble parsed the complete
-  chapter and wrote all pages to the final document stage, but PDF finalisation
-  failed because the local TeX installation lacks <code>gftopk</code> and the
-  required generated EC fonts. The minimal build also reported line-box
-  warnings for long headings and identifiers. These must be checked using the
-  complete thesis toolchain and actual font configuration; no missing
-  references remained after the second pass.</p>
 
-  <h2>Unresolved Editorial Warnings</h2>
+  <h2>Unresolved Warnings</h2>
   <ul>
-    <li>The approved Chapter 6 figures do not yet exist. The current chapter is
-    complete without them and deliberately contains no placeholder references.</li>
-    <li>The bibliography lacks dedicated Kubernetes, Minikube, cgroup and
-    openECSC entries identified by the synthesis. The writer was not authorised
-    to modify <code>bibliography.bib</code>, so the chapter avoids unsupported
-    general claims and reports these primarily as experimental configuration.</li>
-    <li>The glossary lacks CTF and RSS entries. Both are expanded in prose on
-    first use because <code>glossaries.tex</code> was outside the permitted file set.</li>
-    <li>Final page count and table pagination require compilation on the complete
-    thesis machine. The word count is within the binding budget.</li>
+    <li>The cross-Pod laboratory and evidence directory remain untracked in the inspected demo_project working tree and should be archived immutably before submission.</li>
+    <li>The realised Kubernetes allocatable CPU and memory were not preserved; the chapter correctly reports requested Minikube resources.</li>
+    <li>The no-monitor Pod disappearance was not independently timestamped, so those runs remain contextual rather than a total-overhead baseline.</li>
+    <li>The final pagination and 12-14 page target require compilation in the complete thesis environment.</li>
+  </ul>
+
+  <h2>Modified Files</h2>
+  <ul>
+    <li><code>Thesis/content/chapters/chapter6.tex</code></li>
+    <li><code>Thesis/content/chapters.tex</code>, Chapter 6 input only</li>
+    <li><code>documentation/thesis/agent-output/chapter-06/writing-report.html</code></li>
   </ul>
 </main>
 </body>

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cross-Pod Minikube Performance Evaluation Plan</title>
+  <style>
+    :root{--ink:#172033;--line:#cfd7e2;--panel:#f6f8fb;--blue:#2457a6;--amber:#8a5a00;--green:#176b43}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);font:16px/1.58 system-ui,sans-serif;background:#fff}main{max-width:1060px;margin:auto;padding:42px 28px 72px}
+    h1,h2{line-height:1.22}h1{margin-top:0}h2{margin-top:38px;border-bottom:1px solid var(--line);padding-bottom:7px}p,li{max-width:96ch}
+    code,pre{font-family:Consolas,monospace}code{background:#eef1f5;padding:.08rem .25rem}pre{overflow:auto;padding:13px;background:#111827;color:#edf2f8}
+    table{width:100%;border-collapse:collapse;margin:18px 0 28px}th,td{padding:10px 11px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:#eef2f7}
+    .box{padding:14px 17px;margin:17px 0;border-left:4px solid var(--blue);background:#f3f7fc}.pending{border-left-color:var(--amber);background:#fff9ed}.status{display:inline-block;padding:4px 8px;border:1px solid var(--line);background:var(--panel);font-weight:700;color:var(--amber)}
+    @media(max-width:760px){main{padding:28px 18px 52px}table{font-size:14px}}
+  </style>
+</head>
+<body><main>
+  <h1>Cross-Pod Minikube Performance Evaluation Plan</h1>
+  <p><span class="status" style="color:var(--green)">STATUS: EXECUTED — PRIMARY GATES PASS</span></p>
+  <div class="box"><strong>Official dataset:</strong> <code>cross-pod-performance-20260819T070557Z</code>. The protocol was executed on the same <code>cross-pod</code> Minikube node used for functional evaluation. See the <a href="minikube-ctf-cross-pod-performance-evaluation.html">compact results report</a>.</div>
+
+  <h2>Question and Acceptance Criterion</h2>
+  <p>The primary question is whether the monitor's mean user-space CPU remains at or below 5% of one CPU core while the AES-beta exploit runs in the canonical cross-Pod configuration. The study also measures memory, target cost, node utilisation, workload duration, alerts, perf-event loss diagnostics and Pod restarts.</p>
+  <p>The 5% gate applies only to the monitor container's user-space cgroup CPU. eBPF programs execute in the context of observed kernel activity, so this value must not be described as total system overhead. Node CPU provides system-level context; no-monitor duration is retained as descriptive evidence subject to the post-run limitation below.</p>
+
+  <h2>Fixed Environment</h2>
+  <ul>
+    <li>Minikube profile <code>cross-pod</code>, one node, two CPUs and 4096 MiB.</li>
+    <li>Monitor DaemonSet, target Deployment and trigger Pod on that node.</li>
+    <li>Target UID 10001, trigger UID 10002 and Service-based TCP/1337 communication.</li>
+    <li>The same image IDs, policy, detector, event scope and synthetic flag for every measured run.</li>
+    <li>No additional intentional workload on the host or Minikube node during the benchmark.</li>
+  </ul>
+
+  <h2>Profiles</h2>
+  <table>
+    <thead><tr><th>Profile</th><th>Configuration</th><th>Question answered</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Filtered</strong></td><td>Canonical monitor with exact kernel UID filter 10001, policy, detector and <code>alerts-only</code>; exploit workload.</td><td>Does the deployed configuration satisfy the 5% monitor CPU gate while retaining the alert?</td></tr>
+      <tr><td><strong>Unfiltered</strong></td><td>Identical monitor with only the kernel UID filter disabled; exploit workload.</td><td>How much user-space work is avoided by early UID admission?</td></tr>
+      <tr><td><strong>No monitor</strong></td><td>Target and trigger remain deployed; the monitor DaemonSet is scaled or removed for the run.</td><td>What are exploit duration and node CPU without the monitoring workload?</td></tr>
+    </tbody>
+  </table>
+  <p>Each profile requires three independent runs, for nine official runs in total. Use three rotated rounds: <code>filtered → unfiltered → no-monitor</code>, then <code>unfiltered → no-monitor → filtered</code>, and finally <code>no-monitor → filtered → unfiltered</code>. Recreate the monitor Pod after each profile change and record its new container ID and cgroup.</p>
+
+  <h2>Measurement Window</h2>
+  <p>Use a one-second sampling interval. Start the sampler, allow a ten-second warm-up, execute one exploit run and continue sampling until a fixed 75-second window ends. Summaries must use the explicitly recorded workload interval for workload comparisons; retain the complete sampling window for audit and idle-context inspection.</p>
+  <p>The exploit client must still report 1,793 workers and recover the synthetic flag. Filtered and unfiltered runs must each produce one complete AES-beta alert. Any failed workload, missing alert, loss diagnostic or restart remains in the dataset and must not be silently replaced.</p>
+
+  <h2>Measurement Source</h2>
+  <p>The recorded cross-Pod environment uses cgroup v1. Resolve the current container IDs through Kubernetes, then locate their cgroup files on the Minikube node. Calculate one-core CPU percentage from successive <code>cpuacct.usage</code> values:</p>
+  <pre>CPU percentage = (delta container CPU nanoseconds / delta wall nanoseconds) * 100</pre>
+  <p>Read <code>memory.usage_in_bytes</code>, <code>total_rss</code> from <code>memory.stat</code>, and <code>pids.current</code> for the monitor and target. Read <code>/proc/stat</code> in the Minikube node for total node CPU. The sampler must run outside the measured container so that its own work is not charged to the monitor.</p>
+
+  <h2>Metrics and Reporting</h2>
+  <table>
+    <thead><tr><th>Metric</th><th>Statistic</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td>Monitor CPU</td><td>Per-run mean, P95 and peak; mean, standard deviation and range across three runs</td><td>Primary 5% gate and descriptive variability</td></tr>
+      <tr><td>Monitor memory and RSS</td><td>Per-run peak and range across runs</td><td>User-space memory footprint</td></tr>
+      <tr><td>Target and node CPU</td><td>Mean and peak during the workload interval</td><td>Context for challenge saturation and system cost</td></tr>
+      <tr><td>Exploit duration</td><td>Per-run value, mean, median, standard deviation and range</td><td>Descriptive workload context</td></tr>
+      <tr><td>Functional integrity</td><td>Flag, workers, alert count, complete four-event evidence</td><td>Ensures that optimisation did not remove detection</td></tr>
+      <tr><td>Runtime health</td><td>Loss-diagnostic count and Pod restarts</td><td>Rejects apparently cheap but incomplete runs</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Required Evidence</h2>
+  <p>Create a new timestamped directory under <code>demo_project/k8s/minikube-ctf-cross-pod/evidence/</code>. Preserve environment and Git state, effective manifests, image IDs, exact commands, profile order, raw one-second samples, workload timestamps, trigger output, monitor interval, target log, Pod states, per-run summaries and aggregate tables. Keep unsuccessful attempts and explain corrections chronologically.</p>
+
+  <h2>Implemented Measurement Pipeline</h2>
+  <ol>
+    <li><code>deploy-performance-profile.sh</code> applies filtered, unfiltered and no-monitor states and restores the canonical filtered DaemonSet.</li>
+    <li><code>sample-cross-pod-performance.sh</code> discovers monitor and target container IDs in separate Pods and samples their cgroup v1 counters on the <code>cross-pod</code> node.</li>
+    <li><code>run-performance-case.sh</code> records workload boundaries and preserves application, detector, loss and restart evidence without retry.</li>
+    <li><code>run-performance-calibration.sh</code> executes one explicitly excluded calibration run.</li>
+    <li><code>run-replicated-performance.sh</code> requires the explicit <code>CALIBRATION_APPROVED=1</code> acknowledgement and implements the three rotated rounds; <code>summarize-performance.sh</code> derives aggregate values only from preserved TSV evidence.</li>
+  </ol>
+  <p><strong>Static status: PASS WITH ONE TOOL UNAVAILABLE.</strong> All scripts pass <code>bash -n</code>; the unfiltered manifest transformation preserves the canonical configuration while removing only the UID filter; the alert-evidence predicate matches a preserved four-event alert; and the offline summariser passes a synthetic nine-run test. <code>shellcheck</code> is not installed on the host and was therefore not executed.</p>
+  <p><strong>First runtime attempt: REJECTED.</strong> The first calibration, preserved under <code>performance-calibration-20260819T065500Z</code>, completed the exploit in 45,652 ms, recovered the flag with 1,793 workers, produced one complete alert, and showed no loss diagnostic or restart. Its CPU columns were empty because unparenthesised AWK ternaries after <code>printf</code> were parsed as output redirections. The summary incorrectly converted those missing values to zero. This attempt is invalid for performance interpretation.</p>
+  <p>The CPU calculations now use explicit conditional branches, and both the sampler and run coordinator reject missing or non-numeric CPU fields. The corrected formula returns <code>50.00</code> for a controlled 1/2 ratio on both host and Minikube node, while the malformed first-calibration TSV is rejected. A fresh calibration in a new evidence directory must pass before the nine official runs are authorised.</p>
+  <p>A three-second smoke test on the active cluster then produced numeric samples for all three CPU fields: monitor 0.02--0.03% of one core, idle target 0.00%, and node 7.00--9.55%. These values validate the corrected sampling path only and are not part of the performance results.</p>
+  <p><strong>Corrected calibration: PASS.</strong> The run under <code>performance-calibration-20260819T070018Z</code> produced 72 structurally valid samples, including 45 in the exploit interval. The exploit completed in 47,101 ms with 1,793 workers and flag recovery. One complete alert was recorded, with no loss diagnostic or restart. Monitor CPU was 0.50% mean, 1.03% P95 and 1.39% peak of one core; peak monitor cgroup memory was 93.07 MiB and RSS was 37.33 MiB. The node averaged 92.25% of its two-CPU capacity during the brute-force workload. These calibration values validate the method but remain excluded from the official result set.</p>
+
+  <h2>Execution Result</h2>
+  <p>The nine official runs completed without retry. All nine exploit workloads recovered the flag with 1,793 workers. The six monitored runs generated one complete alert each, with no reported perf-event loss or Pod restart.</p>
+  <p>Filtered monitor CPU averaged <strong>0.46%</strong> of one core (SD 0.02; run range 0.44--0.47%), compared with <strong>5.73%</strong> unfiltered. The measured reduction was 91.97%. Maximum filtered cgroup memory was 92.17 MiB and maximum RSS was 36.97 MiB.</p>
+  <p>The node remained near saturation during all profiles. The saved no-monitor snapshots also showed the former monitor Pod as <code>Terminating</code> immediately after DaemonSet deletion. These controls remain preserved, but their durations are not used to claim causal overhead. The profile script now waits for and verifies full Pod deletion before future controls.</p>
+
+  <h2>Chapter 6 Ownership</h2>
+  <p>Chapter 6 should present this protocol after the functional results. It should report the filtered profile as the operational result, use unfiltered as the controlled filtering comparison, and state the user-space CPU boundary explicitly. The no-monitor duration is descriptive only because of the deletion-timing limitation. Three replications support a compact comparison, not broad statistical generalisation.</p>
+
+  <h2>Related Documents</h2>
+  <ul>
+    <li><a href="minikube-ctf-cross-pod-design.html">Self-contained experiment design</a></li>
+    <li><a href="minikube-ctf-cross-pod-deployment.html">Stable deployment</a></li>
+    <li><a href="minikube-ctf-cross-pod-functional-evaluation.html">Completed functional evaluation</a></li>
+    <li><a href="minikube-ctf-cross-pod-performance-evaluation.html">Completed performance evaluation</a></li>
+    <li><a href="minikube-ctf-cross-pod-final-report.html">Current thesis-oriented status</a></li>
+  </ul>
+</main></body>
+</html>

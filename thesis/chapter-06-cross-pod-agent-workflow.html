@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chapter 6 Cross-Pod Agent Workflow</title>
+<style>body{max-width:1000px;margin:2rem auto;padding:0 1.25rem;font:16px/1.55 system-ui,sans-serif;color:#18202a}h1{line-height:1.2}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f2f4f6;border:1px solid #cbd2d9;padding:1rem;font:13px/1.45 ui-monospace,Consolas,monospace}.note{border-left:5px solid #0f5e75;background:#e8f3f6;padding:.8rem 1rem}code{background:#edf0f3;padding:.08rem .28rem}</style></head>
+<body><h1>Chapter 6 Cross-Pod Agent Workflow</h1>
+<p class="note"><strong>Binding decision:</strong> Chapter 6 presents only the completed cross-Pod Minikube experiment. The older one-Pod, three-container experiment and its five-run benchmark are excluded.</p>
+<h2>Verified baseline</h2>
+<ul>
+<li>Functional campaign: 3 benign runs with 0 alerts; 3 exploit runs with flag recovery and one complete alert each.</li>
+<li>Filtered monitor: 3 runs, 0.46% mean CPU of one core, SD 0.02, mean run P95 1.00%.</li>
+<li>Unfiltered monitor: 3 runs, 5.73% mean CPU; filtered reduction 91.97%.</li>
+<li>Filtered maxima: 92.17 MiB cgroup memory and 36.97 MiB RSS.</li>
+<li>Six monitored runs: no reported loss diagnostic and no restart delta.</li>
+<li>No-monitor duration is excluded from overhead conclusions.</li>
+</ul>
+<h2>Pipeline</h2>
+<ol>
+<li><strong>Wave 1:</strong> run Agents 1–4 in parallel.</li>
+<li><strong>Gate A:</strong> read all four audits and resolve blockers.</li>
+<li><strong>Wave 2:</strong> run Agent 5 and approve its binding synthesis.</li>
+<li><strong>Wave 3:</strong> run Agent 6 to update only Chapter 6.</li>
+<li><strong>Wave 4:</strong> run Agent 7 as an independent reviewer.</li>
+</ol>
+<h2>Prompt files</h2>
+<ol>
+<li><a href="chapter-06-prompts/01-environment-protocol.html">Environment and protocol audit</a></li>
+<li><a href="chapter-06-prompts/02-functional-evidence.html">Functional evidence audit</a></li>
+<li><a href="chapter-06-prompts/03-performance-evidence.html">Performance evidence audit</a></li>
+<li><a href="chapter-06-prompts/04-editorial-validity.html">Editorial and validity audit</a></li>
+<li><a href="chapter-06-prompts/05-editorial-synthesis.html">Binding editorial synthesis</a></li>
+<li><a href="chapter-06-prompts/06-latex-writer.html">Sole LaTeX writer</a></li>
+<li><a href="chapter-06-prompts/07-final-review.html">Independent final reviewer</a></li>
+</ol>
+<h2>Chapter boundaries</h2>
+<p>Chapters 2–5 own theory, architecture, hooks and user-space implementation. Chapter 6 owns protocol, controls, observations, measurements and validity. Full commands and manifests remain in <code>minikube-ctf-cross-pod-laboratory.html</code>. Target 3,000–3,800 words, 12–15 pages, at most two figures and three tables, and no source listings.</p>
+<p>The CPU result is monitor-container user-space cgroup consumption as a percentage of one core. It is not total eBPF, application or system overhead. ATT&amp;CK remains classification metadata. Do not claim cross-node visibility, detection accuracy, loss-free transport, enforcement or production readiness.</p>
+<h2>Acceptance gates</h2>
+<ul>
+<li><strong>A:</strong> four fresh audits grounded in raw cross-Pod evidence.</li>
+<li><strong>B:</strong> synthesis defines claims, labels, visuals and exclusions.</li>
+<li><strong>C:</strong> Chapter 6 builds and every number is traceable.</li>
+<li><strong>D:</strong> final review has no unresolved high-severity finding.</li>
+</ul></body></html>

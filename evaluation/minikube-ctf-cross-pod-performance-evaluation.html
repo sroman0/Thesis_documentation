@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cross-Pod Performance Evaluation</title>
+  <style>
+    :root{--ink:#172033;--line:#cfd7e2;--green:#176b43;--amber:#8a5a00;--blue:#2457a6}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);font:16px/1.58 system-ui,sans-serif}main{max-width:1040px;margin:auto;padding:42px 28px 72px}
+    h1,h2{line-height:1.22}h1{margin-top:0}h2{margin-top:36px;border-bottom:1px solid var(--line);padding-bottom:7px}p,li{max-width:96ch}
+    code{font-family:Consolas,monospace;background:#eef1f5;padding:.08rem .25rem}table{width:100%;border-collapse:collapse;margin:18px 0 26px}th,td{padding:10px 11px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:#eef2f7}
+    .box{padding:14px 17px;margin:17px 0;border-left:4px solid var(--blue);background:#f3f7fc}.pass{border-left-color:var(--green);background:#f0f8f4}.warn{border-left-color:var(--amber);background:#fff9ed}
+    @media(max-width:760px){main{padding:28px 18px 52px}table{font-size:14px}}
+  </style>
+</head>
+<body><main>
+  <h1>Cross-Pod Performance Evaluation</h1>
+  <div class="box pass"><strong>PRIMARY RESULT: PASS.</strong> Across three filtered runs, mean monitor CPU was 0.46% of one core. Every monitored exploit recovered the flag and generated the complete alert, with no reported event loss or Pod restart.</div>
+
+  <h2>Method</h2>
+  <p>The benchmark ran on the same single-node Minikube deployment used for the functional evaluation. Three rotated rounds compared the canonical UID-filtered monitor, the same monitor without kernel UID filtering, and a control in which the monitor DaemonSet was removed. Each run executed the 1,793-worker AES-beta exploit once, without automatic retry.</p>
+  <p>A sampler outside the monitor read cgroup-v1 CPU, memory, RSS and PID counters once per second. Container CPU is reported as a percentage of one core. Node CPU is the utilisation of the complete two-CPU Minikube node. Only samples within the recorded workload interval enter the summaries.</p>
+
+  <h2>Observed Results</h2>
+  <table>
+    <thead><tr><th>Profile</th><th>Runs</th><th>Monitor CPU mean</th><th>Mean run P95</th><th>Maximum cgroup memory</th><th>Maximum RSS</th><th>Mean duration</th></tr></thead>
+    <tbody>
+      <tr><td>Filtered</td><td>3</td><td>0.46% (SD 0.02; range 0.44--0.47)</td><td>1.00%</td><td>92.17 MiB</td><td>36.97 MiB</td><td>46.33 s</td></tr>
+      <tr><td>Unfiltered</td><td>3</td><td>5.73% (SD 0.61; range 5.28--6.43)</td><td>8.38%</td><td>110.21 MiB</td><td>41.24 MiB</td><td>55.49 s</td></tr>
+      <tr><td>No monitor</td><td>3</td><td>Not applicable</td><td>Not applicable</td><td>Not applicable</td><td>Not applicable</td><td>45.43 s</td></tr>
+    </tbody>
+  </table>
+  <p>The filtered mean was below the predefined 5% threshold in every run. Relative to the unfiltered profile, early UID admission reduced measured monitor user-space CPU by 91.97%. All six monitored runs recovered the flag and produced one complete four-event alert; loss diagnostics and restart deltas were zero.</p>
+
+  <h2>Interpretation Boundary</h2>
+  <p>The primary metric covers the monitor container's user-space cgroup. It does not include kernel execution time charged to observed tasks and must not be presented as total system overhead. The AES-beta brute force kept the two-CPU node close to saturation: mean node utilisation was 93.99% filtered, 94.49% unfiltered and 93.77% in the control. Duration differences are therefore descriptive and do not establish causal overhead.</p>
+  <div class="box warn"><strong>No-monitor audit note.</strong> Immediately after each DaemonSet deletion, the saved Kubernetes snapshot still showed the former monitor Pod as <code>Terminating</code>. The workload began after a ten-second warm-up, but the evidence did not independently record the Pod's final deletion time. The three controls are preserved, but their duration is not used for an overhead claim. The profile script has since been changed to wait for and verify complete Pod disappearance.</div>
+
+  <h2>Evidence</h2>
+  <p>The official raw dataset is preserved at <code>demo_project/k8s/minikube-ctf-cross-pod/evidence/cross-pod-performance-20260819T070557Z/</code>. It contains the command log, effective monitor profiles, per-run samples and summaries, workload output, monitor and target logs, Pod snapshots, <code>runs.tsv</code>, <code>aggregate.tsv</code> and the generated acceptance report.</p>
+  <p>The earlier malformed calibration remains preserved and rejected. The corrected calibration validated numeric sampling but was excluded from the official aggregates.</p>
+
+  <h2>Result for Chapter 6</h2>
+  <p>Chapter 6 should report the filtered profile as the operational result and the unfiltered profile as the controlled filtering comparison. The no-monitor profile may be mentioned only as descriptive context with the deletion-timing limitation above. Three replications support a compact scenario-specific result, not broad statistical generalisation.</p>
+</main></body>
+</html>

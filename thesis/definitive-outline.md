@@ -196,13 +196,13 @@ esplicitamente le label usate dai riferimenti LaTeX.
 
 ### 6.1 Evaluation Objectives and Experimental Protocol
 
-### 6.2 Minikube Environment and Three-Container Testbed
+### 6.2 Cross-Pod Minikube Experimental Testbed
 
 ### 6.3 AES-beta Workload and Controlled Attack Scenario
 
 ### 6.4 Functional Evaluation
 
-#### 6.4.1 Cross-Container Event Visibility
+#### 6.4.1 Cross-Pod Event Visibility
 
 #### 6.4.2 Collective Detector Validation
 
@@ -212,7 +212,7 @@ esplicitamente le label usate dai riferimenti LaTeX.
 
 #### 6.5.1 Metrics, Sampling and Benchmark Profiles
 
-#### 6.5.2 Resource Consumption and Workload Duration
+#### 6.5.2 Monitor CPU and Memory Consumption
 
 #### 6.5.3 Effect of Kernel-Side UID Filtering
 
@@ -222,18 +222,17 @@ esplicitamente le label usate dai riferimenti LaTeX.
 
 ### 6.8 Evaluation Summary
 
-Il Capitolo 6 usa la challenge AES-beta in un Pod Minikube con target, trigger e
-monitor per valutare la visibilita' eBPF tra container e il detector collective
-costruito sulla sequenza shell, comando e accesso al flag. Il controllo benigno
-e i run ripetuti restano separati dal caso offensivo. ATT&CK viene riportato
+Il Capitolo 6 usa la challenge AES-beta in tre Pod separati sullo stesso nodo
+Minikube: target, trigger e monitor. Valuta la visibilita' eBPF node-local e il
+detector collective costruito sulla sequenza shell, comando e accesso al flag.
+Il controllo benigno resta separato dal caso offensivo. ATT&CK e' riportato
 come classificazione dell'alert, non come analisi autonoma di copertura.
 
-Il capitolo distingue rigorosamente risultati funzionali conclusi, calibrazione
-prestazionale esplorativa e benchmark replicati. Le cinque repliche per profilo
-supportano il risultato inferiore al 5% per la CPU user-space del monitor
-filtered. Questo risultato non deve essere trasformato in una dichiarazione di
-overhead totale, poiche' il lavoro eBPF non e' interamente attribuito al cgroup
-del monitor e il nodo rimane quasi saturo dal workload.
+Il benchmark confronta tre repliche filtered e tre unfiltered nello stesso
+ambiente cross-Pod. La CPU user-space media del monitor filtered e' 0,46% di un
+core, contro 5,73% unfiltered. Il risultato non rappresenta overhead totale,
+poiche' il lavoro eBPF non e' interamente attribuito al cgroup del monitor. I
+controlli no-monitor non sono usati per inferire rallentamento del workload.
 
 ## Chapter 7 - Conclusions and Future Work
 

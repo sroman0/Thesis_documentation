@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cross-Pod Minikube Experiment Design</title>
+  <style>
+    :root{--ink:#172033;--muted:#5d6878;--line:#cfd7e2;--panel:#f6f8fb;--blue:#2457a6;--green:#176b43;--amber:#8a5a00;--red:#963838}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);font:16px/1.58 system-ui,sans-serif;background:#fff}main{max-width:1080px;margin:auto;padding:42px 28px 72px}
+    h1,h2,h3{line-height:1.22}h1{margin-top:0}h2{margin-top:42px;border-bottom:1px solid var(--line);padding-bottom:7px}p,li{max-width:96ch}
+    code{font-family:Consolas,monospace;background:#eef1f5;padding:.08rem .25rem}table{width:100%;border-collapse:collapse;margin:18px 0 28px}th,td{padding:10px 11px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:#eef2f7}
+    .box{padding:14px 17px;margin:17px 0;border-left:4px solid var(--blue);background:#f3f7fc}.planned{border-left-color:var(--amber);background:#fff9ed}.risk{border-left-color:var(--red);background:#fff5f5}.verified{border-left-color:var(--green);background:#f0f8f4}
+    .topology{display:grid;grid-template-columns:1fr;gap:12px;padding:18px;border:1px solid var(--line);background:var(--panel)}.node{padding:16px;border:2px solid #8fa4c2;background:#fff}.pods{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.pod{padding:13px;border:1px solid #bbc7d6;background:#fafcff}.flow{margin-top:14px;padding:11px;text-align:center;background:#eaf0f8;font-family:Consolas,monospace}
+    .status{display:inline-block;padding:4px 8px;border:1px solid var(--line);background:var(--panel);font-weight:700}.not-tested{color:var(--amber)}
+    @media(max-width:820px){main{padding:28px 18px 52px}.pods{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <h1>Cross-Pod Minikube Experiment Design</h1>
+  <p><span class="status">SELF-CONTAINED DESIGN — FUNCTIONAL EVIDENCE COMPLETE</span></p>
+  <div class="box verified">
+    This document preserves the Phase 2 design and records the current status
+    of its acceptance criteria. Deployment, isolation, Service communication
+    and controlled telemetry have been verified. Three benign and three exploit
+    runs have also been executed and independently audited. A replicated
+    performance study was subsequently executed on the same cross-Pod node.
+  </div>
+
+  <h2>Research Question</h2>
+  <p>
+    Can the eBPF monitor, running in its own Kubernetes Pod, observe and detect
+    the AES-beta exploitation sequence generated in an independent target Pod
+    when the attack client executes from a third Pod on the same Minikube node?
+  </p>
+  <p>A second evaluation question asks whether the monitor's mean user-space CPU remains at or below 5% of one core during the exploit workload in its canonical filtered configuration.</p>
+
+  <h2>Evaluation Variables</h2>
+  <table>
+    <thead><tr><th>Dimension</th><th>Controlled value</th></tr></thead>
+    <tbody>
+      <tr><td>Workload units</td><td>Three independent Pods on one Minikube node</td></tr>
+      <tr><td>Network path</td><td>Trigger Pod to ClusterIP Service to target Pod</td></tr>
+      <tr><td>Monitor placement</td><td>One DaemonSet-managed Pod attached to the node kernel</td></tr>
+      <tr><td>Process identity</td><td>Target UID 10001; trigger UID 10002; exact kernel UID admission in the canonical profile</td></tr>
+      <tr><td>Functional repetitions</td><td>Three benign and three exploit runs</td></tr>
+      <tr><td>Performance repetitions</td><td>Three runs for each planned profile on the same node, nine official runs in total</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Planned Topology</h2>
+  <div class="topology" role="img" aria-label="Planned single-node Minikube topology with three separate Pods">
+    <div class="node">
+      <strong>Single Minikube node</strong>
+      <div class="pods">
+        <div class="pod"><strong>DaemonSet Pod</strong><br><code>project-monitor-cross-pod</code><br>Privileged eBPF monitor</div>
+        <div class="pod"><strong>Deployment Pod</strong><br><code>aes-beta-target-cross-pod-*</code><br>AES-beta, UID/GID 10001</div>
+        <div class="pod"><strong>Standalone Pod</strong><br><code>aes-beta-trigger-cross-pod</code><br>Clients, UID/GID 10002</div>
+      </div>
+      <div class="flow">trigger Pod → Service <code>aes-beta-target-cross-pod:1337</code> → target Pod → node kernel hooks → monitor Pod</div>
+    </div>
+  </div>
+  <p>
+    No node name is hard-coded. The experiment requires a single schedulable
+    Minikube node and verifies actual placement after deployment. A DaemonSet is
+    selected because the monitor is node-scoped. The deployed single-node test
+    produced one monitor Pod as planned.
+  </p>
+
+  <h2>Exact Resource Model</h2>
+  <table>
+    <thead><tr><th>Resource</th><th>Planned name and configuration</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Namespace</td><td><code>ebpf-ctf-cross-pod</code>. Pod Security admission remains privileged because the monitor requires it; target and trigger are restricted by their own security contexts.</td><td>Required</td></tr>
+      <tr><td>Monitor</td><td>DaemonSet <code>project-monitor-cross-pod</code>; image <code>demo-project-ebpf:latest</code>; root, privileged, read-only root filesystem, unconfined seccomp, <code>hostPID: false</code>, <code>hostNetwork: false</code>.</td><td>Required</td></tr>
+      <tr><td>Target</td><td>Deployment <code>aes-beta-target-cross-pod</code>, one replica; image <code>aes-beta-target:local</code>; UID/GID 10001; listener <code>0.0.0.0:1337</code>; no added capabilities.</td><td>Required</td></tr>
+      <tr><td>Trigger</td><td>Standalone Pod <code>aes-beta-trigger-cross-pod</code>; image <code>aes-beta-trigger:local</code>; UID/GID 10002; long-running entry point; explicit scenario execution through <code>kubectl exec</code>.</td><td>Required</td></tr>
+      <tr><td>Service</td><td>ClusterIP <code>aes-beta-target-cross-pod</code>; TCP port 1337 to the target's named <code>challenge</code> port.</td><td>Required</td></tr>
+      <tr><td>Secret</td><td><code>aes-beta-cross-pod-flag</code>, generated from <code>FLAG_VALUE</code>; mode <code>0444</code>; mounted read-only only in the target at <code>/opt/aes-beta/flag</code>.</td><td>Required</td></tr>
+      <tr><td>Monitor policy</td><td><code>rules/policies/aes-beta-process-observation.yaml</code>, copied into the runtime image and selected at <code>/etc/project/policies/aes-beta-process-observation.yaml</code>.</td><td>Required</td></tr>
+      <tr><td>Detector ConfigMap</td><td><code>project-monitor-cross-pod-detector</code>, generated from the existing committed AES-beta detector definition.</td><td>Required</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Volumes and Mounts</h3>
+  <ul>
+    <li>The monitor alone mounts <code>/sys/kernel/btf</code> read-only, <code>/sys/fs/bpf</code> and <code>/sys/kernel/tracing</code> from the node.</li>
+    <li>The monitor reads the policy catalogue from its image, receives the detector ConfigMap read-only and uses a bounded writable <code>emptyDir</code> at <code>/tmp</code>.</li>
+    <li>The target alone receives the flag Secret.</li>
+    <li>The trigger receives only a bounded writable <code>emptyDir</code> at <code>/tmp</code>.</li>
+    <li>No Docker socket, host root filesystem or shared application volume is planned.</li>
+  </ul>
+
+  <h3>Network Configuration</h3>
+  <ul>
+    <li>The target continues to bind <code>0.0.0.0:1337</code>; no source change is required.</li>
+    <li>The trigger receives <code>TARGET_HOST=aes-beta-target-cross-pod</code> and <code>TARGET_PORT=1337</code>.</li>
+    <li>The Service selects only the target Deployment label.</li>
+    <li>No host port, NodePort, Ingress or <code>hostNetwork</code> is introduced.</li>
+    <li>A NetworkPolicy is not part of the initial experiment because it would add another variable and its enforcement depends on the active CNI.</li>
+  </ul>
+
+  <h3>Monitor and Detector Configuration</h3>
+  <p>
+    The canonical evaluation profile preserves the existing monitor arguments:
+    policy path, one detector path, <code>--alerts-only</code>, JSON alerts, exact
+    kernel UID filter 10001, JSON diagnostics and info logging. This keeps the
+    Pod topology and network path as the main changed variables.
+  </p>
+  <p>
+    Phase 5 requires raw-event visibility. The planned procedure temporarily
+    removes only <code>--alerts-only</code> from the DaemonSet arguments, records
+    the rollout and controlled test, then reapplies the canonical manifest and
+    verifies a fresh stable rollout before benign evaluation. This temporary
+    mode must not be used for Phase 6 or Phase 7 results.
+  </p>
+
+  <h2>Change Classification</h2>
+  <table>
+    <thead><tr><th>Change</th><th>Classification</th><th>Reason</th></tr></thead>
+    <tbody>
+      <tr><td>Cross-Pod manifests and scripts</td><td>Required</td><td>They define the complete evaluated topology and preserve its evidence.</td></tr>
+      <tr><td>Service DNS in trigger environment</td><td>Required</td><td>Loopback cannot reach an independent target Pod.</td></tr>
+      <tr><td>DaemonSet monitor</td><td>Required</td><td>Represents node-scoped ownership and guarantees one monitor per eligible node.</td></tr>
+      <tr><td>Local evidence ignore file</td><td>Required</td><td>Large raw evidence remains local while its location and summaries stay documented.</td></tr>
+      <tr><td>Target readiness/liveness probe</td><td>Not needed initially</td><td>A TCP probe would itself open challenge sessions and contaminate process evidence.</td></tr>
+      <tr><td>NetworkPolicy</td><td>Optional later</td><td>Useful for hardening, unnecessary for the research question.</td></tr>
+      <tr><td>Node selector or hard-coded <code>nodeName</code></td><td>Not needed</td><td>Single-node placement is verified from actual state instead of encoded to a machine-specific name.</td></tr>
+      <tr><td>Listener, benign client or exploit source changes</td><td>Not needed</td><td>Host and port are already configurable.</td></tr>
+      <tr><td>eBPF, Go runtime, policy-engine or detector changes</td><td>Not needed</td><td>No verified implementation dependency on Pod co-location exists.</td></tr>
+      <tr><td>Replicated cross-Pod performance benchmark</td><td>Completed</td><td>CPU and memory evidence was collected from this exact topology for Chapter 6.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Phase 3 Implementation Files</h2>
+  <p>The following files now exist under <code>demo_project/k8s/minikube-ctf-cross-pod/</code>:</p>
+  <ul>
+    <li><code>.gitignore</code> and <code>README.md</code>;</li>
+    <li><code>manifests/namespace.yaml</code>;</li>
+    <li><code>rules/policies/aes-beta-process-observation.yaml</code>, outside the laboratory directory and copied into the monitor image;</li>
+    <li><code>manifests/monitor-daemonset.yaml</code>;</li>
+    <li><code>manifests/target-deployment.yaml</code>;</li>
+    <li><code>manifests/target-service.yaml</code>;</li>
+    <li><code>manifests/trigger-pod.yaml</code>;</li>
+    <li><code>scripts/deploy-cross-pod-lab.sh</code>;</li>
+    <li><code>scripts/run-cross-pod-scenario.sh</code>;</li>
+    <li><code>scripts/collect-cross-pod-evidence.sh</code>;</li>
+    <li><code>scripts/validate-cross-pod-lab.sh</code>;</li>
+    <li><code>scripts/cleanup-cross-pod-lab.sh</code>.</li>
+    <li><code>scripts/lib/evidence.sh</code>, shared by all operational scripts;</li>
+  </ul>
+  <p>
+    Phase 3 also created the two required progress documents
+    <code>minikube-ctf-cross-pod-step-by-step.html</code> and
+    <code>minikube-ctf-cross-pod-deployment.html</code>. No existing
+    unrelated laboratory files were not required for the cross-Pod deployment.
+  </p>
+
+  <h2>Evidence and Command Logging Design</h2>
+  <p>
+    Runtime evidence begins only in Phase 4 under
+    <code>evidence/cross-pod-YYYYMMDDTHHMMSSZ/</code>. A shared shell helper will
+    append UTC timestamp, working directory, exact shell-escaped command,
+    purpose, stdout/stderr paths, exit status and interpretation to
+    <code>commands.log</code>. Complete output remains in separate raw files;
+    HTML contains excerpts only.
+  </p>
+
+  <h2>Acceptance Criteria</h2>
+  <table>
+    <thead><tr><th>Criterion</th><th>Required evidence</th><th>Current status</th></tr></thead>
+    <tbody>
+      <tr><td>Three independent Pods</td><td>Pod metadata and three distinct Pod UIDs</td><td>PASS</td></tr>
+      <tr><td>Same node</td><td><code>kubectl get pods -o wide</code></td><td>PASS</td></tr>
+      <tr><td>Different target/trigger IPs and cgroups</td><td>Pod status and <code>/proc/1/cgroup</code></td><td>PASS</td></tr>
+      <tr><td>Service communication</td><td>Service, EndpointSlice/endpoints and successful controlled connection</td><td>PASS</td></tr>
+      <tr><td>Isolation settings</td><td>Effective manifests showing <code>hostPID: false</code> and <code>shareProcessNamespace: false</code></td><td>PASS</td></tr>
+      <tr><td>Identities and Secret boundary</td><td>Security contexts and effective volume mounts</td><td>PASS</td></tr>
+      <tr><td>Target telemetry visibility</td><td>Timestamped target action and matching monitor event</td><td>PASS</td></tr>
+      <tr><td>UID filter sanity</td><td>Target positive control and trigger negative observation in bounded intervals</td><td>PASS WITH LIMITED SCOPE</td></tr>
+      <tr><td>Benign control</td><td>Three named runs, zero AES-beta alerts, loss and restart checks</td><td>PASS (3/3 workloads, 0 alerts)</td></tr>
+      <tr><td>Exploit evaluation</td><td>Three named runs with application and detector outcomes recorded separately</td><td>PASS WITH CLIENT-VALIDATION ANOMALY</td></tr>
+      <tr><td>Collective evidence</td><td>Shell exec, cat exec, resolved flag mediation and successful relative open in order</td><td>PASS (3/3)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Risks and Planned Controls</h2>
+  <table>
+    <thead><tr><th>Risk</th><th>Planned control</th></tr></thead>
+    <tbody>
+      <tr><td>Old monitor still running</td><td>Inspect the old namespace in Phase 4. If its monitor is active, record and stop the old runtime Pod before deploying the DaemonSet. Existing files and evidence remain untouched. User approval for this runtime stop was given on 17 August 2026.</td></tr>
+      <tr><td>UID 10001 is not a Pod identity</td><td>Use it only as an experimental admission key and state that unrelated node processes with the same effective UID could pass.</td></tr>
+      <tr><td>Service latency changes exploit timing</td><td>Keep the five-second detector window unchanged and record actual outcomes; do not widen it before evidence.</td></tr>
+      <tr><td>Raw-event mode changes output load</td><td>Use it only for Phase 5, then restore and verify the canonical alerts-only DaemonSet before evaluation.</td></tr>
+      <tr><td>Probe traffic contaminates the challenge</td><td>Do not configure TCP readiness/liveness probes; use explicit phase-specific connectivity checks.</td></tr>
+      <tr><td>Generated Deployment Pod names</td><td>Discover target and monitor Pods through stable labels, never by guessed suffixes.</td></tr>
+      <tr><td>Missing command provenance</td><td>Require the command logger from the first Phase 4 action onward.</td></tr>
+      <tr><td>Namespace permits privileged Pods</td><td>Keep target and trigger explicitly non-root, capability-free and read-only; record this as a laboratory limitation.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Observed Runtime Outcomes</h2>
+  <ul>
+    <li>The experiment uses the dedicated <code>cross-pod</code> Minikube profile.</li>
+    <li>The three required images are loaded into the <code>cross-pod</code> profile.</li>
+    <li>Actual Minikube, Kubernetes, Docker and kernel versions are recorded in the deployment document.</li>
+    <li>The active CNI resolves and routes the ClusterIP Service as planned.</li>
+    <li>All three pod cgroups were read without adding tooling.</li>
+    <li>The benign control completed without an AES-beta alert, and the unchanged detector completed its four-step sequence in all three exploit runs.</li>
+  </ul>
+
+  <h2>Phase 2 Decision</h2>
+  <div class="box verified">
+    Phase 2 concluded that the topology required configuration and orchestration
+    changes only. Later phases confirmed this: application, eBPF, Go runtime and
+    detector code remained unchanged. One scenario-runner configuration defect
+    in client-side flag validation was corrected and preserved in the evidence.
+  </div>
+</main></body>
+</html>

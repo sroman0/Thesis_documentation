@@ -6,627 +6,251 @@
   <title>Chapter 6 Editorial and Validity Audit</title>
   <style>
     :root {
-      --ink: #17202a;
-      --muted: #596574;
-      --line: #cbd3dc;
-      --panel: #f5f7f9;
-      --blue: #155f78;
-      --blue-soft: #eaf4f7;
-      --amber: #8a4b08;
-      --amber-soft: #fff5e5;
-      --red: #8c2f2f;
-      --red-soft: #fff0f0;
-      --green: #22633e;
-      --green-soft: #edf7f0;
+      --ink: #172033;
+      --muted: #5d6878;
+      --line: #cfd7e2;
+      --panel: #f6f8fb;
+      --blue: #2457a6;
+      --green: #176b43;
+      --amber: #8a5a00;
+      --red: #963838;
     }
     * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      color: var(--ink);
-      background: #fff;
-      font: 16px/1.58 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-    main { max-width: 1180px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
-    h1, h2, h3 { line-height: 1.2; letter-spacing: 0; }
-    h1 { max-width: 900px; }
-    h2 { margin-top: 2.6rem; padding-bottom: .35rem; border-bottom: 2px solid var(--line); }
-    h3 { margin-top: 1.7rem; }
-    p, li { max-width: 95ch; }
-    code { padding: .08rem .3rem; background: #edf0f3; overflow-wrap: anywhere; }
-    table { width: 100%; margin: 1rem 0 1.6rem; border-collapse: collapse; font-size: .94rem; }
-    th, td { padding: .65rem .7rem; border: 1px solid var(--line); text-align: left; vertical-align: top; }
-    th { background: var(--panel); }
-    .box { margin: 1rem 0; padding: .9rem 1rem; border-left: 5px solid var(--blue); background: var(--blue-soft); }
-    .warning { border-left-color: var(--amber); background: var(--amber-soft); }
-    .critical { border-left-color: var(--red); background: var(--red-soft); }
-    .good { border-left-color: var(--green); background: var(--green-soft); }
+    body { margin: 0; color: var(--ink); background: #fff; font: 16px/1.58 system-ui, sans-serif; }
+    main { max-width: 1180px; margin: auto; padding: 42px 28px 72px; }
+    h1, h2, h3 { line-height: 1.22; }
+    h1 { margin-top: 0; }
+    h2 { margin-top: 42px; padding-bottom: 7px; border-bottom: 1px solid var(--line); }
+    h3 { margin-top: 28px; }
+    p, li { max-width: 105ch; }
+    code { padding: .08rem .25rem; background: #eef1f5; font-family: Consolas, monospace; }
+    table { width: 100%; margin: 18px 0 28px; border-collapse: collapse; }
+    th, td { padding: 10px 11px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: #eef2f7; }
+    .box { margin: 18px 0; padding: 15px 18px; border-left: 4px solid var(--blue); background: #f3f7fc; }
+    .pass { border-left-color: var(--green); background: #f0f8f4; }
+    .warn { border-left-color: var(--amber); background: #fff9ed; }
+    .critical { border-left-color: var(--red); background: #fff5f5; }
     .muted { color: var(--muted); }
-    .status { white-space: nowrap; font-weight: 650; }
-    .high { color: var(--red); }
-    .medium { color: var(--amber); }
-    .low { color: var(--green); }
-    ul.checklist { list-style: none; padding-left: 0; }
-    ul.checklist li { margin: .45rem 0; padding-left: 1.65rem; position: relative; }
-    ul.checklist li::before { content: "\2610"; position: absolute; left: 0; color: var(--blue); }
-    caption { text-align: left; font-weight: 700; margin-bottom: .45rem; }
+    .status { display: inline-block; padding: 4px 9px; border: 1px solid var(--line); background: var(--panel); font-weight: 700; }
+    .nowrap { white-space: nowrap; }
+    @media (max-width: 800px) {
+      main { padding: 28px 18px 52px; }
+      table { font-size: 14px; }
+      th, td { padding: 8px; }
+    }
   </style>
 </head>
 <body>
 <main>
-  <h1>Chapter 6 Editorial Boundaries, Validity, Citations and Visual Audit</h1>
-  <p class="muted">
-    Editorial audit for <em>Experimental Evaluation</em>. This document does not
-    draft the chapter. It defines the evidence boundaries, validity language,
-    section ownership and acceptance conditions that should govern the later
-    synthesis and LaTeX writing stages.
-  </p>
+  <h1>Chapter 6 Editorial, Validity, Citation and Visual Audit</h1>
+  <p><span class="status">CURATION OUTPUT: READY FOR EDITORIAL SYNTHESIS</span></p>
 
-  <section id="executive-findings">
-    <h2>Executive Findings</h2>
-    <div class="box good">
-      <strong>Supported core claim.</strong> In the controlled single-node
-      Minikube experiment, the selected collective detector distinguished the
-      three observed benign executions from four executions that completed the
-      configured malicious sequence. In the five replicated filtered runs, the
-      monitor container's measured user-space CPU mean remained below the
-      predefined 5% of one core threshold.
-    </div>
-    <div class="box critical">
-      <strong>Authoritative kernel correction.</strong> The development and
-      evaluation environment is Rocky Linux 8.10 running
-      <code>4.18.0-553.137.1.el8_10.x86_64</code>. The older
-      <code>4.18.0-553.137.1.el8_10.x86_64</code> value in Chapters 1 and 3 is
-      stale documentation and should be corrected before Chapter 6 is
-      integrated. This is an editorial consistency issue, not evidence that the
-      experiment used a different target from the implementation work.
-    </div>
-    <div class="box">
-      <strong>Source-state note.</strong> The evidence records prototype commit
-      <code>497da90f564c97fb9ffc38b264398150467173f5</code>. The later working-tree
-      differences do not materially change the kernel collection, decoding or
-      detector capabilities exercised by the experiment, and the demonstrated
-      behaviour is reproducible from the implementation baseline used by the
-      preceding chapters. Configuration SHA-256 values, effective manifests and
-      image digests should still be retained as ordinary experimental
-      traceability data, without turning the commit difference into a principal
-      validity concern.
-    </div>
-    <p>
-      The chapter should be framed as a scenario-based functional and resource
-      evaluation. It is not a general detector-accuracy study, a Kubernetes
-      deployment assessment, proof of loss-free collection, or a measurement of
-      total eBPF system overhead.
-    </p>
-  </section>
+  <div class="box critical">
+    <strong>Authoritative evaluation boundary.</strong> Chapter 6 must use only the current cross-Pod experiment as its evaluation narrative. The earlier shared-Pod workflow, evidence brief, functional report and five-repetition benchmark listed in the input prompt are explicitly superseded historical material. They must not be combined with the current results. The authoritative functional dataset is <code>cross-pod-20260817T052019Z</code>; the authoritative performance dataset is <code>cross-pod-performance-20260819T070557Z</code>.
+  </div>
 
-  <section id="redundancy-ledger">
-    <h2>Redundancy Ledger</h2>
-    <table>
-      <caption>Material already owned by Chapters 2-5 and its permitted Chapter 6 treatment</caption>
-      <thead>
-        <tr><th>Topic</th><th>Existing owner</th><th>Chapter 6 may include</th><th>Chapter 6 must avoid</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>eBPF execution, verifier, hooks and attachment theory</td>
-          <td>Chapter 2; concrete hook implementation in Chapter 4</td>
-          <td>Only the names and semantics of the three logical events needed to interpret the four-step evidence sequence.</td>
-          <td>A new eBPF tutorial, hook catalogue, verifier discussion or attachment lifecycle.</td>
-        </tr>
-        <tr>
-          <td>Shared-kernel visibility and container boundaries</td>
-          <td>Motivation in Chapter 1; architecture boundaries in Chapter 3</td>
-          <td>The observed result that target activity was captured with <code>hostPID: false</code>, together with the exact Pod and privilege configuration.</td>
-          <td>Claiming cluster-wide visibility, container identity inference, or that PID-namespace isolation removes the monitor's privileged kernel access.</td>
-        </tr>
-        <tr>
-          <td>Perf-buffer mechanics, ordering and loss channels</td>
-          <td>Chapters 2, 3 and 4</td>
-          <td>The loss diagnostics checked during each run and their observed count.</td>
-          <td>Repeating buffer layout or transport design, or equating zero diagnostics with proof of zero loss.</td>
-        </tr>
-        <tr>
-          <td>Kernel-side UID filter implementation</td>
-          <td>Chapter 4, Section 4.4</td>
-          <td>The filtered/unfiltered experimental factor and its measured association with monitor-container CPU.</td>
-          <td>Repeating map fields, helper flow or verifier-facing implementation details.</td>
-        </tr>
-        <tr>
-          <td>Policies and detector roles</td>
-          <td>Chapter 3 design; Chapter 5 implementation</td>
-          <td>The exact policy scope and the single detector selected for the experiment.</td>
-          <td>Reintroducing policy theory, YAML schema, engine construction or point-versus-collective taxonomy at length.</td>
-        </tr>
-        <tr>
-          <td>Correlation state, keys, windows and deduplication</td>
-          <td>Chapters 3 and 5</td>
-          <td>A concise statement that the detector requires four ordered observations within five seconds and uses local process relationships.</td>
-          <td>State-machine internals, capacity limits, pruning algorithms or general correlation-strategy exposition.</td>
-        </tr>
-        <tr>
-          <td>Binary contract, decoder and normalised event model</td>
-          <td>Chapters 3-5</td>
-          <td>The fact that raw records became typed evidence used by the detector, where this links an experimental input to an output.</td>
-          <td>Record layouts, argument indexes, decoder control flow or registry implementation.</td>
-        </tr>
-        <tr>
-          <td>Alert rendering and structured logging</td>
-          <td>Chapter 5</td>
-          <td>The fields used to validate alert structure and the diagnostics searched for during the runs.</td>
-          <td>Zap architecture, output channel design or CLI implementation.</td>
-        </tr>
-        <tr>
-          <td>MITRE ATT&amp;CK</td>
-          <td>Conceptual use in Chapters 1 and 3; propagation in Chapter 5</td>
-          <td>Interpretation of the detector's specific mappings to Execution/Unix Shell and Collection/Data from Local System.</td>
-          <td>A general ATT&amp;CK introduction, claims of matrix coverage, or treating classification as empirical validation.</td>
-        </tr>
-        <tr>
-          <td>Kubernetes packaging and deployment mechanics</td>
-          <td>Chapter 5 is described as the intended owner, although its current text does not contain the containerisation section promised by Chapter 1 and the definitive outline.</td>
-          <td>The experimental topology, actual security contexts, mounts, versions and controlled variables.</td>
-          <td>A Minikube installation guide, image-build tutorial, full manifests or operational command transcript.</td>
-        </tr>
-      </tbody>
-    </table>
-    <div class="box warning">
-      <strong>Cross-chapter structural issue.</strong> The current Chapter 5
-      structure differs from the definitive outline and lacks the promised
-      containerisation/deployment section. Chapter 6 should not absorb that
-      implementation material merely to close the gap. The outline and Chapter
-      1 description should instead be reconciled separately.
-    </div>
-  </section>
+  <div class="box pass">
+    <strong>Current supported claim.</strong> On Rocky Linux 8.10 with kernel <code>4.18.0-553.137.1.el8_10.x86_64</code>, in the evaluated single-node Minikube environment, a privileged monitoring Pod observed and detected the configured AES-beta sequence generated in a separate target Pod and initiated from a third trigger Pod. The canonical UID-filtered profile used a mean of 0.46% of one CPU core across three runs. This is a node-local, scenario-specific observation and monitor-cgroup measurement, not a claim of cross-node detection, total-system overhead or production readiness.
+  </div>
 
-  <section id="validity-matrix">
-    <h2>Threats-to-Validity Matrix</h2>
-    <table>
-      <thead>
-        <tr><th>Class</th><th>Threat</th><th>Why it matters</th><th>Existing control</th><th>Required treatment</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Internal</td>
-          <td>Profile order and temporal background-load effects</td>
-          <td>Sequential runs on one busy node may differ because of scheduler state, cache state or unrelated host activity.</td>
-          <td>The filtered, unfiltered and no-monitor order was rotated; each run recreated the Pod and cgroups and used a ten-second warm-up.</td>
-          <td>Describe the rotation as mitigation, not randomisation. State that residual temporal confounding remains.</td>
-        </tr>
-        <tr>
-          <td>Internal</td>
-          <td>Near-saturated two-CPU node</td>
-          <td>Mean node CPU stayed around 95%, increasing contention and obscuring small system-wide differences.</td>
-          <td>Node CPU was sampled concurrently in every profile.</td>
-          <td>Use monitor-cgroup CPU as the primary measure and explicitly reject node-level attribution below the available resolution.</td>
-        </tr>
-        <tr>
-          <td>Internal</td>
-          <td>Sampler and orchestration effects</td>
-          <td>The sampler, container recreation and control scripts consume host resources and may affect timing.</td>
-          <td>The sampler ran outside the monitor cgroup; workload measurement began after warm-up.</td>
-          <td>State that sampling is excluded from monitor-cgroup accounting but not from total node contention.</td>
-        </tr>
-        <tr>
-          <td>Internal</td>
-          <td>Divergent exploit-client outcome</td>
-          <td>One of four clients did not receive the flag even though the target executed the monitored actions.</td>
-          <td>The run was retained and a fourth diagnostic run completed successfully.</td>
-          <td>Report client success and detector success as separate outcomes. Do not relabel or exclude the divergent run.</td>
-        </tr>
-        <tr>
-          <td>Internal</td>
-          <td>Detector tailored after observing the challenge trace</td>
-          <td>The same scenario informed detector construction and validation, creating post hoc tailoring and no independent hold-out set.</td>
-          <td>The detector is explicitly challenge-specific and its YAML is preserved.</td>
-          <td>Present this as validation of pipeline functionality for a controlled case study, not an unbiased estimate of detection efficacy.</td>
-        </tr>
-        <tr>
-          <td>Internal</td>
-          <td>Source-state traceability</td>
-          <td>The experiment combines a recorded prototype commit with separately captured laboratory configuration.</td>
-          <td>The relevant monitoring behaviour exists in the reference implementation, while configuration checksums, image digests, effective manifests and raw evidence identify the experimental setup.</td>
-          <td>Record the commit and configuration identifiers concisely. Treat this as provenance metadata rather than a substantive threat to the demonstrated behaviour.</td>
-        </tr>
-        <tr>
-          <td>Construct</td>
-          <td>Monitor-cgroup CPU is not total eBPF overhead</td>
-          <td>eBPF programs execute in the context of observed tasks, so their kernel work is not necessarily charged to the monitor container.</td>
-          <td>A no-monitor profile and concurrent node/target metrics were collected.</td>
-          <td>Call the result <em>monitor-container user-space CPU consumption</em>. Do not call 0.39% total overhead or subtract unlike primary metrics.</td>
-        </tr>
-        <tr>
-          <td>Construct</td>
-          <td>CPU scale and percentile interpretation</td>
-          <td>Container CPU is expressed relative to one core; the node metric uses total two-CPU capacity. The reported 7.72% is the mean of per-run P95 values, not a confidence interval.</td>
-          <td>The raw per-run series and aggregation files are retained.</td>
-          <td>Define both scales, label P95 precisely, and keep standard deviation descriptive.</td>
-        </tr>
-        <tr>
-          <td>Construct</td>
-          <td>Different memory constructs</td>
-          <td>Cgroup memory and process RSS do not measure the same allocation boundary.</td>
-          <td>Both were recorded separately.</td>
-          <td>Keep separate columns and definitions; do not combine them into one memory-overhead figure.</td>
-        </tr>
-        <tr>
-          <td>Construct</td>
-          <td>Zero loss diagnostics is not proof of loss-free collection</td>
-          <td>The diagnostic channel can report recognised perf-buffer loss, but it cannot prove that every expected operation generated, transported, decoded and retained a record.</td>
-          <td>Loss diagnostics were counted, expected alerts were observed, and raw monitor logs were retained.</td>
-          <td>Use “no perf-buffer loss was diagnosed in the observed runs”; never use “loss-free”.</td>
-        </tr>
-        <tr>
-          <td>Construct</td>
-          <td>Alert validity versus attack success</td>
-          <td>An LSM file-open observation establishes mediation, while the paired logical <code>open</code> event establishes a non-negative return. Neither alone establishes delivery of file contents to the client.</td>
-          <td>The detector combines resolved-file and successful-open evidence; client output is recorded separately.</td>
-          <td>Keep the three constructs distinct: kernel behaviour, detector match and end-to-end client outcome.</td>
-        </tr>
-        <tr>
-          <td>Construct</td>
-          <td><code>hostPID: false</code> interpretation</td>
-          <td>The setting means the Pod does not request the node PID namespace. It does not make the monitor unprivileged or prevent eBPF programs attached to the node kernel from observing target tasks.</td>
-          <td>The effective Pod manifest records <code>hostPID: false</code> and <code>shareProcessNamespace: false</code>.</td>
-          <td>Describe empirical cross-container visibility through shared-kernel hooks. Also disclose privileged mode and host BTF, bpffs and tracefs mounts.</td>
-        </tr>
-        <tr>
-          <td>External</td>
-          <td>Single Minikube node and one Pod</td>
-          <td>The result does not cover multi-node scheduling, cluster aggregation, workload identity or distributed correlation.</td>
-          <td>The scope is explicitly node-local.</td>
-          <td>Keep every generalisation tied to the single-node laboratory.</td>
-        </tr>
-        <tr>
-          <td>External</td>
-          <td>One challenge and one tailored detector</td>
-          <td>A single CTF behaviour cannot represent production workloads, attack diversity or the full event catalogue.</td>
-          <td>The challenge exercises a meaningful process burst and process/file sequence.</td>
-          <td>Claim depth for this scenario, not general security coverage.</td>
-        </tr>
-        <tr>
-          <td>External</td>
-          <td>Narrow benign control</td>
-          <td>Three repetitions of one normal AES-beta path do not represent diverse legitimate activity.</td>
-          <td>The benign path uses the same service and produces no configured malicious sequence.</td>
-          <td>Do not estimate a false-positive rate. Identify broader benign testing as future work.</td>
-        </tr>
-        <tr>
-          <td>External</td>
-          <td>Single kernel and host configuration</td>
-          <td>The implementation and experiment were validated on one concrete Rocky Linux 8.10 build, <code>4.18.0-553.137.1.el8_10.x86_64</code>.</td>
-          <td>The thesis deliberately uses a target-aware design and records the exact environment.</td>
-          <td>Limit portability claims to the validated environment. Correct the stale <code>553.137.1</code> references elsewhere in the thesis.</td>
-        </tr>
-        <tr>
-          <td>External</td>
-          <td>Broad monitor privilege</td>
-          <td>The monitor runs as root, privileged, with an unconfined seccomp profile and host kernel filesystem mounts.</td>
-          <td>Target and trigger are non-root, drop all capabilities and use read-only root filesystems.</td>
-          <td>State that the profile enables controlled evaluation but is not a production minimum-privilege design.</td>
-        </tr>
-        <tr>
-          <td>Conclusion</td>
-          <td>Small sample sizes</td>
-          <td>Three benign runs, four malicious runs and five runs per performance profile do not support population-level inference.</td>
-          <td>All observations and descriptive statistics are retained.</td>
-          <td>Use counts, ranges, means and sample standard deviations descriptively; avoid confidence, significance, accuracy, FPR or FNR claims.</td>
-        </tr>
-        <tr>
-          <td>Conclusion</td>
-          <td>Overgeneralising the 91.99% reduction</td>
-          <td>The value compares one filtered and unfiltered configuration under one workload and event scope.</td>
-          <td>Profiles differ only in the UID filter and the order was rotated.</td>
-          <td>Say “in this experiment” and identify the compared profiles; do not predict savings for other workloads.</td>
-        </tr>
-        <tr>
-          <td>Conclusion</td>
-          <td>ATT&amp;CK classification mistaken for coverage</td>
-          <td>Two mapped techniques classify the configured behaviour but do not quantify detection breadth or validate the detector.</td>
-          <td>Mappings are carried as detector metadata and preserved in alerts.</td>
-          <td>Discuss interpretation only. Do not present a coverage percentage or matrix.</td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
+  <div class="box pass">
+    <strong>Wave 1 reconciliation.</strong> The environment, functional,
+    performance and editorial audits now use the same authoritative cross-Pod
+    datasets. The raw functional anomalies and the no-monitor deletion-timing
+    limitation are preserved consistently. Functional evidence is final for
+    scoped reporting; performance evidence is final for the filtered/unfiltered
+    comparison, while no-monitor duration is excluded from causal conclusions.
+    No shared-Pod result is admitted into the Chapter 6 claim set.
+  </div>
 
-  <section id="challenge-specificity">
-    <h2>Challenge Specificity and Experimental Interpretation</h2>
-    <p>
-      AES-beta is a defensible controlled workload because the original binary,
-      loader and glibc were verified by checksum and the exploit creates a
-      substantial process burst followed by shell execution and sensitive file
-      access. However, the laboratory is an adaptation rather than an unchanged
-      deployment of the upstream challenge. It adds a listener, container
-      packaging, a synthetic flag and a separate trigger container; it changes
-      the endpoint and removes only the proof-of-work exchange. These changes
-      should be summarised in Section 6.3, while checksums and the complete
-      adaptation ledger belong in an appendix or supporting documentation.
-    </p>
-    <p>
-      The detector was deliberately derived from the observed offensive trace.
-      Its four-step sequence is therefore a test oracle for the implemented
-      policy/detector pipeline, not an independently developed general detector.
-      The benign and malicious repetitions test consistency under the same
-      laboratory conditions. They do not establish general sensitivity,
-      specificity, false-positive rate or false-negative rate.
-    </p>
-  </section>
+  <h2>1. Baseline and Claim Discipline</h2>
+  <ul>
+    <li>The topology consists of one DaemonSet monitor Pod, one Deployment-managed target Pod and one standalone trigger Pod on one two-CPU Minikube node.</li>
+    <li>The trigger reaches the target through a ClusterIP Service on TCP port 1337. The three Pods have distinct Kubernetes UIDs, IPs, container identities and Pod cgroups.</li>
+    <li>All Pods use <code>hostPID: false</code>. This demonstrates that the monitor did not depend on a shared host PID namespace; it does not isolate the Pods from the node kernel to which the eBPF programs are attached.</li>
+    <li>The monitor is root and privileged with unconfined seccomp. The target and trigger are non-root, drop all capabilities and use read-only root filesystems. A production least-privilege monitor profile was not evaluated.</li>
+    <li>UID 10001 is an exact kernel-side admission key for this experiment. It is not a Kubernetes workload identity, and unrelated node processes using that UID could pass the filter.</li>
+    <li>Three benign and three exploit functional runs were retained without replacement. The performance comparison uses three filtered and three unfiltered monitored runs. Three no-monitor runs are retained only as descriptive context.</li>
+    <li>“No diagnosed loss” means that the captured logs contained no matching perf-event loss diagnostic in the evaluated intervals. It is not proof that every generated kernel event reached user space.</li>
+    <li>ATT&amp;CK identifiers classify the alert evidence. They do not establish technique coverage, detector accuracy or independent confirmation that a technique occurred.</li>
+    <li>The implementation revision used for evidence should be recorded as provenance, but the chapter need not centre a commit comparison: no material behaviour relevant to the stated findings differs from the implementation baseline described in the preceding chapters.</li>
+  </ul>
 
-  <section id="citation-gaps">
-    <h2>Citation Gap List</h2>
-    <p>
-      The current bibliography contains general ATT&amp;CK sources but no primary
-      Kubernetes, Minikube, cgroup v1, upstream AES-beta or technique-specific
-      ATT&amp;CK entries. The following additions are needed if the corresponding
-      claims remain in Chapter 6.
-    </p>
-    <table>
-      <thead><tr><th>Claim requiring support</th><th>Preferred primary source</th><th>Placement</th><th>Status</th></tr></thead>
-      <tbody>
-        <tr>
-          <td>Pods contain one or more co-scheduled containers that share selected resources, and Pod-level PID namespace options have defined semantics.</td>
-          <td>Official Kubernetes documentation for Pods, plus the Kubernetes API reference for <code>PodSpec.hostPID</code> and <code>shareProcessNamespace</code>.</td>
-          <td>Section 6.2, adjacent to the topology and namespace description.</td>
-          <td><span class="status high">Missing</span></td>
-        </tr>
-        <tr>
-          <td>Meaning and security implications of a privileged container and its security context.</td>
-          <td>Official Kubernetes documentation on Linux security contexts and privileged containers.</td>
-          <td>Section 6.2, where the monitor's privileges and mounts are disclosed.</td>
-          <td><span class="status high">Missing</span></td>
-        </tr>
-        <tr>
-          <td>Minikube's role as a local Kubernetes environment and the Docker driver used by the experiment.</td>
-          <td>Official Minikube documentation for starting a cluster and the Docker driver.</td>
-          <td>Section 6.2; one citation is sufficient. Version values should still come from captured experiment evidence.</td>
-          <td><span class="status high">Missing</span></td>
-        </tr>
-        <tr>
-          <td>Semantics of cgroup v1 <code>cpuacct.usage</code> and its nanosecond accounting basis.</td>
-          <td>Linux kernel documentation for the cgroup v1 CPU accounting controller.</td>
-          <td>Section 6.5.1, immediately after the metric definition.</td>
-          <td><span class="status high">Missing</span></td>
-        </tr>
-        <tr>
-          <td>Meaning of cgroup memory and PID-controller values, if discussed beyond simply naming measured files.</td>
-          <td>Linux kernel cgroup v1 memory-controller and PID-controller documentation.</td>
-          <td>Section 6.5.1 or omit the conceptual claim and report only the observed metrics.</td>
-          <td><span class="status medium">Conditional</span></td>
-        </tr>
-        <tr>
-          <td>Provenance of AES-beta and the original challenge behaviour.</td>
-          <td>The exact openECSC-2024 repository tree at commit <code>2602f22c664eb98398413e6a7dfe03ea88b2d296</code>, preferably a commit-permalink rather than a moving branch URL.</td>
-          <td>Section 6.3, at first mention of the challenge.</td>
-          <td><span class="status high">Missing from bibliography</span></td>
-        </tr>
-        <tr>
-          <td>Interpretation of TA0002/T1059.004 and TA0009/T1005.</td>
-          <td>Official MITRE ATT&amp;CK pages for Execution, Unix Shell, Collection and Data from Local System.</td>
-          <td>Section 6.4.2 or 6.6. The existing design/philosophy citation remains suitable for the general framework.</td>
-          <td><span class="status medium">General source exists; exact mappings missing</span></td>
-        </tr>
-      </tbody>
-    </table>
-    <p>
-      Internal manifests, checksums, scripts and raw measurements are
-      experimental artefacts rather than external literature. They should be
-      referenced through a reproducibility appendix or stable repository
-      location, not disguised as external scholarly citations.
-    </p>
-  </section>
+  <h2>2. Redundancy Ledger</h2>
+  <table>
+    <thead>
+      <tr><th>Candidate Chapter 6 material</th><th>Existing owner</th><th>Editorial decision</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>eBPF execution, verifier, hooks, BTF/CO-RE and transport theory</td><td>Chapter 2</td><td>Do not re-explain. Refer back only when a measured result depends on the concept.</td></tr>
+      <tr><td>Kernel/user-space division, event lifecycle and node-local scope</td><td>Chapter 3</td><td>Use one short bridge from the design to the experiment. Avoid another architecture walkthrough.</td></tr>
+      <tr><td>Hook catalogue and event semantics</td><td>Chapter 4</td><td>Name only the three events required by the evaluated detector and explain their role in the evidence sequence, not their implementation.</td></tr>
+      <tr><td>Kernel-side UID filtering implementation</td><td>Chapters 3 and 4</td><td>Chapter 6 owns only the filtered/unfiltered experimental variable and the observed effect.</td></tr>
+      <tr><td>Perf-buffer construction and loss channel</td><td>Chapters 3-5</td><td>State the diagnostic checked and its limitation; do not repeat buffer internals.</td></tr>
+      <tr><td>Policy selection and detector YAML semantics</td><td>Chapters 3 and 5</td><td>Describe the selected policy and detector as experimental configuration. Omit schema fields and evaluation algorithms.</td></tr>
+      <tr><td>Collective correlation state, limits and pruning</td><td>Chapter 5</td><td>Report that the four-step ordered sequence completed. Do not restate correlation implementation.</td></tr>
+      <tr><td>ATT&amp;CK metadata validation and propagation</td><td>Chapters 3 and 5</td><td>Report the classifications attached to the evaluated alert, with cautious interpretation.</td></tr>
+      <tr><td>Output modes, alert formatting and structured logging</td><td>Chapter 5</td><td>Include only the output mode used to collect evidence. Raw JSON belongs outside the body.</td></tr>
+      <tr><td>Kubernetes topology and isolation settings</td><td>Chapter 6</td><td>Explain once in Section 6.2 because they define the experiment. Do not turn the section into a general Kubernetes tutorial.</td></tr>
+      <tr><td>AES-beta vulnerability and exploit flow</td><td>Chapter 6</td><td>Explain only enough to justify the workload and expected evidence. Low-level exploit detail belongs in an appendix or the upstream source.</td></tr>
+      <tr><td>Commands, manifests, image-loading steps and troubleshooting chronology</td><td>Evaluation documentation or appendix</td><td>Exclude from the body. Cite the reproducibility artefacts and evidence inventory.</td></tr>
+      <tr><td>Shared-Pod functional and benchmark results</td><td>Superseded documentation</td><td>Exclude completely from the chapter, including their repetition counts, CPU values and topology.</td></tr>
+    </tbody>
+  </table>
 
-  <section id="visual-budget">
-    <h2>Visual and Table Budget</h2>
-    <table>
-      <thead><tr><th>Item</th><th>Question answered</th><th>Body or appendix</th><th>Editorial constraints</th></tr></thead>
-      <tbody>
-        <tr>
-          <td>Figure 6.1: experimental topology</td>
-          <td>Where do target, trigger and monitor run, and which kernel resources cross the container boundary?</td>
-          <td>Body, Section 6.2</td>
-          <td>Show one Pod, three containers, <code>hostPID: false</code>, the node kernel and monitor-only host mounts. Do not repeat Chapter 3's generic architecture.</td>
-        </tr>
-        <tr>
-          <td>Figure 6.2: attack-to-evidence sequence</td>
-          <td>Which four observations complete the challenge-specific collective detector?</td>
-          <td>Body, Sections 6.3-6.4</td>
-          <td>Separate client action, target behaviour and monitor evidence. Mark the five-second bound. Avoid reproducing detector implementation internals.</td>
-        </tr>
-        <tr>
-          <td>Table 6.1: environment and controlled configuration</td>
-          <td>On what exact system and privilege model were the results obtained?</td>
-          <td>Body, Section 6.2</td>
-          <td>Include actual kernel <code>553.137.1</code>, Minikube 1.38.1, Kubernetes 1.30.0, Docker driver, two CPUs, 4096 MiB, UIDs, privilege and PID namespace settings. Keep image digests and complete mounts in the appendix.</td>
-        </tr>
-        <tr>
-          <td>Table 6.2: functional repetitions</td>
-          <td>How did benign, malicious and divergent-client runs differ?</td>
-          <td>Body, Section 6.4.3</td>
-          <td>Report 3 benign and 4 malicious runs, alert counts, client outcome and diagnosed loss separately. Do not report rates.</td>
-        </tr>
-        <tr>
-          <td>Figure 6.3: per-run CPU comparison</td>
-          <td>How variable were the five filtered and five unfiltered monitor-container CPU means relative to the 5% gate?</td>
-          <td>Body, Section 6.5.3</td>
-          <td>Prefer a dot/range plot with all run means and a labelled 5% reference line. A bar chart of aggregates alone would hide the small sample.</td>
-        </tr>
-        <tr>
-          <td>Table 6.3: resource summary</td>
-          <td>What were the descriptive CPU, memory and duration results for each profile?</td>
-          <td>Body, Section 6.5.2</td>
-          <td>Keep metric boundaries explicit. Label no-monitor values as target metrics. Do not present mean P95 as a confidence interval.</td>
-        </tr>
-        <tr>
-          <td>Raw logs, complete per-run series, manifests, checksums and command listings</td>
-          <td>Can the experiment be inspected and repeated in detail?</td>
-          <td>Appendix C or stable supporting artefacts</td>
-          <td>No terminal screenshots in the body. Use machine-readable tables or repository references.</td>
-        </tr>
-      </tbody>
-    </table>
-    <p>
-      The body budget is therefore <strong>three figures and three tables</strong>.
-      A separate memory or duration plot should be added only if it reveals a
-      conclusion not already visible in Table 6.3; otherwise it belongs in the
-      appendix. Every figure must remain legible in greyscale, avoid
-      colour-only distinctions, use readable labels, and be explained in the
-      prose rather than merely referenced.
-    </p>
-  </section>
+  <h2>3. Threats-to-Validity Matrix</h2>
+  <table>
+    <thead>
+      <tr><th>Class</th><th>Threat</th><th>Consequence</th><th>Mitigation and required wording</th></tr>
+    </thead>
+    <tbody>
+      <tr><td rowspan="6"><strong>Internal</strong></td><td>Small replicated sample: three runs per monitored profile</td><td>Means and standard deviations are sensitive to run-specific variation.</td><td>Present descriptive statistics only. Do not use significance language or generalise beyond this scenario.</td></tr>
+      <tr><td>Node utilisation was close to saturation during brute force</td><td>Background scheduling and workload contention may influence duration and monitor demand.</td><td>Report mean node utilisation for each profile and avoid interpreting duration differences causally.</td></tr>
+      <tr><td>No-monitor Pod deletion was not independently timestamped</td><td>The monitor was still shown as <code>Terminating</code> in immediate snapshots.</td><td>Retain controls for transparency but do not use their durations to estimate monitoring overhead.</td></tr>
+      <tr><td>First benign run was delayed by a stale non-protocol connection</td><td>Its 138,181 ms duration does not represent the benign workload.</td><td>Retain the run for functional outcome; exclude its duration from performance interpretation.</td></tr>
+      <tr><td>Exploit client validation diverged from the generated flag format</td><td>Runs 1 and 2 returned failure status despite recovering the flag and producing complete alerts.</td><td>Separate application evidence, client exit status and detector evidence. Explain the literal-regex correction and that no run was replaced.</td></tr>
+      <tr><td>Potential temporal and environmental confounding</td><td>All runs occurred on one local node over a limited period.</td><td>Document profile rotation, one-second sampling, workload intervals and retained raw evidence. Avoid claims of isolation from every background process.</td></tr>
 
-  <section id="section-ownership">
-    <h2>Section Ownership Plan</h2>
-    <table>
-      <thead><tr><th>Section</th><th>Owns</th><th>Must not own</th><th>Required evidence</th></tr></thead>
-      <tbody>
-        <tr>
-          <td>6.1 Evaluation Objectives and Experimental Protocol</td>
-          <td>The functional questions, 5% monitor-container CPU gate, profiles, controls, repetitions and distinction between calibration and final replicated evidence.</td>
-          <td>System requirements copied from Chapter 3 or implementation summaries.</td>
-          <td>Experiment design, repeated-run report and replicated-performance protocol.</td>
-        </tr>
-        <tr>
-          <td>6.2 Minikube Environment and Three-Container Testbed</td>
-          <td>Actual versions, one-node resources, topology, UIDs, security contexts, host mounts, <code>hostPID</code> and <code>shareProcessNamespace</code>.</td>
-          <td>A Kubernetes tutorial or a production deployment claim.</td>
-          <td>Effective Pod manifest, Pod description, Kubernetes version capture and image IDs.</td>
-        </tr>
-        <tr>
-          <td>6.3 AES-beta Workload and Controlled Attack Scenario</td>
-          <td>Upstream provenance, faithful components, adaptations, benign path, exploit behaviour and why the scenario stresses process telemetry.</td>
-          <td>A full exploit tutorial, ROP-chain walkthrough or detector engine design.</td>
-          <td>Upstream commit and checksums, adaptation specification and controlled synthetic flag.</td>
-        </tr>
-        <tr>
-          <td>6.4 Functional Evaluation</td>
-          <td>Cross-container visibility, four-step alert evidence, three benign repetitions, four malicious repetitions and the divergent client run.</td>
-          <td>General detection-accuracy, false-positive or false-negative claims.</td>
-          <td>Raw JSONL, alert validation, run windows, scenario outputs and loss diagnostics.</td>
-        </tr>
-        <tr>
-          <td>6.5 Performance Evaluation</td>
-          <td>cgroup v1 measurement, sampling formula, profile rotation, per-run and aggregate results, memory boundaries and the observed UID-filter effect.</td>
-          <td>Total system-overhead attribution or inferential statistics unsupported by five runs.</td>
-          <td><code>runs.tsv</code>, <code>aggregate.tsv</code>, <code>comparison.txt</code> and raw sample series.</td>
-        </tr>
-        <tr>
-          <td>6.6 Discussion of Results</td>
-          <td>A compact answer to the evaluation objectives: what worked, what the filtered comparison shows, and why client delivery differs from detected host behaviour.</td>
-          <td>Repeating all tables or moving limitations into a vague future-work paragraph.</td>
-          <td>Only claims already established in Sections 6.4 and 6.5.</td>
-        </tr>
-        <tr>
-          <td>6.7 Threats to Validity and Current Limitations</td>
-          <td>Internal, construct, external and conclusion validity, including tailoring, samples, privileges, the single validated environment, loss and metric attribution.</td>
-          <td>New results or generic limitations already owned by Chapters 2-5.</td>
-          <td>This audit matrix and the evidence boundaries above.</td>
-        </tr>
-        <tr>
-          <td>6.8 Evaluation Summary</td>
-          <td>One concise statement of the scenario-specific functional result and the bounded resource result.</td>
-          <td>A second discussion section, new numbers or claims of production readiness.</td>
-          <td>The accepted claim ledger only.</td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
+      <tr><td rowspan="7"><strong>Construct</strong></td><td>Monitor-cgroup CPU is narrower than total overhead</td><td>Kernel eBPF execution may be charged to observed tasks rather than the monitor container.</td><td>Call the metric “monitor container CPU” or “monitor-cgroup CPU”, expressed as a percentage of one core. Never call it total eBPF or system overhead.</td></tr>
+      <tr><td>Cgroup memory and RSS measure different constructs</td><td>Cgroup usage includes more than resident anonymous process memory.</td><td>Report both separately, with units and maxima; do not treat them as interchangeable.</td></tr>
+      <tr><td>Diagnostic silence is not proof of loss-free transport</td><td>Undiagnosed drops or events never generated cannot be excluded.</td><td>Use “no perf-event loss diagnostic was observed”, not “zero event loss” or “loss-free”.</td></tr>
+      <tr><td>UID filtering is not workload identification</td><td>UID 10001 can be shared by unrelated node processes.</td><td>Describe it as an exact experimental admission key, not Pod, container or tenant identity.</td></tr>
+      <tr><td><code>hostPID: false</code> does not imply kernel separation</td><td>All Pods on the node still share the Linux kernel observed by eBPF.</td><td>Use it to support namespace separation only. Attribute visibility to node-kernel attachment, not to access to another Pod's PID namespace.</td></tr>
+      <tr><td>Application success, file mediation and alert completion are distinct</td><td>A flag may be recovered even when client validation fails; an LSM observation alone does not prove the final read.</td><td>Triangulate flag recovery, successful relative <code>open</code>, resolved file mediation and the completed detector sequence.</td></tr>
+      <tr><td>ATT&amp;CK classification is not empirical coverage</td><td>Mapped identifiers could be mistaken for validation of a whole technique.</td><td>State that mappings organise the observed command execution and file-access behaviour; do not calculate coverage percentages.</td></tr>
 
-  <section id="appendix-boundary">
-    <h2>Appendix Boundary</h2>
-    <p>The following material should not consume Chapter 6 body space:</p>
-    <ul>
-      <li>complete Minikube start, image build/load, deployment, cleanup and log-extraction commands;</li>
-      <li>full Kubernetes manifests, ConfigMaps, Secret-generation commands and volume declarations;</li>
-      <li>full detector and policy YAML, which belong in Appendix B;</li>
-      <li>per-run raw samples, terminal output, full alert JSON, complete log windows and environment dumps;</li>
-      <li>all image digests, artefact checksums and the detailed upstream adaptation ledger;</li>
-      <li>the exploit implementation, proof-of-work removal details and low-level ROP construction;</li>
-      <li>calibration attempts superseded by the replicated protocol;</li>
-      <li>operational troubleshooting, root-run Minikube commands and abandoned <code>hostPID: true</code> evidence;</li>
-      <li>future networking evaluation and unrelated event families.</li>
-    </ul>
-    <p>
-      Appendix C should provide a concise, executable reproduction path and a
-      stable evidence inventory. It should not become a chronological lab
-      diary.
-    </p>
-  </section>
+      <tr><td rowspan="5"><strong>External</strong></td><td>Single-node Minikube with Docker driver</td><td>Results may differ on multi-node or managed Kubernetes clusters and other runtimes.</td><td>Limit claims to node-local visibility on the evaluated environment; identify cross-node deployment as future work.</td></tr>
+      <tr><td>One Rocky Linux kernel and vendor build</td><td>Hook availability, verifier behaviour and performance may differ elsewhere.</td><td>Report the exact kernel <code>4.18.0-553.137.1.el8_10.x86_64</code> and avoid generic Linux portability claims.</td></tr>
+      <tr><td>Privileged monitor</td><td>Operational feasibility under least privilege remains unknown.</td><td>State that the privilege profile was sufficient for the laboratory but was not minimised or production-hardened.</td></tr>
+      <tr><td>One CTF challenge and one tailored collective detector</td><td>The study does not establish broad threat, workload or detector coverage.</td><td>Call this a controlled case study. Describe the detector as deliberately configured for the expected sequence.</td></tr>
+      <tr><td>Three benign controls</td><td>False-positive behaviour is tested only against a narrow normal path.</td><td>Report zero alerts for these three controls only; do not infer a general false-positive rate.</td></tr>
 
-  <section id="terminology-structure">
-    <h2>Terminology, Glossary, Labels and Structure</h2>
-    <ul>
-      <li>Use British forms: <em>normalised</em>, <em>behaviour</em>, <em>artefact</em>, <em>organisation</em>, <em>optimisation</em>.</li>
-      <li>Do not use the internal product name. Use <em>prototype</em>, <em>monitor</em> or <em>monitoring system</em>.</li>
-      <li>Use <em>user space</em> as a noun and <em>user-space</em> attributively. Qualify CPU as <em>monitor-container user-space CPU</em>.</li>
-      <li>Use <em>point detector</em> and <em>collective detector</em>; this experiment directly evaluates one collective detector.</li>
-      <li>Use <em>cross-container visibility on the shared node kernel</em>, not <em>cluster-wide monitoring</em>.</li>
-      <li>Use <em>no perf-buffer loss was diagnosed</em>, not <em>loss-free collection</em>.</li>
-      <li>Define P95 in prose as the 95th percentile. Do not treat it as an acronym or confidence interval.</li>
-      <li>Add glossary entries for <strong>CTF</strong> and <strong>RSS</strong> if each appears repeatedly. Add <strong>ROP</strong> only if the acronym remains in body prose more than once; otherwise spell it out locally.</li>
-      <li><code>hostPID</code>, <code>cpuacct.usage</code>, Minikube and Kubernetes are names or literals, not glossary acronyms.</li>
-      <li>Use a consistent label family such as <code>ch:experimental-evaluation</code>, <code>sec:evaluation-protocol</code>, <code>sec:evaluation-testbed</code>, <code>sec:functional-evaluation</code>, <code>sec:performance-evaluation</code> and <code>sec:threats-validity</code>.</li>
-    </ul>
-    <div class="box warning">
-      <strong>Chapter 1 wording.</strong> Chapter 1 currently promises evaluation
-      of “CPU and memory overhead”. Given the implemented method, Chapter 6
-      should use <em>resource consumption</em> for its primary claim and explain
-      why total overhead is not measured. The Chapter 1 sentence should
-      eventually be aligned with that boundary.
-    </div>
-  </section>
+      <tr><td rowspan="5"><strong>Conclusion</strong></td><td>Descriptive comparison may be read as causal inference</td><td>The 91.97% reduction may be overgeneralised.</td><td>Attribute the reduction to measured monitor-cgroup CPU in this filtered/unfiltered scenario, not to all workloads or total system cost.</td></tr>
+      <tr><td>No formal accuracy dataset</td><td>Precision, recall, false-positive rate and false-negative rate cannot be calculated.</td><td>Frame functional outcomes as acceptance checks, not classifier accuracy.</td></tr>
+      <tr><td>Detector tailoring to the challenge</td><td>Successful detection does not demonstrate unknown-attack discovery.</td><td>Describe the prototype as deterministic and rule-based; avoid anomaly-discovery language.</td></tr>
+      <tr><td>No enforcement evaluation</td><td>Observation could be mistaken for prevention.</td><td>State explicitly that the prototype emits evidence-preserving alerts and does not block the exploit.</td></tr>
+      <tr><td>Commit provenance could distract from behavioural evidence</td><td>An editorial focus on revision differences could obscure the experiment.</td><td>Record the tested artefact once. Do not imply a material implementation divergence where none affects the demonstrated behaviour.</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">Body recommendation: summarise these threats in prose under four validity classes. Place this full matrix in an appendix only if a tabular audit trail is desired, preserving the three-table Chapter 6 budget.</p>
 
-  <section id="acceptance-checklist">
-    <h2>Acceptance Checklist</h2>
-    <h3>Evidence and claims</h3>
-    <ul class="checklist">
-      <li>The authoritative development and evaluation kernel <code>4.18.0-553.137.1.el8_10.x86_64</code> is reported, and stale <code>553.137.1</code> references in earlier chapters are corrected.</li>
-      <li>The reference commit, configuration hashes, effective manifests and image digests are recorded concisely as provenance metadata.</li>
-      <li>Calibration data are not mixed with the final five-run replicated results.</li>
-      <li>Three benign and four malicious functional runs are reported as counts, not general accuracy rates.</li>
-      <li>The divergent client run remains in the results and is interpreted separately from detector success.</li>
-      <li>The 0.39%, 4.87% and 91.99% claims name their exact profiles and metric boundary.</li>
-      <li>The no-monitor primary metric is identified as target CPU, not monitor CPU.</li>
-      <li>P95, standard deviation, range, cgroup memory and RSS are labelled precisely.</li>
-      <li>Zero diagnosed loss is not converted into proof of complete or loss-free telemetry.</li>
-      <li>ATT&amp;CK mappings are used for classification and interpretation only.</li>
-    </ul>
-    <h3>Experimental boundaries</h3>
-    <ul class="checklist">
-      <li>The chapter states that the environment is one Minikube node, one Pod and three containers.</li>
-      <li><code>hostPID: false</code> is interpreted as a namespace setting, not as a reduction of the monitor's kernel privilege.</li>
-      <li>The monitor's privileged/root/unconfined profile and host mounts are disclosed.</li>
-      <li>The target and trigger non-root identities, dropped capabilities and read-only filesystems are recorded.</li>
-      <li>The exact UID filter is not described as a container or Kubernetes workload identity.</li>
-      <li>The detector's challenge-specific and post-observation tailoring is acknowledged.</li>
-      <li>No claims are made about multi-node correlation, enforcement, production minimum privilege or general attack coverage.</li>
-    </ul>
-    <h3>Editorial quality</h3>
-    <ul class="checklist">
-      <li>Sections follow the canonical 6.1-6.8 structure.</li>
-      <li>Chapter 6 does not repeat hook theory, binary formats, YAML schemas, correlation internals or logging architecture.</li>
-      <li>Every result paragraph identifies the input, observation or metric, comparison and limitation.</li>
-      <li>Primary Kubernetes, Minikube, cgroup, upstream challenge and ATT&amp;CK mapping citations have been added.</li>
-      <li>Glossary additions are limited to repeated acronyms and all terms follow British English conventions.</li>
-      <li>Figures and tables remain within the approved budget, are legible in greyscale and answer distinct questions.</li>
-      <li>Commands, full manifests, raw logs, full YAML and per-sample evidence are moved to appendices or stable supporting artefacts.</li>
-      <li>The evaluation summary introduces no new number or conclusion.</li>
-    </ul>
-  </section>
+  <h2>4. Citation Gap List</h2>
+  <h3>Existing bibliography entries that are suitable</h3>
+  <table>
+    <thead><tr><th>Claim area</th><th>Existing key</th><th>Use and qualification</th></tr></thead>
+    <tbody>
+      <tr><td>Kubernetes Service networking</td><td><code>kubernetes_pod_networking</code></td><td>Suitable for the ClusterIP and Pod-to-Service-to-Pod path.</td></tr>
+      <tr><td>Process namespace configuration</td><td><code>kubernetes_process_namespace</code></td><td>Useful background for process namespace sharing, but not sufficient alone for an exact <code>hostPID</code> API claim.</td></tr>
+      <tr><td>Privileged containers</td><td><code>kubernetes_privileged_containers</code></td><td>Suitable for explaining why privileged containers weaken normal isolation boundaries.</td></tr>
+      <tr><td>Minikube Docker driver</td><td><code>minikube_docker_driver</code></td><td>Suitable for the local single-node testbed construction.</td></tr>
+      <tr><td>Cgroup-v1 CPU accounting</td><td><code>linux_cgroup_v1_cpuacct</code></td><td>Suitable for the semantics of <code>cpuacct.usage</code> and the one-core CPU calculation.</td></tr>
+      <tr><td>Upstream AES-beta challenge</td><td><code>openecsc2024_aes_beta</code></td><td>Relevant primary source, but the URL should be pinned to the exact tested repository commit.</td></tr>
+      <tr><td>ATT&amp;CK framework</td><td><code>strom2020attack</code>, <code>mitre2026attackresources</code>, <code>mitre2026attackfaq</code></td><td>Suitable for framework-level classification claims, not the semantics of individual techniques.</td></tr>
+    </tbody>
+  </table>
 
-  <section id="binding-editorial-position">
-    <h2>Binding Editorial Position</h2>
-    <p>
-      Chapter 6 should present a controlled case study that links an adapted but
-      checksum-verified CTF workload to cross-container kernel observations, a
-      challenge-specific collective alert and descriptive resource
-      measurements. Its strongest contribution is the end-to-end validation of
-      the implemented monitoring pipeline under a demanding process workload,
-      together with a replicated demonstration that exact UID filtering sharply
-      reduces the monitor container's user-space processing cost in this
-      scenario. The credibility of the chapter depends on preserving the limits
-      of that conclusion as carefully as the result itself.
-    </p>
-  </section>
+  <h3>Primary sources to add or strengthen</h3>
+  <ol>
+    <li><strong>Kubernetes Pods:</strong> add the official “Pods” concept page for the Pod as the evaluated workload unit and shared-kernel boundary.</li>
+    <li><strong>DaemonSet and Deployment:</strong> add their official Kubernetes concept pages if Chapter 6 explains why one monitor is scheduled per node and why the target has one managed replica.</li>
+    <li><strong><code>hostPID</code> semantics:</strong> cite the official PodSpec API reference or an official security document that defines host process namespace sharing. Do not infer the exact field solely from the within-Pod process-namespace tutorial.</li>
+    <li><strong>Cgroup-v1 memory:</strong> add the Linux kernel memory-controller documentation for <code>memory.usage_in_bytes</code> and <code>memory.stat</code>/<code>total_rss</code>.</li>
+    <li><strong>Node CPU:</strong> add Linux kernel <code>/proc/stat</code> documentation if the computation and interpretation of complete-node CPU utilisation are described.</li>
+    <li><strong>ATT&amp;CK techniques:</strong> cite the official pages for the exact tactics and techniques reported by the AES-beta detector if their names or meanings are interpreted in the body. General ATT&amp;CK sources are enough only when identifiers are listed without technique-level analysis.</li>
+    <li><strong>AES-beta revision:</strong> replace the moving <code>main</code>-branch URL with an immutable GitHub permalink to the tested challenge source revision.</li>
+  </ol>
+  <div class="box warn"><strong>Citation boundary.</strong> Experimental observations, local manifests and measured values are supported by the preserved evidence inventory, not by external literature. External citations should explain platform semantics and metric constructs; they should not be used as substitutes for the experiment's own evidence.</div>
+
+  <h2>5. Visual and Table Budget</h2>
+  <table>
+    <thead><tr><th>Item</th><th>Purpose</th><th>Content rule</th><th>Decision</th></tr></thead>
+    <tbody>
+      <tr><td>Figure 1: cross-Pod topology</td><td>Make the experimental boundary immediately legible.</td><td>Show one Minikube node; monitor, target and trigger Pods; ClusterIP path; shared node kernel; <code>hostPID: false</code>. Use an accessible caption and alt-text equivalent.</td><td>Include</td></tr>
+      <tr><td>Figure 2: workload and evidence sequence</td><td>Connect exploit behaviour to the four observations that complete the detector.</td><td>Use the existing two-part exploitation-flow figure. Distinguish application actions from observed events and the final alert.</td><td>Include</td></tr>
+      <tr><td>Table 1: environment and protocol</td><td>Record reproducibility-critical configuration once.</td><td>Kernel, Minikube topology, CPU/RAM, roles, identities, profiles, repetitions and sampling. Avoid manifest-level settings already visible in Figure 1.</td><td>Include</td></tr>
+      <tr><td>Table 2: functional results</td><td>Compare benign and exploit outcomes compactly.</td><td>Runs, application outcome, alert count, evidence completeness, diagnostics and restarts. Preserve the client-status anomaly in a note.</td><td>Include</td></tr>
+      <tr><td>Table 3: performance results</td><td>Compare filtered and unfiltered monitor measurements.</td><td>Mean, SD, range, mean run P95, maximum cgroup memory and RSS. No-monitor duration may appear only as clearly qualified context, or be omitted.</td><td>Include</td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li>Hard budget: no more than two figures and three tables in the Chapter 6 body.</li>
+    <li>Do not add a separate CPU bar chart if Table 3 already reports the comparison; it would duplicate the result.</li>
+    <li>Do not place the full threats matrix in the body unless another table is removed.</li>
+    <li>Use patterns, direct labels or sufficiently distinct luminance in figures; do not encode profile identity by colour alone.</li>
+    <li>Do not use screenshots of terminal output, YAML, dashboards or raw alerts. Summarise them textually and preserve originals in the evidence inventory.</li>
+  </ul>
+
+  <h2>6. Section Ownership Plan</h2>
+  <table>
+    <thead><tr><th>Section</th><th>Owns</th><th>Must not absorb</th></tr></thead>
+    <tbody>
+      <tr><td><strong>6.1 Evaluation Objectives and Experimental Protocol</strong></td><td>Evaluation questions, acceptance criteria, profiles, repetition policy, evidence preservation and separation of application, detector, diagnostics and stability outcomes.</td><td>System motivation from Chapter 1; architecture from Chapter 3; implementation walkthroughs.</td></tr>
+      <tr><td><strong>6.2 Cross-Pod Minikube Experimental Testbed</strong></td><td>Exact kernel, single-node resources, three-Pod topology, Service path, security contexts, <code>hostPID</code>, distinct identities and privilege boundary.</td><td>General Kubernetes tutorial; deployment commands; full manifests.</td></tr>
+      <tr><td><strong>6.3 AES-beta Workload and Controlled Attack Scenario</strong></td><td>Why the challenge is suitable, benign path, exploit outcome, 1,793-worker workload and expected four-event evidence.</td><td>Detailed exploit source, cryptographic tutorial, detector-engine internals.</td></tr>
+      <tr><td><strong>6.4 Functional Evaluation</strong></td><td>Cross-Pod visibility, three complete collective alerts, three benign controls, application/client divergence, diagnostics and restarts.</td><td>Hook implementation, YAML schema, general detector accuracy claims.</td></tr>
+      <tr><td><strong>6.5 Performance Evaluation</strong></td><td>Cgroup-v1 sampling, one-core CPU definition, workload interval, filtered/unfiltered profiles, descriptive statistics, memory/RSS and the 5% requirement.</td><td>Total-overhead claims, causal duration analysis, rejected calibration details in full.</td></tr>
+      <tr><td><strong>6.6 Discussion of Results</strong></td><td>Synthesis: node-local feasibility, detector evidence, filtering effect and operational trade-offs.</td><td>New results, repeated tables, broad production claims or future-work catalogue.</td></tr>
+      <tr><td><strong>6.7 Threats to Validity and Current Limitations</strong></td><td>Internal, construct, external and conclusion validity in concise prose, including all material anomalies.</td><td>A second methodology section or generic eBPF limitations already established earlier.</td></tr>
+      <tr><td><strong>6.8 Evaluation Summary</strong></td><td>Direct answer to the evaluation objectives and transition to conclusions.</td><td>Fresh numerical detail, repeated limitations list or implementation summary.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>7. Appendix and Reproducibility Boundary</h2>
+  <p>The following material should remain outside the Chapter 6 body and be referenced through appendices or the evidence inventory:</p>
+  <ul>
+    <li>complete Kubernetes manifests, shell commands, image-loading procedure and cleanup instructions;</li>
+    <li>raw alert JSON, monitor logs, target logs, client output and complete one-second sample files;</li>
+    <li>per-run Pod snapshots, container IDs, cgroup paths and effective manifests;</li>
+    <li>the rejected malformed calibration and its AWK correction;</li>
+    <li>the complete chronology of the stale Phase 5 connection and client-regex fixes;</li>
+    <li>full nine-run aggregate tables if Table 3 presents only filtered and unfiltered monitored profiles;</li>
+    <li>the full threats-to-validity matrix and detailed reproducibility checklist;</li>
+    <li>low-level AES-beta exploit implementation and source excerpts.</li>
+  </ul>
+
+  <h2>8. Language, Terminology and Structure Audit</h2>
+  <ul>
+    <li>Use British English consistently: <em>normalisation</em>, <em>behaviour</em>, <em>artefact</em>, <em>utilisation</em>, <em>labelled</em> and <em>authorised</em>.</li>
+    <li>Use <em>kernel space</em> and <em>user space</em> as nouns, and hyphenate adjectival forms such as <em>kernel-side</em>, <em>user-space</em>, <em>cross-Pod</em> and <em>node-local</em>.</li>
+    <li>Use “monitor”, “target” and “trigger” consistently for the three Pod roles. Do not alternate with “attacker Pod”, “client container” or “agent” without a defined reason.</li>
+    <li>The glossary already includes eBPF, CPU, MITRE ATT&amp;CK, CTF, RSS, UTC and SD. No mandatory new acronym entry follows from the current body plan. Define P95 in prose; spell out TCP on first use if it recurs.</li>
+    <li>Use “Pod” with Kubernetes capitalisation, “Minikube” as a proper name and “cgroup” in lower case.</li>
+    <li>Reserve “success” for a stated criterion: application flag recovery, client validation, detector completion or profile threshold. Do not merge these into one ambiguous outcome.</li>
+    <li>Preserve the Chapter 6 section titles and numbering in the definitive outline. Labels should follow the existing thesis convention and be introduced once.</li>
+  </ul>
+
+  <h2>9. Acceptance Checklist</h2>
+  <ul>
+    <li>☐ The chapter uses only the cross-Pod functional and performance datasets.</li>
+    <li>☐ The exact evaluated kernel is <code>4.18.0-553.137.1.el8_10.x86_64</code>.</li>
+    <li>☐ The topology is described as three separate Pods on one Minikube node and one shared kernel.</li>
+    <li>☐ <code>hostPID: false</code> is interpreted as process-namespace separation, not kernel separation.</li>
+    <li>☐ UID 10001 is called an experimental admission key, never a Pod or workload identity.</li>
+    <li>☐ The privileged monitor and non-root target/trigger security contexts are stated.</li>
+    <li>☐ Three benign and three exploit runs are reported without silently replacing anomalies.</li>
+    <li>☐ The first benign delay and the first two client-validation failures are explained.</li>
+    <li>☐ Functional success, client exit status, detector completion, diagnostics and restarts remain separate outcomes.</li>
+    <li>☐ The four-event alert evidence is reported in order and tied to the evaluated detector.</li>
+    <li>☐ “No diagnosed loss” is used instead of “loss-free” or “zero event loss”.</li>
+    <li>☐ The filtered CPU result is 0.46% mean of one core over three runs; unfiltered is 5.73%.</li>
+    <li>☐ The 91.97% reduction is qualified as scenario-specific monitor-cgroup CPU.</li>
+    <li>☐ Cgroup memory and RSS are reported separately.</li>
+    <li>☐ No-monitor durations are not used to infer causal overhead.</li>
+    <li>☐ Node saturation and the limited sample size are visible in the interpretation.</li>
+    <li>☐ ATT&amp;CK is presented as classification, not detector or technique coverage.</li>
+    <li>☐ No precision, recall, false-positive-rate or production-readiness claim is made.</li>
+    <li>☐ The chapter contains no source listing, terminal screenshot, manifest dump or raw JSON block.</li>
+    <li>☐ The body stays within two figures and three tables, with accessible captions and non-colour-only encoding.</li>
+    <li>☐ Commands, raw evidence, failed calibration details and full per-run records are delegated to appendices or the evidence inventory.</li>
+    <li>☐ External sources explain platform and metric semantics; experimental claims point to preserved local evidence.</li>
+    <li>☐ British English, glossary usage and established chapter labels are consistent.</li>
+    <li>☐ Section 6.8 answers the evaluation objectives without repeating the discussion or limitations verbatim.</li>
+  </ul>
+
+  <div class="box pass">
+    <strong>Editorial verdict.</strong> The available evidence supports a compact and credible Chapter 6 centred on a controlled cross-Pod case study and a replicated filtered/unfiltered monitor comparison. Its strongest contribution is the triangulation of application outcome, ordered kernel evidence and bounded resource measurements. Credibility depends on preserving the narrow claim boundary: one node, one challenge, one tailored detector, a privileged monitor, three repetitions per profile and no independent proof of loss-free collection.
+  </div>
 </main>
 </body>
 </html>

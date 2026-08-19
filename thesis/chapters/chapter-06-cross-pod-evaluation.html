@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chapter 6 Cross-Pod Evidence Brief</title>
+<style>body{max-width:1000px;margin:2rem auto;padding:0 1.25rem;font:16px/1.58 system-ui,sans-serif;color:#18202a}h1,h2{line-height:1.2}h2{margin-top:2.2rem;border-bottom:1px solid #cbd2d9;padding-bottom:.35rem}code{background:#edf0f3;padding:.08rem .28rem}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cbd2d9;padding:.65rem;text-align:left;vertical-align:top}th{background:#f5f7f9}.box{border-left:5px solid #0f5e75;background:#e8f3f6;padding:.8rem 1rem}.warn{border-color:#8a4b08;background:#fff4df}</style></head>
+<body><h1>Chapter 6 Cross-Pod Evidence Brief</h1>
+<div class="box"><strong>Current baseline:</strong> Chapter 6 uses only the completed cross-Pod Minikube experiment. The older one-Pod laboratory and its five-replication benchmark are excluded.</div>
+<h2>Evaluation Argument</h2>
+<p>The chapter asks whether a privileged monitoring Pod can observe and correlate the AES-beta exploit in an independent target Pod when the client runs in a third Pod on the same node. It then measures monitor user-space CPU and memory with and without exact kernel UID filtering.</p>
+<h2>Authoritative Evidence</h2>
+<table><thead><tr><th>Stream</th><th>Primary source</th><th>Status</th></tr></thead><tbody>
+<tr><td>Topology and functional campaign</td><td><code>cross-pod-20260817T052019Z</code></td><td>Complete</td></tr>
+<tr><td>Performance campaign</td><td><code>cross-pod-performance-20260819T070557Z</code></td><td>Complete for filtered/unfiltered</td></tr>
+<tr><td>Functional interpretation</td><td><code>minikube-ctf-cross-pod-functional-evaluation.html</code></td><td>3 benign and 3 exploit runs</td></tr>
+<tr><td>Performance interpretation</td><td><code>minikube-ctf-cross-pod-performance-evaluation.html</code></td><td>3 filtered and 3 unfiltered runs</td></tr>
+<tr><td>Manual reproduction</td><td><code>minikube-ctf-cross-pod-laboratory.html</code></td><td>Documentation or appendix material</td></tr>
+</tbody></table>
+<h2>Permitted Results</h2>
+<ul><li>3/3 benign controls completed with zero AES-beta alerts.</li><li>3/3 exploits recovered the flag with 1,793 workers and one complete alert each.</li><li>Filtered CPU: 0.46% mean of one core, SD 0.02, range 0.44–0.47%, mean run P95 1.00%.</li><li>Unfiltered CPU: 5.73% mean; filtered reduction 91.97%.</li><li>Filtered maxima: 92.17 MiB cgroup memory and 36.97 MiB RSS.</li><li>No diagnosed loss or restart delta in the six monitored runs.</li></ul>
+<div class="box warn"><strong>Forbidden inference:</strong> do not call 0.46% total overhead; do not use no-monitor duration to infer slowdown; do not generalise three scenario runs into detection accuracy or production capacity.</div>
+<h2>Body Budget</h2>
+<p>Use one topology figure, the existing two-part exploitation-flow figure, one concise environment table, one functional-results table and one filtered/unfiltered performance table. Keep commands, YAML and raw JSON outside the chapter.</p>
+<p><a href="../chapter-06-cross-pod-agent-workflow.html">Open the binding workflow and prompts</a>.</p>
+</body></html>

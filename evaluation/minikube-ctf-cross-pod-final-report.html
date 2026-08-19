@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cross-Pod Minikube Experiment: Final Report</title>
+  <style>
+    :root{--ink:#172033;--muted:#5d6878;--line:#cfd7e2;--panel:#f6f8fb;--green:#176b43;--amber:#8a5a00;--blue:#2457a6}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);font:16px/1.58 system-ui,sans-serif;background:#fff}main{max-width:1040px;margin:auto;padding:42px 28px 72px}
+    h1,h2{line-height:1.22}h1{margin-top:0}h2{margin-top:38px;border-bottom:1px solid var(--line);padding-bottom:7px}p,li{max-width:96ch}
+    code{font-family:Consolas,monospace;background:#eef1f5;padding:.08rem .25rem}table{width:100%;border-collapse:collapse;margin:18px 0 28px}th,td{padding:10px 11px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:#eef2f7}
+    .box{padding:15px 18px;margin:18px 0;border-left:4px solid var(--blue);background:#f3f7fc}.pass{border-left-color:var(--green);background:#f0f8f4}.warn{border-left-color:var(--amber);background:#fff9ed}.status{display:inline-block;padding:4px 9px;border:1px solid var(--line);background:var(--panel);font-weight:700;color:var(--green)}
+    a{color:#174f96}@media(max-width:760px){main{padding:28px 18px 52px}table{font-size:14px}}
+  </style>
+</head>
+<body><main>
+  <h1>Cross-Pod Minikube Experiment: Final Report</h1>
+  <p><span class="status">FINAL VERDICT: PASS WITH STATED LIMITATIONS</span></p>
+
+  <h2>Objective</h2>
+  <p>The experiment evaluates the monitoring tool in a self-contained, single-node Kubernetes laboratory. It asks whether a privileged eBPF monitor can observe and detect the AES-beta exploitation sequence when the monitor, vulnerable target and attack trigger run in three independent Pods, and whether the operational monitor remains below its 5% user-space CPU target.</p>
+
+  <h2>Experimental Scope</h2>
+  <table>
+    <thead><tr><th>Property</th><th>Evaluated configuration</th></tr></thead>
+    <tbody>
+      <tr><td>Placement</td><td>DaemonSet monitor, one-replica target Deployment and standalone trigger Pod on one Minikube node</td></tr>
+      <tr><td>Network</td><td>Trigger Pod to ClusterIP Service to target Pod on TCP/1337</td></tr>
+      <tr><td>Isolation</td><td>Distinct Pod UIDs, IPs, container identities and pod cgroups; <code>hostPID: false</code></td></tr>
+      <tr><td>Monitoring</td><td>Target UID 10001, exact kernel UID filter, three selected events and one collective AES-beta detector</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Architecture and Method</h2>
+  <p>The target exposed TCP/1337 through a ClusterIP Service. The non-root trigger reached that Service from a separate Pod, while the privileged monitor ran as a DaemonSet Pod and attached eBPF programs to the shared node kernel. All Pods retained <code>hostPID: false</code>. The synthetic flag Secret was mounted only in the target.</p>
+  <p>After deployment, the procedure verified Pod identity, IP and cgroup separation, Service routing, target telemetry visibility and exact-UID admission. It then executed three benign controls and three exploit runs without automatic retry. Application results, detector output, loss diagnostics and restarts were evaluated independently.</p>
+
+  <h2>Results</h2>
+  <table>
+    <thead><tr><th>Measure</th><th>Observed result</th></tr></thead>
+    <tbody>
+      <tr><td>Benign workloads</td><td>3/3 completed; 0 AES-beta alerts</td></tr>
+      <tr><td>Exploit application</td><td>Flag recovered in 3/3 runs; 1,793 workers per run</td></tr>
+      <tr><td>Detector matches</td><td>3/3 runs produced one <code>aes-beta-command-execution</code> alert</td></tr>
+      <tr><td>Collective evidence</td><td>Complete in 3/3: shell execution, <code>cat</code> execution, resolved flag access and successful <code>open</code></td></tr>
+      <tr><td>Identity</td><td>All alert events carried UID 10001 and a consistent host process identity within the run</td></tr>
+      <tr><td>Loss diagnostics</td><td>No matching diagnostic in the six scenario intervals</td></tr>
+      <tr><td>Pod stability</td><td>Zero restarts before and after every functional run</td></tr>
+      <tr><td>Filtered monitor CPU</td><td>0.46% mean of one core across three runs; all run means below 5%</td></tr>
+      <tr><td>Filtering comparison</td><td>5.73% unfiltered mean; filtered CPU was 91.97% lower</td></tr>
+      <tr><td>Filtered monitor memory</td><td>92.17 MiB maximum cgroup usage; 36.97 MiB maximum RSS</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Observed Anomalies</h2>
+  <p>The first benign run waited behind the non-protocol Phase 5 connection until the target timeout. Its 138,181 ms duration is retained but excluded from performance interpretation. The first two exploit clients recovered the flag and triggered complete alerts but returned status 1 because the reused client expected a <code>THESIS{...}</code> flag while this laboratory generated <code>openECSC{...}</code>. The first correction was malformed by Bash parameter expansion; the corrected literal pattern was verified by the third run. No failed run was replaced.</p>
+
+  <h2>Supported Claims</h2>
+  <div class="box pass">In the evaluated single-node Minikube environment, the privileged monitoring Pod observed and detected the AES-beta exploitation sequence generated in the target Pod while the client executed from a separate trigger Pod. Observation remained node-local and was obtained from eBPF hooks attached to the kernel shared by the three Pods.</div>
+
+  <h2>Unsupported Claims and Limitations</h2>
+  <ul>
+    <li>The experiment does not demonstrate cross-node or cluster-wide detection.</li>
+    <li>The monitor remains privileged; a production least-privilege profile was not established.</li>
+    <li>UID 10001 is an experimental admission key, not a Kubernetes workload identity.</li>
+    <li>The evaluation is scenario-specific and does not establish general detector coverage or production readiness.</li>
+    <li>The experiment evaluates observation and detection, not enforcement.</li>
+    <li>The CPU result measures the monitor container's user-space cgroup and is not total kernel or system overhead.</li>
+    <li>The node was close to saturation during the brute-force workload, so duration differences are descriptive.</li>
+    <li>The no-monitor snapshots did not independently prove final monitor-Pod deletion before workload start; their durations are not used for a causal overhead claim.</li>
+  </ul>
+
+  <h2>Relevance for Chapter 6</h2>
+  <p>Chapter 6 can use this experiment as its only evaluation narrative: laboratory topology, controlled workload, functional results and replicated monitor measurements on the same node. The filtered result is the primary performance finding; the unfiltered result demonstrates the effect of early UID admission. The delayed benign run and no-monitor controls must not be used as workload-overhead evidence.</p>
+
+  <h2>Documentation and Evidence</h2>
+  <ul>
+    <li><a href="minikube-ctf-cross-pod-design.html">Design and acceptance criteria</a></li>
+    <li><a href="minikube-ctf-cross-pod-step-by-step.html">Chronological commands, failures and fixes</a></li>
+    <li><a href="minikube-ctf-cross-pod-deployment.html">Final stable deployment</a></li>
+    <li><a href="minikube-ctf-cross-pod-functional-evaluation.html">All benign and exploit runs</a></li>
+    <li><a href="minikube-ctf-cross-pod-performance-plan.html">Cross-Pod performance protocol</a></li>
+    <li><a href="minikube-ctf-cross-pod-performance-evaluation.html">Cross-Pod performance results</a></li>
+    <li><a href="minikube-ctf-cross-pod-laboratory.html">Manual laboratory procedure</a></li>
+  </ul>
+  <p>Functional evidence is preserved under <code>demo_project/k8s/minikube-ctf-cross-pod/evidence/cross-pod-20260817T052019Z/</code>. Performance evidence is preserved separately under <code>demo_project/k8s/minikube-ctf-cross-pod/evidence/cross-pod-performance-20260819T070557Z/</code>.</p>
+
+  <h2>Final Verdict</h2>
+  <div class="box pass"><strong>PASS WITH STATED LIMITATIONS.</strong> The topology, Service path, target visibility, detector behaviour and filtered monitor CPU target are supported by preserved evidence. The claim remains limited to this single-node, privileged-monitor and scenario-specific environment; no total-system or cross-node performance claim follows.</div>
+</main></body>
+</html>
