@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 7 Agentic Writing Workflow</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #18212a;
+      --muted: #5d6872;
+      --line: #cbd3d9;
+      --panel: #f4f7f8;
+      --accent: #0f6074;
+      --soft: #e8f4f6;
+      --warn: #89500b;
+      --warn-soft: #fff5df;
+      --ok: #24633d;
+      --ok-soft: #edf8f0;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: #fff;
+      color: var(--ink);
+      font: 16px/1.58 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(210px, 265px) minmax(0, 980px);
+      gap: 2rem;
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 5rem;
+    }
+    nav {
+      position: sticky;
+      top: 1rem;
+      align-self: start;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+    nav strong, nav a { display: block; }
+    nav strong { margin-bottom: .6rem; }
+    nav a { padding: .27rem 0; color: var(--accent); text-decoration: none; }
+    nav a:hover { text-decoration: underline; }
+    main { min-width: 0; }
+    h1, h2, h3 { line-height: 1.2; letter-spacing: 0; }
+    h1 { margin-top: 0; font-size: 2rem; }
+    h2 { margin-top: 2.5rem; padding-bottom: .35rem; border-bottom: 2px solid var(--line); }
+    h3 { margin-top: 1.6rem; }
+    p, li { max-width: 88ch; }
+    code { padding: .08rem .28rem; background: #edf0f2; overflow-wrap: anywhere; }
+    pre {
+      margin: 0;
+      padding: 1rem;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      border-top: 1px solid var(--line);
+      background: #f2f4f5;
+      font: 13px/1.46 ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+    table { width: 100%; margin: 1rem 0; border-collapse: collapse; }
+    th, td { padding: .65rem; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--panel); }
+    .box { margin: 1rem 0; padding: .9rem 1rem; border-left: 5px solid var(--accent); background: var(--soft); }
+    .warning { border-left-color: var(--warn); background: var(--warn-soft); }
+    .success { border-left-color: var(--ok); background: var(--ok-soft); }
+    .flow { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: .6rem; margin: 1rem 0; }
+    .flow div { padding: .75rem; border: 1px solid var(--line); background: var(--panel); }
+    .flow b { display: block; color: var(--accent); }
+    .prompt { margin: 1rem 0; border: 1px solid var(--line); }
+    .prompt summary { cursor: pointer; padding: .85rem 1rem; background: var(--panel); font-weight: 700; }
+    .meta { padding: .65rem 1rem; color: var(--muted); }
+    .gate { color: var(--ok); font-weight: 700; }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      nav { position: static; }
+      .flow { grid-template-columns: 1fr; }
+      table { display: block; overflow-x: auto; }
+    }
+    @media print {
+      nav { display: none; }
+      .layout { display: block; max-width: none; padding: 0; }
+      details > * { display: block; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav aria-label="Workflow navigation">
+    <strong>Chapter 7 workflow</strong>
+    <a href="#decision">Editorial decision</a>
+    <a href="#usage">How to use it</a>
+    <a href="#boundaries">Chapter boundaries</a>
+    <a href="#structure">Provisional structure</a>
+    <a href="#pipeline">Agent pipeline</a>
+    <a href="#wave1">Wave 1 prompts</a>
+    <a href="#wave2">Wave 2 prompt</a>
+    <a href="#wave3">Wave 3 prompt</a>
+    <a href="#wave4">Wave 4 prompt</a>
+    <a href="#acceptance">Acceptance gates</a>
+  </nav>
+
+  <main>
+    <h1>Chapter 7 Agentic Writing Workflow</h1>
+    <p>
+      This page contains the complete agent pipeline and the prompts needed to
+      produce the final chapter, <strong>Conclusions and Future Work</strong>.
+      The target is a concise chapter of approximately three to four thesis
+      pages. All agent-to-user artefacts are valid standalone HTML.
+    </p>
+
+    <section id="decision">
+      <h2>Editorial Decision</h2>
+      <div class="box">
+        <strong>Chapter 7 closes the argument; it does not retell the thesis.</strong>
+        It should state what was built, what the controlled evaluation supports,
+        where the resulting claims stop and which next steps follow directly
+        from those limits.
+      </div>
+      <p>
+        The recommended body length is roughly 1,400-1,800 words, subject to the
+        actual thesis layout. The chapter should contain no source listings,
+        figures, large tables, YAML examples, command sequences or new
+        experimental results. Four short sections are sufficient.
+      </p>
+      <div class="box warning">
+        <strong>Do not write the abstract in this workflow.</strong> The abstract
+        remains a separate final task after Chapter 7 has been approved. Do not
+        introduce an official product name: use <em>the proposed tool</em>,
+        <em>the prototype</em>, <em>the monitoring agent</em> or
+        <em>the proposed system</em>.
+      </div>
+    </section>
+
+    <section id="usage">
+      <h2>How to Use This File</h2>
+      <table>
+        <thead><tr><th>Stage</th><th>Agents</th><th>User action</th></tr></thead>
+        <tbody>
+          <tr><td>Wave 1</td><td>Agents 1-3 in parallel</td><td>Send one prompt to each fresh agent and wait for all three HTML reports.</td></tr>
+          <tr><td>Gate A</td><td>None</td><td>Read the reports and resolve any conflict about supported results or future work.</td></tr>
+          <tr><td>Wave 2</td><td>Agent 4</td><td>Request the binding editorial synthesis and approve its claim ledger.</td></tr>
+          <tr><td>Wave 3</td><td>Agent 5</td><td>Allow LaTeX writing only after the synthesis is approved.</td></tr>
+          <tr><td>Wave 4</td><td>Agent 6</td><td>Use a fresh reviewer, then apply only reviewed corrections.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        The three Wave 1 agents may run concurrently. Agents 4-6 must run in
+        order because each depends on an approved output from the previous
+        stage. The writer is the only agent allowed to modify thesis source.
+      </p>
+    </section>
+
+    <section id="boundaries">
+      <h2>Chapter Boundaries</h2>
+      <table>
+        <thead><tr><th>Material</th><th>Primary owner</th><th>Chapter 7 treatment</th></tr></thead>
+        <tbody>
+          <tr><td>eBPF theory and related tools</td><td>Chapter 2</td><td>Do not explain them again.</td></tr>
+          <tr><td>Requirements and architecture</td><td>Chapter 3</td><td>Recall only the design objective needed to frame the outcome.</td></tr>
+          <tr><td>Kernel-space implementation</td><td>Chapter 4</td><td>Summarise the implemented contribution in one compact passage.</td></tr>
+          <tr><td>Go runtime, policy and detection implementation</td><td>Chapter 5</td><td>State the achieved end-to-end capability without package-level detail.</td></tr>
+          <tr><td>Experimental protocol and numerical evidence</td><td>Chapter 6</td><td>Use only its final, qualified findings; do not repeat methods or full tables.</td></tr>
+          <tr><td>Overall answer, broader limitations and prioritised future work</td><td>Chapter 7</td><td>Primary material.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        The conclusions must preserve the distinction between observation,
+        detection and enforcement. They must not claim cluster-wide
+        correlation, general anomaly discovery, complete ATT&amp;CK coverage,
+        loss-free transport, total-system overhead, general detection accuracy
+        or production readiness.
+      </p>
+    </section>
+
+    <section id="structure">
+      <h2>Provisional Structure</h2>
+      <ol>
+        <li><strong>7.1 Summary of the Work.</strong> One narrative synthesis of the problem, the kernel/user-space solution and the implemented monitoring pipeline.</li>
+        <li><strong>7.2 Main Results.</strong> The strongest supported conclusions from the cross-Pod functional campaign and the scoped monitor-cgroup performance comparison.</li>
+        <li><strong>7.3 Limitations.</strong> A compact synthesis of technical and experimental boundaries, without reproducing the threats-to-validity taxonomy from Chapter 6.</li>
+        <li><strong>7.4 Future Work.</strong> A prioritised sequence tied directly to the limitations, followed by a brief closing paragraph.</li>
+      </ol>
+      <p>
+        The synthesis agent may merge the first two sections if the final length
+        becomes unbalanced, but should not create a deep subsection hierarchy.
+        The final paragraph must close the thesis rather than merely announce
+        future engineering tasks.
+      </p>
+    </section>
+
+    <section id="pipeline">
+      <h2>Agent Pipeline</h2>
+      <div class="flow" aria-label="Four-wave agent pipeline">
+        <div><b>Wave 1</b>Three parallel audits</div>
+        <div><b>Wave 2</b>Binding synthesis</div>
+        <div><b>Wave 3</b>One LaTeX writer</div>
+        <div><b>Wave 4</b>Fresh final reviewer</div>
+      </div>
+      <table>
+        <thead><tr><th>Agent</th><th>Role</th><th>Output</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Contribution and result auditor</td><td><code>agent-output/chapter-07/contribution-results-audit.html</code></td></tr>
+          <tr><td>2</td><td>Limitations and future-work auditor</td><td><code>agent-output/chapter-07/limitations-future-work-audit.html</code></td></tr>
+          <tr><td>3</td><td>Editorial closure and redundancy auditor</td><td><code>agent-output/chapter-07/editorial-closure-audit.html</code></td></tr>
+          <tr><td>4</td><td>Technical editorial synthesiser</td><td><code>agent-output/chapter-07/editorial-synthesis.html</code></td></tr>
+          <tr><td>5</td><td>Sole LaTeX writer</td><td><code>chapter7.tex</code>, include line and <code>writing-report.html</code></td></tr>
+          <tr><td>6</td><td>Independent final reviewer</td><td><code>agent-output/chapter-07/final-review.html</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="wave1">
+      <h2>Wave 1: Three Parallel Audits</h2>
+
+      <details class="prompt" open>
+        <summary>Agent 1: Contribution and Result Auditor</summary>
+        <div class="meta">Run in parallel. Must not modify repository files.</div>
+        <pre>You are the contribution-and-results auditor for Chapter 7 of an MSc thesis
+about an eBPF-based runtime security monitoring system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-07-agent-workflow.html
+- /home/simone/project/Thesis/content/chapters/chapter1.tex
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+- /home/simone/project/Thesis/content/chapters/chapter5.tex
+- /home/simone/project/Thesis/content/chapters/chapter6.tex
+- /home/simone/project/documentation/thesis/agent-output/chapter-06/editorial-synthesis.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-06/final-review.html
+
+Inspect the current demo_project implementation and tests wherever a claimed
+contribution cannot be established from the thesis text. Record the inspected
+demo_project commit and dirty state, and distinguish committed implementation
+from uncommitted experimental artefacts.
+
+Audit:
+1. the concrete problem addressed by the thesis;
+2. the implemented kernel-space contributions;
+3. the implemented Go runtime, policy and detector contributions;
+4. target-kernel compatibility work that is genuinely part of the contribution;
+5. the final cross-Pod functional observations supported by Chapter 6;
+6. the exact filtered/unfiltered monitor-cgroup result and its denominator;
+7. claims that are only design intentions, future work or unsupported novelty;
+8. the difference between an implemented contribution and research novelty;
+9. statements that would overclaim detection accuracy, overhead, coverage,
+   portability, enforcement or production readiness;
+10. the smallest set of conclusions needed to answer the thesis objective.
+
+Produce a contribution ledger, a supported-result ledger, a rejected-claim
+list, a concise proposed narrative for Sections 7.1 and 7.2, and unresolved
+questions. Do not repeat implementation detail, propose new experiments or
+write thesis prose. Do not modify any other file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-07/contribution-results-audit.html</pre>
+      </details>
+
+      <details class="prompt">
+        <summary>Agent 2: Limitations and Future-Work Auditor</summary>
+        <div class="meta">Run in parallel. Must separate missing work from already implemented features.</div>
+        <pre>You are the limitations-and-future-work auditor for Chapter 7 of an MSc thesis
+about an eBPF-based runtime security monitoring system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-07-agent-workflow.html
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+- /home/simone/project/Thesis/content/chapters/chapter5.tex
+- /home/simone/project/Thesis/content/chapters/chapter6.tex
+- /home/simone/project/documentation/thesis/agent-output/chapter-04/hook-focused-final-review.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-05/editorial-synthesis.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-05/runtime-lifecycle-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-06/editorial-synthesis.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-06/final-review.html
+
+Inspect current documentation under /home/simone/project/documentation/next-steps
+and the current demo_project code and tests for every proposed future item.
+Record the inspected demo_project commit and dirty state. Older reports are
+leads, not authority: reject an item if it has since been implemented.
+
+Audit and prioritise:
+1. kernel and hook coverage gaps that still exist;
+2. generated or shared C/Go event-contract consistency;
+3. decoder, loader, attachment and partial-lifecycle integration testing;
+4. strict external YAML validation and configuration diagnostics;
+5. bounded correlation and deduplication limitations;
+6. perf-buffer loss observability and alternative transport investigation;
+7. broader workload, kernel and detector evaluation;
+8. least-privilege Kubernetes deployment and operational hardening;
+9. cross-node aggregation or cluster context, clearly outside the local agent;
+10. items that are attractive but too speculative for the primary roadmap.
+
+Build a limitation-to-future-work matrix. For every item, state current
+evidence, user impact, priority, proposed next step and whether it is engineering,
+evaluation or research work. Select no more than five primary future directions.
+Keep enforcement, contextual anomaly detection and cluster-wide correlation as
+optional extensions unless current evidence justifies a stronger priority.
+
+Produce a compact plan for Sections 7.3 and 7.4, stale-item warnings and
+unresolved questions. Do not write thesis prose and do not modify any other file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-07/limitations-future-work-audit.html</pre>
+      </details>
+
+      <details class="prompt">
+        <summary>Agent 3: Editorial Closure and Redundancy Auditor</summary>
+        <div class="meta">Run in parallel. Owns length, flow and non-repetition.</div>
+        <pre>You are the editorial-closure and redundancy auditor for the final chapter of
+an MSc thesis about an eBPF-based runtime security monitoring system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-07-agent-workflow.html
+- /home/simone/project/Thesis/content/chapters/chapter1.tex
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+- /home/simone/project/Thesis/content/chapters/chapter5.tex
+- /home/simone/project/Thesis/content/chapters/chapter6.tex
+- /home/simone/project/Thesis/bibliography.bib
+- /home/simone/project/Thesis/glossaries.tex
+
+Audit the thesis as one argument rather than as seven independent summaries.
+Focus on what the conclusion must add that the existing chapter openings,
+summaries, discussion and threats-to-validity section do not already say.
+
+Produce:
+1. a redundancy map against Chapters 1-6;
+2. a list of phrases and explanations that Chapter 7 should not repeat;
+3. a 3-4 page narrative plan with an approximate word budget per section;
+4. a paragraph-level transition plan from Chapter 6 and towards the final line;
+5. a terminology, British-English, glossary and citation checklist;
+6. guidance on when a conclusion needs a citation and when it should instead
+   refer implicitly to evidence established earlier;
+7. an audit of unsupported promotional or novelty language;
+8. a recommendation on whether all four canonical sections are needed;
+9. a no-visual, no-listing and minimal-enumeration budget;
+10. an acceptance checklist for a concise final chapter.
+
+Do not verify implementation internals, invent contributions, modify thesis
+source or write the final chapter. Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-07/editorial-closure-audit.html</pre>
+      </details>
+    </section>
+
+    <section id="wave2">
+      <h2>Wave 2: Binding Editorial Synthesis</h2>
+      <p class="gate">Run only after all three Wave 1 reports exist and have been read.</p>
+      <details class="prompt">
+        <summary>Agent 4: Technical Editorial Synthesiser</summary>
+        <div class="meta">Resolves conflicts and creates the binding specification. Does not write LaTeX.</div>
+        <pre>You are the technical editorial synthesiser for Chapter 7, Conclusions and
+Future Work, of an MSc thesis about an eBPF-based runtime security monitor.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-07-agent-workflow.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-07/contribution-results-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-07/limitations-future-work-audit.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-07/editorial-closure-audit.html
+- /home/simone/project/Thesis/content/chapters/chapter1.tex
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+- /home/simone/project/Thesis/content/chapters/chapter5.tex
+- /home/simone/project/Thesis/content/chapters/chapter6.tex
+
+Inspect current demo_project code, tests and final raw evaluation artefacts only
+where the three reports disagree. Record the verified commit and dirty state.
+Audit reports are evidence collections, not authority.
+
+Produce one binding editorial specification containing:
+1. resolved factual conflicts and rejected claims;
+2. the final section structure and stable labels;
+3. a paragraph-level narrative plan;
+4. a word budget targeting 1,400-1,800 words and 3-4 thesis pages;
+5. one primary owner for every conclusion, limitation and future direction;
+6. the exact functional and performance statements that may be reused from
+   Chapter 6, including their attribution boundaries;
+7. a ranked list of no more than five future-work directions, each tied to a
+   documented limitation;
+8. a no-repetition matrix against Chapters 1-6;
+9. forbidden claims and stale terminology;
+10. citation and glossary requirements;
+11. confirmation that the chapter requires no figures, tables or listings;
+12. an ordered writing checklist and final acceptance checklist.
+
+The specification must not introduce new experiments, source-level detail or
+an official tool name. Do not modify Thesis, demo_project or another file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-07/editorial-synthesis.html</pre>
+      </details>
+    </section>
+
+    <section id="wave3">
+      <h2>Wave 3: Controlled LaTeX Writing</h2>
+      <p class="gate">Run only after the editorial synthesis has been explicitly approved.</p>
+      <details class="prompt">
+        <summary>Agent 5: Sole LaTeX Writer</summary>
+        <div class="meta">The only agent allowed to create Chapter 7 and add its include line.</div>
+        <pre>You are the sole LaTeX writer for Chapter 7, Conclusions and Future Work, of
+an MSc thesis about an eBPF-based runtime security monitoring system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-07-agent-workflow.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-07/editorial-synthesis.html
+- /home/simone/project/Thesis/content/chapters/chapter1.tex
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+- /home/simone/project/Thesis/content/chapters/chapter5.tex
+- /home/simone/project/Thesis/content/chapters/chapter6.tex
+- /home/simone/project/Thesis/content/chapters.tex
+- /home/simone/project/Thesis/bibliography.bib
+- /home/simone/project/Thesis/glossaries.tex
+
+The editorial synthesis is the binding writing specification. Inspect the
+current demo_project implementation and evidence only to verify technical
+claims selected by that synthesis. Record commit and dirty state in the HTML
+report, never in thesis prose.
+
+Create Chapter 7 according to the approved specification. Requirements:
+- clear academic British English;
+- approximately 1,400-1,800 words and 3-4 rendered pages;
+- concise synthesis rather than a chapter-by-chapter recap;
+- no figures, tables, source listings, YAML or commands;
+- no new experimental result or implementation claim;
+- no repeated evaluation protocol or threats-to-validity taxonomy;
+- limitations must lead directly to prioritised future work;
+- ATT&amp;CK remains classification metadata, not proof of coverage;
+- the 5% result retains its one-core and monitor-cgroup boundary;
+- no enforcement, cluster-wide correlation, accuracy, total-overhead,
+  unconditional portability or production-readiness claim;
+- do not modify the abstract or Chapters 1-6.
+
+Modify only:
+- /home/simone/project/Thesis/content/chapters/chapter7.tex
+- /home/simone/project/Thesis/content/chapters.tex
+
+Add the Chapter 7 include exactly once after Chapter 6. Run static label,
+citation, glossary, word-count and diff checks. Run the full LaTeX build if the
+local environment permits it and report missing dependencies honestly.
+
+Write a valid standalone HTML change report only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-07/writing-report.html
+
+The report must contain the inspected commit, final structure, word count,
+estimated/rendered page count, changed files, validation results, unresolved
+warnings and a claim ledger.</pre>
+      </details>
+    </section>
+
+    <section id="wave4">
+      <h2>Wave 4: Independent Final Review</h2>
+      <p class="gate">Use a fresh agent that did not audit, synthesise or write the chapter.</p>
+      <details class="prompt">
+        <summary>Agent 6: Independent Technical and Editorial Reviewer</summary>
+        <div class="meta">Reports findings only. Corrections require user approval.</div>
+        <pre>You are the independent technical and editorial reviewer for Chapter 7 of an
+MSc thesis about an eBPF-based runtime security monitoring system.
+
+Read completely:
+- /home/simone/project/documentation/thesis/definitive-outline.md
+- /home/simone/project/documentation/thesis/terminology-and-style.md
+- /home/simone/project/documentation/thesis/chapter-07-agent-workflow.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-07/editorial-synthesis.html
+- /home/simone/project/documentation/thesis/agent-output/chapter-07/writing-report.html
+- /home/simone/project/Thesis/content/chapters/chapter1.tex
+- /home/simone/project/Thesis/content/chapters/chapter2.tex
+- /home/simone/project/Thesis/content/chapters/chapter3.tex
+- /home/simone/project/Thesis/content/chapters/chapter4.tex
+- /home/simone/project/Thesis/content/chapters/chapter5.tex
+- /home/simone/project/Thesis/content/chapters/chapter6.tex
+- /home/simone/project/Thesis/content/chapters/chapter7.tex
+- /home/simone/project/Thesis/content/chapters.tex
+- /home/simone/project/Thesis/bibliography.bib
+- /home/simone/project/Thesis/glossaries.tex
+
+Review Chapter 7 independently. The synthesis and writing report are not proof
+that its claims are accurate. Inspect current code, tests and raw evidence when
+needed, and record the demo_project commit and dirty state.
+
+Report findings ordered by severity:
+1. conclusions unsupported by Chapters 1-6, code or evidence;
+2. numerical or attribution errors imported from Chapter 6;
+3. implemented features incorrectly presented as future work;
+4. future work presented as an implemented capability;
+5. overclaims about novelty, accuracy, coverage, overhead, portability,
+   enforcement, Kubernetes scope or production readiness;
+6. repetition of background, architecture, implementation or evaluation prose;
+7. limitations not connected to future-work priorities;
+8. weak thesis closure or a final paragraph that only lists tasks;
+9. British-English, terminology, citation, glossary, label and LaTeX issues;
+10. violations of the 3-4 page, no-visual and no-listing budgets.
+
+Check consistency with the thesis objective in Chapter 1 and the scoped results
+in Chapter 6. Run isolated syntax checks and the full thesis build if possible.
+Provide an ordered edit list and a final acceptance checklist. Do not modify
+Thesis, demo_project or another file.
+
+Write valid standalone HTML only to:
+/home/simone/project/documentation/thesis/agent-output/chapter-07/final-review.html</pre>
+      </details>
+    </section>
+
+    <section id="acceptance">
+      <h2>Acceptance Gates</h2>
+      <ul>
+        <li><strong>Gate A:</strong> all three audit reports exist and agree on the supported result boundary.</li>
+        <li><strong>Gate B:</strong> the editorial synthesis contains no stale future-work item and is explicitly approved.</li>
+        <li><strong>Gate C:</strong> Chapter 7 stays within the agreed scale and compiles without new unresolved references.</li>
+        <li><strong>Gate D:</strong> the fresh reviewer finds no unsupported conclusion or high-severity inconsistency.</li>
+        <li><strong>Gate E:</strong> the final human reading confirms that the chapter closes the thesis naturally and does not sound like an executive summary assembled from earlier paragraphs.</li>
+      </ul>
+      <div class="box success">
+        <strong>Expected outcome.</strong> A short final chapter that answers the
+        objective stated in Chapter 1, preserves the experimental qualifications
+        established in Chapter 6 and leaves the reader with a credible,
+        prioritised path beyond the prototype.
+      </div>
+    </section>
+  </main>
+</div>
+</body>
+</html>

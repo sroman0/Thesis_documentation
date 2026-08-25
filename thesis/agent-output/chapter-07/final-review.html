@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 7 Independent Final Review</title>
+  <style>
+    :root { --ink:#172033; --muted:#5c6675; --line:#ccd5df; --panel:#f5f7fa; --red:#982f2f; --amber:#8a5a00; --green:#176b43; --blue:#2457a6; }
+    * { box-sizing: border-box; }
+    body { margin:0; color:var(--ink); background:#fff; font:16px/1.56 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    main { max-width:1180px; margin:auto; padding:40px 28px 72px; }
+    h1,h2,h3 { line-height:1.22; }
+    h1 { margin-top:0; }
+    h2 { margin-top:38px; padding-bottom:7px; border-bottom:1px solid var(--line); }
+    h3 { margin-top:26px; }
+    p,li { max-width:106ch; }
+    code { padding:.08rem .25rem; background:#edf1f5; font-family:ui-monospace,Consolas,monospace; overflow-wrap:anywhere; }
+    table { width:100%; margin:16px 0 26px; border-collapse:collapse; }
+    th,td { padding:10px 11px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { background:#edf2f7; }
+    .box { margin:18px 0; padding:14px 17px; border-left:4px solid var(--blue); background:#f2f6fc; }
+    .major { border-left-color:var(--red); background:#fff3f3; }
+    .moderate { border-left-color:var(--amber); background:#fff8ea; }
+    .pass { border-left-color:var(--green); background:#eff8f3; }
+    .muted { color:var(--muted); }
+    .status { display:inline-block; padding:4px 9px; border:1px solid var(--red); color:var(--red); background:#fff7f7; font-weight:700; }
+    @media (max-width:800px) { main{padding:26px 16px 48px} table{display:block;overflow-x:auto;font-size:14px} }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Chapter 7 Independent Technical and Editorial Review</h1>
+  <p><span class="status">VERDICT: REVISE BEFORE ACCEPTANCE</span></p>
+  <p class="muted">Review date: 25 August 2026. Scope: Chapter 7 and its relationship to Chapters 1–6, the current implementation, tests and retained cross-Pod evidence.</p>
+
+  <div class="box major">
+    <strong>Decision.</strong> The chapter is technically restrained and its imported numerical results are correct, but it is not yet ready for final acceptance. One closing conclusion exceeds the evidence, the available isolated rendering is five pages rather than the requested three to four, and two future-work passages need sharper separation from work that already exists or from an immediate defect correction.
+  </div>
+
+  <h2>1. Repository and Evidence Baseline</h2>
+  <table>
+    <tbody>
+      <tr><th>Inspected <code>demo_project</code> commit</th><td><code>e8795fea7afb12079844031a1a8b69d7091e0dfd</code></td></tr>
+      <tr><th>Commit metadata</th><td>2026-08-13 05:33:41 UTC; <code>test(process): added minkube-ctf process evaluation</code></td></tr>
+      <tr><th>Dirty tracked files</th><td><code>Dockerfile</code>; <code>pkg/policy/loader_test.go</code></td></tr>
+      <tr><th>Untracked paths</th><td><code>k8s/minikube-ctf-cross-pod/</code>; <code>rules/policies/aes-beta-process-observation.yaml</code></td></tr>
+      <tr><th>Functional raw evidence</th><td><code>demo_project/k8s/minikube-ctf-cross-pod/evidence/cross-pod-20260817T052019Z/summary.tsv</code></td></tr>
+      <tr><th>Performance raw evidence</th><td><code>demo_project/k8s/minikube-ctf-cross-pod/evidence/cross-pod-performance-20260819T070557Z/runs.tsv</code> and <code>aggregate.tsv</code></td></tr>
+    </tbody>
+  </table>
+  <p>The evidence and cross-Pod definitions are present but untracked at this revision. Chapter 7 does not misrepresent them as a committed deployment capability. The raw summaries confirm three benign and three exploit functional repetitions, three runs per performance profile, all stated alert and flag outcomes, and the reported cgroup metrics.</p>
+
+  <h2>2. Findings Ordered by Severity</h2>
+
+  <h3>Major — F1. The final general lesson is not established by the thesis evidence</h3>
+  <div class="box major">
+    <p><strong>Location:</strong> Chapter 7, lines 172–175.</p>
+    <p><strong>Text at issue:</strong> the thesis says useful runtime monitoring “depends less on collecting the largest possible event catalogue than on preserving selective, well-defined evidence”.</p>
+    <p><strong>Why this matters:</strong> Chapters 1–5 motivate selective evidence, and Chapter 6 evaluates one four-event detector under filtered and unfiltered admission. No experiment or related-work comparison tests event-catalogue breadth against evidence quality. The comparative “depends less on … than on …” construction therefore converts a design preference and a single-scenario result into a general conclusion.</p>
+    <p><strong>Required edit:</strong> restrict the sentence to the demonstrated result. For example: “For the evaluated node-local scenario, selective, well-defined evidence was sufficient to carry the configured observation sequence from kernel hooks to an alert.” The final paragraph can then retain its useful closure without asserting an unevaluated general law.</p>
+  </div>
+
+  <h3>Major — F2. The available rendering violates the 3–4 page budget</h3>
+  <div class="box major">
+    <p><strong>Location:</strong> whole chapter.</p>
+    <p><strong>Evidence:</strong> the source contains 1,465 whitespace-delimited tokens. A fresh isolated 11pt <code>report</code> build using the thesis paragraph spacing reached five pages, matching the writing report. The first pass parsed the chapter and also reported one 6.18 pt overfull box in the paragraph at lines 24–35. A complete authoritative build could not reach chapter processing because the installed TeX distribution lacks <code>biblatex.sty</code>.</p>
+    <p><strong>Required edit:</strong> reduce the chapter enough to render within four pages in the authoritative thesis layout. The best cuts are implementation mechanics in Section 7.1, the optional operational-diagnostic paragraph in Section 7.2, repeated validity language in Section 7.3 and detail within the five roadmap paragraphs. Rebuild before choosing an exact word target; rendered length is the binding constraint.</p>
+  </div>
+
+  <h3>Moderate — F3. An immediate registry defect is mixed into the primary future-work roadmap</h3>
+  <div class="box moderate">
+    <p><strong>Locations:</strong> lines 90–92 and 122–129.</p>
+    <p><strong>Evidence:</strong> <code>make test-registry</code> fails at <code>TestPublicProbesHaveDecoderSpecs</code> because <code>security_socket_sendmsg</code> is registered as public without a decoder schema. Source inspection shows that it is a support probe implied by cgroup network events and lacks the <code>internal: true</code> marker used by adjacent support probes.</p>
+    <p><strong>Assessment:</strong> Chapter 7 accurately discloses the problem, so this is not a hidden capability overclaim. However, correcting a known one-line classification defect is a release/acceptance gate, not the first research or engineering direction beyond the thesis. Its inclusion under “The first priority” blurs defect correction with the genuinely forward-looking single-source contract work. It also weakens the unqualified opening statement that the objective was achieved, because NFR-03 requires a consistent kernel-to-user-space contract.</p>
+    <p><strong>Required edit:</strong> either fix and verify the defect before submission and remove the snapshot-specific sentence, or retain it explicitly as a current acceptance caveat. Keep generation of shared contract metadata and mandatory consistency checks as the future direction.</p>
+  </div>
+
+  <h3>Moderate — F4. Existing decoder robustness tests are presented too broadly as future work</h3>
+  <div class="box moderate">
+    <p><strong>Location:</strong> lines 141–147, especially “Canonical decoder fixtures should exercise malformed and boundary-sized records.”</p>
+    <p><strong>Evidence:</strong> current tests already cover records whose arguments exceed 256 bytes, truncated string-array elements, invalid UTF-8, and truncated credential payloads. The decoder suite is incomplete—for example, the future case for cross-language canonical fixtures and full record-boundary invariants remains valid—but malformed-record testing is not wholly absent.</p>
+    <p><strong>Required edit:</strong> say that existing decoder tests should be extended with C/Go canonical fixtures and complete boundary/truncation coverage. This preserves the real gap without presenting implemented tests as future work.</p>
+  </div>
+
+  <h3>Moderate — F5. The Rocky Linux compatibility statement has a wider grammatical subject than the evaluated path</h3>
+  <div class="box moderate">
+    <p><strong>Location:</strong> lines 24–34.</p>
+    <p><strong>Issue:</strong> “these mechanisms” can be read as the whole implemented event and attachment surface operating on the verified kernel. Chapter 6 validates the selected cross-Pod producer set and detector path, not every hook family, attachment route or logical event. Chapter 4 documents compatibility adaptations but does not experimentally establish complete runtime coverage.</p>
+    <p><strong>Required edit:</strong> replace the broad result with “supports the evaluated mechanisms on Rocky Linux 8.10” or separate implementation intent from evaluated operation. Use the canonical environment name <code>Rocky Linux 8.10</code>.</p>
+  </div>
+
+  <h3>Minor — F6. Sections 7.1–7.3 repeat more mechanics and validity prose than the page budget permits</h3>
+  <p>Section 7.1 repeats the Chapter 3 division of responsibilities and several Chapter 4/5 summary details: complementary stages, direct and paired producers, support-program planning, CO-RE branches, schema-directed decoding and detector forms. Section 7.2 closely restates the Chapter 6 evaluation summary, while the last paragraph of Section 7.3 condenses most of Chapter 6’s external, construct and conclusion-validity qualifications. A conclusion must synthesise these points, but their present density contributes directly to the five-page result. Preserve the objective answer, the two scoped results and the few limitations that motivate the roadmap; remove mechanism-level enumeration.</p>
+
+  <h3>Minor — F7. Priority 5 combines two limitations with different status</h3>
+  <p>Reduced deployment privilege follows directly from the privileged, unconfined laboratory deployment and is a clear primary engineering priority. A versioned export contract for optional aggregation follows from an intentional node-local scope boundary rather than a demonstrated defect. Keeping both in one “fifth priority” makes the integration extension appear equally necessary. Retain least privilege as the priority and mark export/aggregation as an optional follow-on, consistent with Chapter 3.</p>
+
+  <h3>Minor — F8. The opening should acknowledge the unresolved assurance qualification</h3>
+  <p>Lines 4–11 answer the Chapter 1 objective clearly, and Chapters 3–6 support the design, implementation and scoped evaluation. Nevertheless, “achieved its scoped objective” reads categorically before the later registry inconsistency is disclosed. If the defect remains at submission, use “substantially achieved its scoped objective” or append a compact assurance qualification. If the defect is fixed and the registry suite passes, the current wording is acceptable.</p>
+
+  <h2>3. Checks with No Adverse Finding</h2>
+  <table>
+    <thead><tr><th>Area</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Chapter 6 numerical transfer</td><td><strong>Pass.</strong> The 0.46% filtered mean, 5.73% unfiltered mean, three-run basis, one-core denominator, 5% project gate and approximately 92.0% comparison all match Chapter 6 and the raw TSVs. The denominator for the reduction is the unfiltered monitor-container cgroup mean.</td></tr>
+      <tr><td>Functional attribution</td><td><strong>Pass.</strong> Three flag recoveries and complete alerts, three selected benign controls without the matching alert, same-node cross-Pod scope and the untested parent-child correlation branch are stated accurately.</td></tr>
+      <tr><td>Loss attribution</td><td><strong>Pass.</strong> Absence of a matching diagnostic is explicitly distinguished from proof of complete or loss-free delivery.</td></tr>
+      <tr><td>Accuracy and ATT&amp;CK</td><td><strong>Pass.</strong> No accuracy or false-positive-rate claim is made; ATT&amp;CK is correctly limited to classification metadata.</td></tr>
+      <tr><td>Enforcement and production readiness</td><td><strong>Pass.</strong> Both are denied as current capabilities. Learned contextual detection is correctly treated as requiring separate work.</td></tr>
+      <tr><td>Kubernetes and cluster scope</td><td><strong>Pass with F7 qualification.</strong> Current detection remains node-local; Kubernetes identity, cross-node collection and cluster-wide reasoning are not claimed as implemented.</td></tr>
+      <tr><td>Novelty</td><td><strong>Pass.</strong> The contribution is described as engineering integration of established mechanisms, without priority or superiority language.</td></tr>
+      <tr><td>Terminology and British English</td><td><strong>Pass.</strong> <code>eBPF</code>, kernel/user-space forms, normalisation, behaviour and utilisation are consistent. No internal product name appears.</td></tr>
+      <tr><td>Citations and glossary</td><td><strong>Pass.</strong> No new external claim requiring a new citation was introduced. The used glossary keys <code>ebpf</code>, <code>uid</code>, <code>attack</code> and <code>cpu</code> exist.</td></tr>
+      <tr><td>Labels and include</td><td><strong>Pass.</strong> The chapter and four section labels are unique, the Chapter 6 reference target exists, and Chapter 7 is included exactly once after Chapter 6.</td></tr>
+      <tr><td>No-visual/no-listing budget</td><td><strong>Pass.</strong> Chapter 7 contains no figure, table, listing, equation, YAML, command sequence or list environment.</td></tr>
+      <tr><td>Thesis closure</td><td><strong>Pass after F1.</strong> The final paragraph returns to the monitoring problem rather than merely listing tasks; only its opening comparative claim needs narrowing.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. Validation Record</h2>
+  <table>
+    <thead><tr><th>Check</th><th>Outcome</th><th>Interpretation</th></tr></thead>
+    <tbody>
+      <tr><td><code>make test-registry</code></td><td>Fail</td><td>Events package passed; probes package failed only at the public-probe/decoder invariant for <code>security_socket_sendmsg</code>.</td></tr>
+      <tr><td>Focused Go packages</td><td>Partial pass</td><td>Policy, detector, detector-YAML, buffer-decoder, config and output tests passed with a writable temporary Go cache. Command/runtime packages could not compile because the local libbpf headers/library configuration does not expose the required libbpf symbols.</td></tr>
+      <tr><td>Isolated Chapter 7 LaTeX, first pass</td><td>Parsed to completion</td><td>Five pages; expected undefined Chapter 6 reference in the isolated wrapper; one 6.18 pt overfull box. A second pass was blocked by the incomplete local font toolchain (<code>gftopk</code> missing).</td></tr>
+      <tr><td>Full thesis build in a temporary copy</td><td>Blocked before chapter processing</td><td><code>pdflatex</code> stopped because <code>biblatex.sty</code> is not installed. No thesis source or generated file in the repository was changed.</td></tr>
+      <tr><td>Static structure checks</td><td>Pass</td><td>No duplicate labels, missing Chapter 7 glossary keys, prohibited visual/listing environments or duplicate Chapter 7 include were found.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. Ordered Edit List</h2>
+  <ol>
+    <li>Narrow the unsupported “depends less on … than on …” conclusion to the evaluated node-local scenario.</li>
+    <li>Resolve the <code>security_socket_sendmsg</code> registry classification and rerun <code>make test-registry</code>; if resolution is deferred, keep it as an explicit acceptance caveat rather than a primary future direction.</li>
+    <li>Qualify the Rocky Linux sentence so it covers the evaluated mechanisms, and name <code>Rocky Linux 8.10</code> explicitly.</li>
+    <li>Rewrite the decoder-fixture roadmap sentence as an extension of existing malformed/truncation tests, focused on missing cross-language canonical and complete boundary coverage.</li>
+    <li>Make least-privilege deployment the core of Priority 5 and demote external aggregation/export to an optional follow-on.</li>
+    <li>Compress Sections 7.1–7.3 and the roadmap until the authoritative build renders Chapter 7 in no more than four pages. Remove repeated implementation mechanics before removing claim boundaries.</li>
+    <li>Rebuild the complete thesis with the required TeX dependencies; inspect pagination, the reported overfull paragraph, references, glossary expansion and the final page break.</li>
+    <li>Re-run static label, glossary, citation, inclusion and no-visual checks after editing.</li>
+  </ol>
+
+  <h2>6. Final Acceptance Checklist</h2>
+  <ul>
+    <li>☐ The closing lesson is explicitly limited to what the selected scenario demonstrates.</li>
+    <li>☐ The registry invariant passes, or the unresolved defect remains clearly disclosed as an acceptance caveat.</li>
+    <li>☐ No existing decoder robustness coverage is described as wholly future work.</li>
+    <li>☐ Compatibility wording distinguishes the evaluated path from the complete implemented event surface.</li>
+    <li>☐ Every numerical value retains its Chapter 6 population, run count, cgroup boundary and one-core denominator.</li>
+    <li>☐ No accuracy, ATT&amp;CK coverage, total-overhead, loss-free, cross-node, enforcement, portability or production-readiness claim appears.</li>
+    <li>☐ Each primary future direction resolves a stated limitation; optional external aggregation remains visibly optional.</li>
+    <li>☐ The chapter renders in three to four pages in the authoritative thesis layout.</li>
+    <li>☐ The authoritative build has no new unresolved references, glossary failures or material overfull boxes.</li>
+    <li>☐ The chapter still contains zero figures, tables, listings and source/configuration examples.</li>
+    <li>☐ The final paragraph closes the Chapter 1 objective with a scoped result rather than an unsupported generalisation or a task list.</li>
+  </ul>
+
+  <div class="box pass">
+    <strong>Acceptance outlook.</strong> No Chapter 6 number or core attribution needs correction, and the chapter avoids the principal novelty, accuracy, coverage, overhead, enforcement and production-readiness overclaims. Acceptance should follow once F1–F5 are addressed, the registry state is truthful, and an authoritative four-page build is demonstrated.
+  </div>
+</main>
+</body>
+</html>

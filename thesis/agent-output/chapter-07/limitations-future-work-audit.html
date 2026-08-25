@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 7 Limitations and Future Work Audit</title>
+  <style>
+    :root { color-scheme:light; --ink:#18212a; --muted:#5d6872; --line:#cbd3d9; --panel:#f4f7f8; --accent:#0f6074; --soft:#e8f4f6; --warn:#89500b; --warn-bg:#fff5df; --bad:#8b2222; --bad-bg:#fff0f0; --ok:#24633d; --ok-bg:#edf8f0; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; color:var(--ink); background:#fff; font:16px/1.56 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    .layout { display:grid; grid-template-columns:240px minmax(0,1020px); gap:2rem; max-width:1320px; margin:auto; padding:2rem 1.25rem 5rem; }
+    nav { position:sticky; top:1rem; align-self:start; padding:1rem; border:1px solid var(--line); background:var(--panel); }
+    nav strong, nav a { display:block; } nav strong { margin-bottom:.55rem; } nav a { padding:.25rem 0; color:var(--accent); text-decoration:none; } nav a:hover { text-decoration:underline; }
+    main { min-width:0; } h1,h2,h3 { line-height:1.2; letter-spacing:0; } h1 { margin-top:0; } h2 { margin-top:2.4rem; padding-bottom:.35rem; border-bottom:2px solid var(--line); }
+    p,li { max-width:90ch; } code { padding:.08rem .27rem; background:#edf0f2; overflow-wrap:anywhere; }
+    table { width:100%; margin:1rem 0; border-collapse:collapse; font-size:.92rem; } th,td { padding:.62rem; border:1px solid var(--line); text-align:left; vertical-align:top; } th { background:var(--panel); }
+    .box { margin:1rem 0; padding:.9rem 1rem; border-left:5px solid var(--accent); background:var(--soft); }
+    .warning { border-left-color:var(--warn); background:var(--warn-bg); } .critical { border-left-color:var(--bad); background:var(--bad-bg); } .success { border-left-color:var(--ok); background:var(--ok-bg); }
+    .p0 { color:var(--bad); font-weight:700; } .p1 { color:var(--warn); font-weight:700; } .p2 { color:var(--accent); font-weight:700; } .optional { color:var(--muted); font-weight:700; }
+    .cards { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.8rem; } .card { padding:1rem; border:1px solid var(--line); background:var(--panel); } .card h3 { margin-top:0; }
+    @media(max-width:900px) { .layout { grid-template-columns:1fr; } nav { position:static; } table { display:block; overflow-x:auto; } .cards { grid-template-columns:1fr; } }
+    @media print { nav { display:none; } .layout { display:block; max-width:none; padding:0; } }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav aria-label="Report navigation">
+    <strong>Chapter 7 audit</strong>
+    <a href="#decision">Decision</a>
+    <a href="#snapshot">Verified snapshot</a>
+    <a href="#implemented">Already implemented</a>
+    <a href="#matrix">Limitation matrix</a>
+    <a href="#primary">Primary directions</a>
+    <a href="#secondary">Secondary extensions</a>
+    <a href="#sections">Sections 7.3 and 7.4</a>
+    <a href="#stale">Stale-item warnings</a>
+    <a href="#questions">Unresolved questions</a>
+  </nav>
+
+  <main>
+    <h1>Limitations and Future Work Audit</h1>
+    <p class="muted">Prepared for Chapter 7 on 25 August 2026. Older reports and roadmap entries were checked against the current implementation and tests.</p>
+
+    <section id="decision">
+      <h2>Editorial Decision</h2>
+      <div class="box">
+        <strong>The main limitation is assurance, not absence of a working pipeline.</strong>
+        The prototype already implements broad host-hook collection, selective
+        loading, decoding, policy admission, point and collective detectors,
+        bounded partial sequences, ATT&amp;CK metadata, structured diagnostics,
+        exact UID admission and a cross-Pod evaluation. Future work should first
+        strengthen contract consistency, integration testing and operational
+        evidence before expanding the feature catalogue.
+      </div>
+      <div class="box critical">
+        <strong>Immediate baseline defect.</strong> On the inspected commit,
+        <code>make test-registry</code> and the complete Go suite fail because
+        <code>security_socket_sendmsg</code> is registered as a public probe but
+        has no decoder schema. Its eBPF program updates networking support state
+        and does not submit an independent public event. It should therefore be
+        classified as an internal support probe, or be given a deliberate public
+        event contract if that behaviour is intended. This correction precedes
+        future development and should not be disguised as a long-term direction.
+      </div>
+      <p>
+        No more than five primary future directions are justified. Enforcement,
+        learned contextual anomaly detection and cluster-wide correlation remain
+        optional extensions: they would change the system boundary rather than
+        complete the current node-local monitor.
+      </p>
+    </section>
+
+    <section id="snapshot">
+      <h2>Verified Repository Snapshot</h2>
+      <table>
+        <thead><tr><th>Item</th><th>Observed state</th><th>Audit consequence</th></tr></thead>
+        <tbody>
+          <tr><td>Inspected commit</td><td><code>e8795fea7afb12079844031a1a8b69d7091e0dfd</code><br>13 August 2026<br><code>test(process): added minkube-ctf process evaluation</code></td><td>Committed code is the primary basis for implementation claims.</td></tr>
+          <tr><td>Dirty worktree</td><td><code>M Dockerfile</code><br><code>M pkg/policy/loader_test.go</code><br><code>?? k8s/minikube-ctf-cross-pod/</code><br><code>?? rules/policies/aes-beta-process-observation.yaml</code></td><td>The cross-Pod laboratory supports Chapter 6 evidence but is not part of the recorded implementation commit. None of its uncommitted behaviour is treated as a completed product feature.</td></tr>
+          <tr><td>Focused registry test</td><td><code>make test-registry</code> fails at <code>TestPublicProbesHaveDecoderSpecs</code> for <code>security_socket_sendmsg</code>.</td><td>The public probe/event invariant is currently broken.</td></tr>
+          <tr><td>Complete Go suite</td><td>All reported packages other than <code>pkg/ebpf/probes</code> passed with the local libbpf/CGO environment; overall status is fail because of the same registry inconsistency.</td><td>Do not state that the current revision has a fully passing suite.</td></tr>
+          <tr><td>Kernel-backed tests</td><td>No tests exist under <code>pkg/ebpf</code>; loader, real object loading, map updates, attachment rollback and cancellation are not exercised through an object-backed integration harness.</td><td>Code inspection supports lifecycle design, but not complete target-runtime assurance.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="implemented">
+      <h2>Items Already Implemented</h2>
+      <p>The following roadmap entries are stale as future work and must not be presented as missing:</p>
+      <ul>
+        <li>Policy and detector YAML loading, deterministic directory ordering and event-name validation.</li>
+        <li>Policy-driven event selection and detector-catalogue selection.</li>
+        <li>Point and collective YAML detectors with compiled conditions and event-indexed dispatch.</li>
+        <li>Local <code>process</code>, immediate <code>process_tree</code>, device-inode <code>resource</code>, local <code>cgroup</code> and composite correlation plans.</li>
+        <li>A two-second default and five-second maximum collective window, periodic event-driven pruning and a 4,096-key per-detector partial-state cap.</li>
+        <li>Separate event, alert and Zap diagnostic paths, including perf-buffer loss warnings.</li>
+        <li>MITRE ATT&amp;CK metadata propagation and policy selection by tactic or technique.</li>
+        <li>Exact effective-UID filtering in the shared eBPF path and its controlled performance evaluation.</li>
+        <li>Cross-Pod, same-node Minikube visibility and one scenario-specific collective detector evaluation.</li>
+      </ul>
+    </section>
+
+    <section id="matrix">
+      <h2>Limitation-to-Future-Work Matrix</h2>
+      <table>
+        <thead><tr><th>Limitation</th><th>Current evidence</th><th>User impact</th><th>Priority</th><th>Proposed next step</th><th>Class</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Public probe/event contract can drift.</td>
+            <td>Current registry test fails for <code>security_socket_sendmsg</code>. C event IDs, Go IDs, schemas and probe metadata are maintained in separate files.</td>
+            <td>An operator can be offered an event name that cannot be decoded, and drift may reach runtime or block releases.</td>
+            <td class="p0">P0</td>
+            <td>Correct the support-probe classification immediately; then generate IDs and registry metadata from one reviewed source and make cross-registry checks mandatory in CI.</td>
+            <td>Engineering</td>
+          </tr>
+          <tr>
+            <td>The binary and configuration-map layouts are mirrored manually.</td>
+            <td>The 136-byte context uses explicit Go offsets; credential layout and UID-filter map offsets are also duplicated manually. Decoder tests cover representative records but there is no generated ABI or loaded-map layout assertion.</td>
+            <td>A field insertion or alignment change can silently corrupt decoding or map configuration.</td>
+            <td class="p0">P0</td>
+            <td>Extend the single-source contract to generate C/Go constants and add compile-time or build-time size/offset assertions plus golden-record tests.</td>
+            <td>Engineering</td>
+          </tr>
+          <tr>
+            <td>Loader and partial lifecycle lack object-backed integration tests.</td>
+            <td>The runner defers <code>Close</code> even after <code>Init</code> fails, and cleanup reverses links and closes buffers/modules. Tests cover selection logic, not module opening, autoload, map updates, partial attachment failure, cancellation or cleanup.</td>
+            <td>Resource leaks and rollback defects may appear only on the target host.</td>
+            <td class="p0">P0</td>
+            <td>Introduce injectable module/attacher interfaces for deterministic failure tests, followed by privileged target-kernel smoke tests for load, attach, cancellation and rollback.</td>
+            <td>Engineering and evaluation</td>
+          </tr>
+          <tr>
+            <td>External YAML parsing is not strict.</td>
+            <td>Policy and detector loaders call <code>yaml.Unmarshal</code>; unknown keys are ignored. Semantic validation catches known-field errors but cannot diagnose a misspelled key that disappears during parsing.</td>
+            <td>A policy or detector may load with weaker or different behaviour than the author intended.</td>
+            <td class="p1">P1</td>
+            <td>Use a decoder with <code>KnownFields(true)</code>, reject multiple documents and trailing content deliberately, and add path-aware diagnostics with typo regression tests.</td>
+            <td>Engineering</td>
+          </tr>
+          <tr>
+            <td>Decoder acceptance is bounded but not fully canonical.</td>
+            <td>Unknown IDs, invalid indexes, oversized values and truncated typed payloads are rejected. Missing arguments are tolerated, duplicate indexes overwrite earlier values, and argument-count/trailing-byte consistency is not enforced as a canonical form.</td>
+            <td>Malformed records can be accepted ambiguously, making contract faults harder to distinguish from intentionally omitted fields.</td>
+            <td class="p1">P1</td>
+            <td>Define canonical versus intentionally sparse records, then add duplicate-index, count-mismatch, trailing-byte and required-argument tests. Reject only cases that cannot be valid producer output.</td>
+            <td>Engineering</td>
+          </tr>
+          <tr>
+            <td>Collective cleanup depends on relevant traffic.</td>
+            <td>Each detector bounds partial keys at 4,096 and prunes on qualifying events. The engine exposes <code>Flush</code>, but the production runtime does not schedule it independently.</td>
+            <td>Expired state can remain allocated while a detector is idle, although the hard capacity prevents unbounded sequence growth.</td>
+            <td class="p1">P1</td>
+            <td>Add a low-frequency runtime maintenance tick or explicit engine lifecycle hook, with deterministic clock tests and shutdown flushing.</td>
+            <td>Engineering</td>
+          </tr>
+          <tr>
+            <td>Alert deduplication has no independent capacity bound and uses a coarse key.</td>
+            <td>Entries are time-pruned only when alert batches are processed; the key is based on detector and first evidence event rather than the complete collective sequence.</td>
+            <td>High-cardinality alerts can grow the cache between pruning opportunities, and distinct collective sequences may be collapsed when their first evidence is identical.</td>
+            <td class="p1">P1</td>
+            <td>Bound the cache, define eviction metrics and derive a sequence-aware fingerprint from the correlation/evidence identity. Keep deduplication separate from detection correctness.</td>
+            <td>Engineering and research</td>
+          </tr>
+          <tr>
+            <td>Perf-buffer loss is observable only through transient diagnostics.</td>
+            <td>The reader logs <code>lost_events</code>; Chapter 6 found no matching warnings but used no independent event-completeness oracle. Kernel submission statistics are not exposed as a stable operational metric.</td>
+            <td>Operators cannot quantify delivered versus dropped evidence or compare capacity configurations reliably.</td>
+            <td class="p1">P1</td>
+            <td>Export cumulative per-CPU/per-event submission, failure, receipt and decode counters; stress the transport with known-volume workloads before evaluating a BPF ring-buffer alternative on the actual vendor kernel.</td>
+            <td>Engineering and evaluation</td>
+          </tr>
+          <tr>
+            <td>Hook coverage is broad but intentionally incomplete.</td>
+            <td>All host families selected for Chapter 4 are represented. Known gaps include no public <code>security_task_fix_setgid</code> event and no generic raw-syscall stream; many additional C enum entries are not public implemented events.</td>
+            <td>Some security questions cannot be expressed with effect-level evidence, while indiscriminate hooks would increase noise and maintenance cost.</td>
+            <td class="p2">P2</td>
+            <td>Derive additions from a detector/evidence gap matrix. Prioritise only hooks that add an unavailable operation stage or support an evaluated detector; consider committed GID mediation before broad syscall capture.</td>
+            <td>Engineering and evaluation</td>
+          </tr>
+          <tr>
+            <td>Evaluation covers one kernel, node, workload and scenario detector.</td>
+            <td>Chapter 6 uses Rocky Linux 8.10, one two-core Minikube node, three repetitions per condition and one AES-beta sequence. It does not establish general accuracy or total overhead.</td>
+            <td>Performance and detection results may not transfer to other kernels, rates, runtimes or detector sets.</td>
+            <td class="p1">P1</td>
+            <td>Build a versioned evaluation matrix across representative benign workloads, attack sequences, event rates, detector sets and supported kernels; add injected-volume loss tests and longer runs.</td>
+            <td>Evaluation</td>
+          </tr>
+          <tr>
+            <td>Kubernetes deployment uses broad privileges.</td>
+            <td>The evaluated monitor is privileged, uses unconfined seccomp and mounts host BTF, bpffs and tracefs. Chapter 6 explicitly does not claim least privilege or production readiness.</td>
+            <td>A deployment compromise would expose a large host attack surface.</td>
+            <td class="p1">P1</td>
+            <td>Identify the minimum capabilities, mounts and write permissions per selected probe family; test a hardened DaemonSet profile with read-only inputs, service-account restrictions and documented fallback behaviour.</td>
+            <td>Engineering and evaluation</td>
+          </tr>
+          <tr>
+            <td>Correlation and detection are node-local.</td>
+            <td>Process, file and cgroup keys are local observations. No persistent graph, cross-node event bus or Kubernetes identity resolver is implemented.</td>
+            <td>Multi-node campaigns and cluster context cannot be decided by one local agent.</td>
+            <td class="optional">Optional</td>
+            <td>Define a versioned alert/evidence export contract for an external aggregator. Keep global identity and cluster policy outside the kernel collector.</td>
+            <td>Research and engineering</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="primary">
+      <h2>Five Primary Future Directions</h2>
+      <ol>
+        <li><strong>Generate and continuously verify the event contract.</strong> Repair the current support-probe classification, then make event IDs, schemas, probe exposure and shared layout constants derive from one source. This has the highest leverage because every hook and detector depends on the contract.</li>
+        <li><strong>Add lifecycle and target-kernel integration testing.</strong> Cover object resolution, selective autoload, map configuration, each attachment route, partial failure rollback, cancellation and cleanup. Unit-test through injected interfaces and retain a smaller privileged smoke suite on Rocky Linux.</li>
+        <li><strong>Make external configuration strict and diagnostic.</strong> Reject unknown YAML keys and ambiguous documents, report file and field paths, and extend decoder canonical-form tests so invalid configuration and invalid records fail early and clearly.</li>
+        <li><strong>Complete bounded state management.</strong> Schedule detector maintenance independently of event arrival, cap deduplication state, expose eviction/suppression metrics and use a sequence-aware fingerprint without merging deduplication with causal correlation.</li>
+        <li><strong>Harden and broaden operational validation.</strong> Expose transport-accounting metrics, stress perf-buffer delivery, investigate ring-buffer feasibility only after target-kernel verification, expand workloads/kernels/detectors, and derive a least-privilege Kubernetes profile from measured attachment needs.</li>
+      </ol>
+      <p>
+        Direction 5 is intentionally a staged validation programme rather than a
+        claim that ring-buffer migration or production Kubernetes support is
+        already selected. Metrics and privilege inventory come first; transport
+        replacement and deployment changes require comparative evidence.
+      </p>
+    </section>
+
+    <section id="secondary">
+      <h2>Secondary and Speculative Extensions</h2>
+      <div class="cards">
+        <div class="card"><h3>Targeted hook additions</h3><p>Add only observation points required by a detector or missing operation stage. A complete syscall catalogue is not a security objective and would work against the measured filtering strategy.</p></div>
+        <div class="card"><h3>External cluster aggregation</h3><p>A central platform could combine versioned node alerts with Kubernetes inventory. This is an adjacent system, not unfinished local correlation.</p></div>
+        <div class="card"><h3>Contextual anomaly detection</h3><p>Learned baselines, statistical scores and cluster context require new data, evaluation and threat models. They should not be described as the natural next implementation step.</p></div>
+        <div class="card"><h3>Enforcement</h3><p>Blocking through LSM or other mechanisms would require safety, policy-conflict and failure-mode analysis. The current prototype is observational, so enforcement remains optional research.</p></div>
+        <div class="card"><h3>Integrity reconstruction</h3><p>Hidden-module discovery, handler-code inspection and complete eBPF attachment graphs are attractive but substantially exceed the evidence-preserving hooks currently implemented.</p></div>
+        <div class="card"><h3>User-session correlation</h3><p><code>user_session</code> should remain rejected until a stable session identity enters the normalised event model. UID alone is not an acceptable approximation.</p></div>
+      </div>
+    </section>
+
+    <section id="sections">
+      <h2>Compact Plan for Sections 7.3 and 7.4</h2>
+      <h3>7.3 Limitations</h3>
+      <ol>
+        <li><strong>Implementation assurance.</strong> State that C/Go contracts and registries are separately maintained, configuration parsing is not strict, and kernel-backed lifecycle coverage is limited. Mention the frozen revision's registry status only after it is repaired.</li>
+        <li><strong>State and transport boundaries.</strong> Summarise event-driven sequence cleanup, unbounded dedup cache, arrival-order correlation and diagnostic-only loss observation. Do not repeat exact algorithms from Chapter 5.</li>
+        <li><strong>Coverage and deployment.</strong> Explain that host hook coverage is selective, the monitor is observational and privileged, and local identities do not provide cross-node context.</li>
+        <li><strong>Evaluation scope.</strong> Reuse Chapter 6's final qualifications in one paragraph: one kernel, node, workload and detector; three repetitions; cgroup CPU rather than total overhead; no general accuracy or loss-free claim.</li>
+      </ol>
+      <h3>7.4 Future Work</h3>
+      <ol>
+        <li>Lead with generated contract/registry consistency and integration tests as immediate engineering work.</li>
+        <li>Group strict YAML, canonical decoder validation and bounded detector maintenance under runtime robustness.</li>
+        <li>Describe observable transport metrics, comparative transport experiments and broader evaluation as the evidence programme.</li>
+        <li>Close the primary roadmap with least-privilege Kubernetes hardening.</li>
+        <li>End with one short optional paragraph on external aggregation, contextual analysis and enforcement, explicitly outside the local prototype.</li>
+      </ol>
+      <div class="box warning">
+        Sections 7.3 and 7.4 should not reproduce this matrix. The thesis needs
+        four compact limitation themes and five prioritised directions, with one
+        sentence connecting each future item to the limitation that motivates it.
+      </div>
+    </section>
+
+    <section id="stale">
+      <h2>Stale-Item Warnings</h2>
+      <table>
+        <thead><tr><th>Older statement or plan</th><th>Current status</th><th>Required treatment</th></tr></thead>
+        <tbody>
+          <tr><td>Detector YAML supports only single-event matching.</td><td>False. Ordered stateful sequences and compiled correlation plans are implemented and tested.</td><td>Delete or mark as historical.</td></tr>
+          <tr><td><code>group_by</code>, pruning and state capacity are future work.</td><td>False. Process, process-tree, resource, cgroup and composite plans plus a 4,096-key cap exist.</td><td>Future work is independent maintenance and dedup bounds, not first implementation.</td></tr>
+          <tr><td>Policy selection by ATT&amp;CK metadata is missing.</td><td>False. Tactic and technique selectors are implemented; semantic catalogue validation remains absent.</td><td>Do not promise first-stage MITRE integration. Optional work may validate mappings against a pinned catalogue.</td></tr>
+          <tr><td>Structured Zap logging and perf-loss warnings are pending.</td><td>False. They are wired into the runtime.</td><td>The remaining gap is durable metrics and independent completeness evidence.</td></tr>
+          <tr><td>Kernel-side filtering has not been implemented.</td><td>False. Exact effective-UID admission is implemented and evaluated.</td><td>Future filters require a demonstrated use case and stable identity; do not promise arbitrary policy compilation into eBPF.</td></tr>
+          <tr><td>The earlier shared-Pod campaign is the final Kubernetes evaluation.</td><td>False. Chapter 6 uses the later cross-Pod campaign.</td><td>Do not merge run counts or performance numbers from the superseded laboratory.</td></tr>
+          <tr><td>Older final reviews report constructor and internal-network-probe fixes as uncommitted.</td><td>Partly stale. Most fixes are now committed, but <code>security_socket_sendmsg</code> remains misclassified and currently breaks the registry test.</td><td>Use the live test result, not the old report's pass/fail status.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="questions">
+      <h2>Unresolved Questions</h2>
+      <ol>
+        <li>Should <code>security_socket_sendmsg</code> remain a purely internal network-context helper, as its current eBPF implementation indicates, or is a distinct public payload planned?</li>
+        <li>Which source should become authoritative for generation: a language-neutral event schema, the Go registry or a dedicated build specification?</li>
+        <li>Which arguments are formally optional per event? This decision is required before the decoder can reject missing values or count mismatches safely.</li>
+        <li>Can privileged object-backed integration tests run in CI on the Rocky Linux target, or must they remain a separately scheduled laboratory gate?</li>
+        <li>What operational bound is acceptable for the deduplication cache, and should suppression identity include the full collective evidence or the detector correlation key?</li>
+        <li>Does the target vendor kernel expose a usable backport of the BPF ring buffer? This must be probed on the exact kernel before transport migration is proposed.</li>
+        <li>Which two or three additional workloads and detectors best represent the intended company deployment without turning the evaluation into an unbounded coverage study?</li>
+        <li>What is the minimum privilege set for the approved hook profile, and which probes should degrade gracefully when a capability or mount is unavailable?</li>
+      </ol>
+    </section>
+  </main>
+</div>
+</body>
+</html>

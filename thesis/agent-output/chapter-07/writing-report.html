@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 7 Writing Report</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #5d6878;
+      --line: #cfd7e2;
+      --panel: #f6f8fb;
+      --blue: #2457a6;
+      --green: #176b43;
+      --amber: #8a5a00;
+      --red: #963838;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: #fff; font: 16px/1.58 system-ui, sans-serif; }
+    main { max-width: 1160px; margin: auto; padding: 42px 28px 72px; }
+    h1, h2 { line-height: 1.22; }
+    h1 { margin-top: 0; }
+    h2 { margin-top: 38px; padding-bottom: 7px; border-bottom: 1px solid var(--line); }
+    p, li { max-width: 105ch; }
+    code { padding: .08rem .25rem; background: #eef1f5; font-family: Consolas, monospace; }
+    table { width: 100%; margin: 18px 0 28px; border-collapse: collapse; }
+    th, td { padding: 10px 11px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: #eef2f7; }
+    .box { margin: 18px 0; padding: 15px 18px; border-left: 4px solid var(--blue); background: #f3f7fc; }
+    .pass { border-left-color: var(--green); background: #f0f8f4; }
+    .warn { border-left-color: var(--amber); background: #fff9ed; }
+    .fail { border-left-color: var(--red); background: #fff5f5; }
+    .muted { color: var(--muted); }
+    .status { display: inline-block; padding: 4px 9px; border: 1px solid var(--line); background: var(--panel); font-weight: 700; }
+    @media (max-width: 800px) {
+      main { padding: 28px 18px 52px; }
+      table { font-size: 14px; }
+      th, td { padding: 8px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Chapter 7 LaTeX Writing Report</h1>
+  <p><span class="status">WAVE 3 COMPLETE WITH BUILD-ENVIRONMENT WARNING</span></p>
+  <p class="muted">Report date: 25 August 2026.</p>
+
+  <div class="box pass">
+    <strong>Writing outcome.</strong> Chapter 7 was created from the approved
+    editorial synthesis, and its include was added exactly once after Chapter
+    6. The chapter contains the four approved sections, introduces no new
+    experimental result or implementation claim, and contains no figure,
+    table, listing, equation, YAML example or command sequence.
+  </div>
+
+  <h2>1. Inspected Repository State</h2>
+  <table>
+    <tbody>
+      <tr><th>demo_project commit</th><td><code>e8795fea7afb12079844031a1a8b69d7091e0dfd</code></td></tr>
+      <tr><th>Commit date and subject</th><td>13 August 2026; <code>test(process): added minkube-ctf process evaluation</code></td></tr>
+      <tr><th>demo_project dirty state</th><td><code>Dockerfile</code> and <code>pkg/policy/loader_test.go</code> modified; <code>k8s/minikube-ctf-cross-pod/</code> and <code>rules/policies/aes-beta-process-observation.yaml</code> untracked.</td></tr>
+      <tr><th>Thesis baseline</th><td>Commit <code>6700e71be33e8a8b9808af0499a024039ef4f859</code>; clean before this writing pass.</td></tr>
+      <tr><th>Implementation verification</th><td><code>make test-registry</code> was rerun. The events package passed; the probes package failed because public probe <code>security_socket_sendmsg</code> has no decoder specification.</td></tr>
+    </tbody>
+  </table>
+  <p>The implementation revision and dirty state are provenance only and do not
+  appear in the thesis prose. The registry failure is represented in Chapter 7
+  as a current assurance limitation and as the prerequisite for the first
+  future-work priority; the chapter does not claim that all tests pass.</p>
+
+  <h2>2. Changed Files</h2>
+  <table>
+    <thead><tr><th>File</th><th>Change</th></tr></thead>
+    <tbody>
+      <tr><td><code>Thesis/content/chapters/chapter7.tex</code></td><td>Created the complete Conclusions and Future Work chapter.</td></tr>
+      <tr><td><code>Thesis/content/chapters.tex</code></td><td>Added <code>\input{content/chapters/chapter7}</code> exactly once after Chapter 6.</td></tr>
+      <tr><td><code>documentation/thesis/agent-output/chapter-07/writing-report.html</code></td><td>Created this standalone change report.</td></tr>
+    </tbody>
+  </table>
+  <p>No abstract, earlier chapter, bibliography, glossary, implementation or
+  evaluation artefact was modified.</p>
+
+  <h2>3. Final Structure</h2>
+  <ol>
+    <li><strong>Summary of the Work</strong> (<code>sec:conclusions-summary-work</code>): consequence-oriented synthesis of the implemented kernel and user-space contribution.</li>
+    <li><strong>Main Results</strong> (<code>sec:conclusions-main-results</code>): only the authorised functional and monitor-cgroup performance conclusions.</li>
+    <li><strong>Limitations</strong> (<code>sec:conclusions-limitations</code>): technical assurance, local analytical scope, deployment privilege and evaluation breadth.</li>
+    <li><strong>Future Work</strong> (<code>sec:conclusions-future-work</code>): five ranked directions connected directly to those limits, followed by the thesis closure.</li>
+  </ol>
+  <p>The stable chapter label is <code>ch:conclusions-future-work</code>. No
+  subsection or subsubsection was introduced.</p>
+
+  <h2>4. Length and Page Estimate</h2>
+  <table>
+    <tbody>
+      <tr><th>Source word count</th><td>1,465 whitespace-delimited tokens, including LaTeX commands and labels.</td></tr>
+      <tr><th>Estimated prose word count</th><td>1,441 words after removing or normalising LaTeX structural commands.</td></tr>
+      <tr><th>Target</th><td>Approximately 1,400-1,800 words and 3-4 rendered pages.</td></tr>
+      <tr><th>Isolated pagination</th><td>Five pages in a minimal 11pt <code>report</code> wrapper using the thesis paragraph spacing. This includes the chapter-opening page.</td></tr>
+      <tr><th>Full rendered count</th><td>Unavailable because the complete build stops before chapter processing when <code>biblatex.sty</code> cannot be found.</td></tr>
+    </tbody>
+  </table>
+  <div class="box warn">
+    <strong>Page-budget warning.</strong> The word target is satisfied, but the
+    isolated layout occupies five pages rather than the requested approximate
+    3-4. The complete thesis layout could not be rendered locally. The next
+    review should inspect the authoritative build before deciding whether
+    further compression is editorially preferable to retaining the approved
+    1,400-word minimum.
+  </div>
+
+  <h2>5. Validation Results</h2>
+  <table>
+    <thead><tr><th>Check</th><th>Result</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Include placement and count</td><td>Pass</td><td>Exactly one Chapter 7 include, immediately after Chapter 6.</td></tr>
+      <tr><td>Stable labels</td><td>Pass</td><td>Chapter and four section labels occur once; no duplicate label was found across thesis content.</td></tr>
+      <tr><td>Internal references</td><td>Pass</td><td>The only Chapter 7 reference targets the existing <code>ch:experimental-evaluation</code> label.</td></tr>
+      <tr><td>Citations</td><td>Pass</td><td>No new external citation was introduced.</td></tr>
+      <tr><td>Glossary</td><td>Pass</td><td><code>ebpf</code>, <code>uid</code>, <code>attack</code> and <code>cpu</code> are already defined.</td></tr>
+      <tr><td>Visual/listing budget</td><td>Pass</td><td>Zero figures, tables, listings, equations and itemised environments.</td></tr>
+      <tr><td>Terminology and British English</td><td>Pass</td><td>No internal tool name, stale kernel, promotional novelty term or selected American spelling was found.</td></tr>
+      <tr><td>Whitespace and diff validation</td><td>Pass</td><td><code>git diff --check</code> reported no whitespace error.</td></tr>
+      <tr><td>Isolated LaTeX syntax</td><td>Pass with expected isolated reference warning</td><td><code>pdflatex -draftmode -halt-on-error</code> reached the end without syntax or overfull-box errors. The Chapter 6 reference is undefined only in the isolated wrapper.</td></tr>
+      <tr><td>Complete thesis build</td><td>Blocked by environment</td><td><code>./compile.sh</code> fails in phase 1 because the local TeX installation lacks <code>biblatex.sty</code>.</td></tr>
+      <tr><td>Current registry suite</td><td>Known implementation failure</td><td><code>TestPublicProbesHaveDecoderSpecs</code> fails for <code>security_socket_sendmsg</code>; disclosed rather than repaired in this thesis-only pass.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>6. Claim Ledger</h2>
+  <table>
+    <thead><tr><th>Chapter 7 claim</th><th>Owner/evidence</th><th>Boundary retained</th></tr></thead>
+    <tbody>
+      <tr><td>The prototype connects bounded kernel observations to typed events and deterministic local detection.</td><td>Chapters 3-5</td><td>Engineering integration contribution; no novelty or superiority claim.</td></tr>
+      <tr><td>All three exploit repetitions recovered the flag and produced one complete configured alert; the three selected benign repetitions produced no matching alert.</td><td>Chapter 6 functional evaluation</td><td>Same-node, scenario-specific evidence; no accuracy or false-positive-rate claim.</td></tr>
+      <tr><td>The filtered mean was 0.46% and the unfiltered mean 5.73%.</td><td>Chapter 6 performance evaluation</td><td>Monitor-container cgroup CPU as a percentage of one core.</td></tr>
+      <tr><td>The filtered mean was approximately 92.0% lower.</td><td>Chapter 6 filtered/unfiltered comparison</td><td>Descriptive scenario-specific comparison; not total eBPF, node or system overhead.</td></tr>
+      <tr><td>No matching loss diagnostic and no restart delta were observed.</td><td>Chapter 6 retained operational indicators</td><td>Not proof of loss-free or complete delivery.</td></tr>
+      <tr><td>ATT&amp;CK metadata classifies detector evidence.</td><td>Chapters 3 and 5</td><td>Not proof of detector correctness, novelty or coverage.</td></tr>
+      <tr><td>The current registry boundary needs stronger assurance.</td><td>Rerun of <code>make test-registry</code> and source inspection</td><td>Presented as a limitation and first future-work prerequisite, not as an experimental result.</td></tr>
+      <tr><td>Further work should prioritise contract assurance, lifecycle testing, configuration/state hardening, measurable transport health/broader evaluation and safer deployment.</td><td>Binding Chapter 7 synthesis</td><td>All five directions remain future work and resolve stated limitations.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>7. Unresolved Warnings</h2>
+  <ol>
+    <li>Install the missing LaTeX dependency set, beginning with <code>biblatex.sty</code>, and rerun the canonical complete build.</li>
+    <li>Inspect the authoritative rendered page count; the isolated wrapper produced five pages.</li>
+    <li>Correct the <code>security_socket_sendmsg</code> support-probe classification and rerun <code>make test-registry</code> before final thesis approval.</li>
+    <li>Archive or commit the cross-Pod evidence and experimental definitions according to the project's reproducibility policy.</li>
+    <li>Run the independent Wave 4 review before editing the abstract.</li>
+  </ol>
+
+  <div class="box pass">
+    <strong>Writer verdict.</strong> Chapter 7 is ready for independent technical
+    and editorial review. Its claims conform to the approved synthesis. Final
+    acceptance remains conditional on the authoritative LaTeX build, page
+    inspection and truthful resolution or retention of the known registry
+    limitation.
+  </div>
+</main>
+</body>
+</html>

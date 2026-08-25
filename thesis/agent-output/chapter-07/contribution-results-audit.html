@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 7 Contribution and Results Audit</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #18202a;
+      --muted: #56616f;
+      --line: #cbd3dc;
+      --soft: #f4f6f8;
+      --good: #17643a;
+      --warn: #8a5100;
+      --bad: #9a2b2b;
+      --accent: #174f78;
+    }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: #fff;
+      font: 16px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { max-width: 1120px; margin: 0 auto; padding: 2.5rem 2rem 4rem; }
+    h1, h2, h3 { line-height: 1.2; color: #101820; }
+    h1 { margin: 0 0 .5rem; font-size: 2rem; }
+    h2 { margin-top: 2.4rem; padding-bottom: .35rem; border-bottom: 2px solid var(--line); }
+    h3 { margin-top: 1.5rem; }
+    p, li { max-width: 90ch; }
+    .meta, .note, .warning, .accept {
+      padding: .85rem 1rem;
+      margin: 1rem 0;
+      border-left: 4px solid var(--accent);
+      background: var(--soft);
+    }
+    .warning { border-color: var(--warn); }
+    .accept { border-color: var(--good); }
+    code { padding: .1em .3em; background: var(--soft); border-radius: 3px; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: .94rem; }
+    th, td { padding: .65rem .7rem; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: #e9eef2; }
+    tbody tr:nth-child(even) { background: #fafbfc; }
+    .supported { color: var(--good); font-weight: 700; }
+    .qualified { color: var(--warn); font-weight: 700; }
+    .rejected { color: var(--bad); font-weight: 700; }
+    ul, ol { padding-left: 1.4rem; }
+    .compact li { margin: .3rem 0; }
+    footer { margin-top: 3rem; color: var(--muted); font-size: .9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Chapter 7 Contribution and Results Audit</h1>
+  <p class="meta"><strong>Purpose.</strong> This report identifies the smallest defensible conclusion of the thesis. It separates implemented engineering contributions from experimental observations and from research novelty, which the present work does not attempt to establish independently.</p>
+
+  <h2>1. Provenance and Audit Boundary</h2>
+  <ul class="compact">
+    <li><strong>Inspected implementation commit:</strong> <code>e8795fea7afb12079844031a1a8b69d7091e0dfd</code> (<em>test(process): added minkube-ctf process evaluation</em>, 13 August 2026).</li>
+    <li><strong>Dirty tracked files:</strong> <code>Dockerfile</code> and <code>pkg/policy/loader_test.go</code>.</li>
+    <li><strong>Untracked experimental material:</strong> <code>k8s/minikube-ctf-cross-pod/</code> and <code>rules/policies/aes-beta-process-observation.yaml</code>.</li>
+    <li><strong>Interpretation:</strong> the monitor implementation and its core unit tests are committed. The final cross-Pod Kubernetes manifests, scripts, policy and evidence are experimental artefacts in the working tree and must not be presented as a versioned product deployment.</li>
+  </ul>
+  <p>The relevant Go tests for the decoder, event registry, detector engine and policy subsystem passed. Probe-package tests could not be executed in this environment because the required local CGO/libbpf build context was unavailable; their registry invariants were therefore checked through source and existing test inspection.</p>
+
+  <h2>2. Concrete Problem Addressed</h2>
+  <p>The thesis addresses how to build a selective, node-local runtime security monitor on the specified Rocky Linux 8 kernel. The system must collect security-relevant kernel observations, preserve a stable binary boundary, convert records into typed Go events and apply configurable policies and deterministic local detectors without requiring detection logic to be embedded in every eBPF program.</p>
+  <p>The problem is narrower than general anomaly detection or Kubernetes security analytics. It does not include enforcement, distributed correlation, learned behavioural baselines, complete ATT&amp;CK coverage or production-readiness certification.</p>
+
+  <h2>3. Contribution Ledger</h2>
+  <table>
+    <thead>
+      <tr><th>Area</th><th>Implemented contribution</th><th>Evidence</th><th>Boundary</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Kernel collection</td>
+        <td>A shared, bounded eBPF event-construction path supporting direct producers and entry/return producers across process, credential, filesystem, memory, namespace, cgroup and kernel-facing hook families.</td>
+        <td>Committed C/eBPF sources, probe registry and hook-specific tests discussed in Chapters 4 and 5.</td>
+        <td>Implemented integration and engineering contribution; individual hook and event patterns are not claimed as novel.</td>
+        <td class="supported">Supported</td>
+      </tr>
+      <tr>
+        <td>Logical event abstraction</td>
+        <td>A registry that separates public logical events from physical producers and internal support probes, expands dependencies and enables selective autoload and attachment.</td>
+        <td>Committed probe registry, selection tests and runtime loader.</td>
+        <td>Node-local loading mechanism, not automatic discovery of arbitrary object sections.</td>
+        <td class="supported">Supported</td>
+      </tr>
+      <tr>
+        <td>Binary event contract</td>
+        <td>An explicit 136-byte common context followed by an indexed, schema-directed argument stream; only the populated record prefix crosses the perf-event channel.</td>
+        <td>Committed C layout, Go decoder, event registry and decoder tests.</td>
+        <td>The C and Go definitions remain separately maintained rather than generated from one source.</td>
+        <td class="supported">Supported</td>
+      </tr>
+      <tr>
+        <td>Early filtering</td>
+        <td>An optional exact effective-UID admission check before full context enrichment and perf-event submission.</td>
+        <td>Committed shared initialisation path and Chapter 6 filtered/unfiltered profiles.</td>
+        <td>One exact UID filter, not a general kernel-side policy engine.</td>
+        <td class="supported">Supported</td>
+      </tr>
+      <tr>
+        <td>Verifier-safe serialisation</td>
+        <td>Explicit range checks for the 32,000-byte non-power-of-two argument workspace, bounded traversal and verifier-visible limits.</td>
+        <td>Committed argument-buffer helper and regression coverage, including the correction associated with commit <code>163ad724a65ec8c701dc816fe87f174eeec51275</code>.</td>
+        <td>Compatibility engineering for the target verifier, not a new verifier technique.</td>
+        <td class="supported">Supported</td>
+      </tr>
+      <tr>
+        <td>Target compatibility</td>
+        <td>CO-RE supplemented by explicit branches for Rocky/RHEL 8 kernel layouts, task and credential fields, cgroup identity, syscall context and verifier constraints.</td>
+        <td>Committed compatibility headers and target-specific helper paths.</td>
+        <td>Supports the identified target; it does not establish universal Linux portability.</td>
+        <td class="supported">Supported</td>
+      </tr>
+      <tr>
+        <td>Go runtime</td>
+        <td>A managed bootstrap and lifecycle joining CLI configuration, object/BTF resolution, policy-aware event scope, probe planning, map configuration, perf reading, attachment and cleanup.</td>
+        <td>Committed command, configuration, runtime and probe packages.</td>
+        <td>Prototype lifecycle; object-backed failure and attachment paths do not have complete integration-test coverage.</td>
+        <td class="supported">Supported</td>
+      </tr>
+      <tr>
+        <td>Typed event pipeline</td>
+        <td>Schema-directed decoding into one normalised event representation shared by policies, detectors and output, with malformed records rejected before admission.</td>
+        <td>Committed decoder/event registry and passing unit tests.</td>
+        <td>Host-event normalisation only; no distributed event model.</td>
+        <td class="supported">Supported</td>
+      </tr>
+      <tr>
+        <td>Policy subsystem</td>
+        <td>Separate YAML policies for event scope, suppression and detector-catalogue selection, prepared before event processing.</td>
+        <td>Committed policy implementation and passing policy tests.</td>
+        <td>Unknown YAML fields are not rejected strictly; policy mode is not enforcement.</td>
+        <td class="supported">Supported</td>
+      </tr>
+      <tr>
+        <td>Detector subsystem</td>
+        <td>Deterministic point and collective evaluation, event-indexed dispatch, bounded local sequence state, alert evidence and deduplication.</td>
+        <td>Committed detector engine and passing detector tests.</td>
+        <td>No learning, anomaly score, arbitrary ancestry, cluster-wide correlation or causal reconstruction.</td>
+        <td class="supported">Supported</td>
+      </tr>
+      <tr>
+        <td>Local correlation</td>
+        <td>Compiled strategies for stable process identity, immediate process relationships, device-inode resource identity, local cgroup identity and composite combinations.</td>
+        <td>Committed correlation implementation and tests; limits are two-second default, five-second maximum and 4,096 partial keys per detector.</td>
+        <td>The final experiment exercises the same-process path, not every strategy or parent-child case.</td>
+        <td class="qualified">Supported with qualification</td>
+      </tr>
+      <tr>
+        <td>ATT&amp;CK integration</td>
+        <td>Validation, selection and propagation of ATT&amp;CK classification metadata from detector definitions to alerts.</td>
+        <td>Committed definitions, selectors, output and tests.</td>
+        <td>Classification and traceability only; not evidence of correctness, coverage or novelty.</td>
+        <td class="supported">Supported</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>4. Supported Result Ledger</h2>
+  <table>
+    <thead>
+      <tr><th>Observation</th><th>Exact support</th><th>Permitted conclusion</th><th>Prohibited extension</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Cross-Pod visibility</td>
+        <td>A monitor DaemonSet Pod observed activity in a distinct target Pod on the same Minikube node; the trigger was also a separate Pod. The Pods had distinct identities, IPs and cgroups and did not use <code>hostPID</code>.</td>
+        <td>The node-level monitor can observe the tested cross-Pod process and file activity through the shared node kernel.</td>
+        <td>No cross-node, cluster-wide or Kubernetes-identity correlation claim.</td>
+      </tr>
+      <tr>
+        <td>Exploit outcome</td>
+        <td>All three attack runs recovered the synthetic flag and returned 1,793 workers. Each run produced exactly one complete four-event collective alert: two executable transitions, one resolved sensitive-file observation and one syscall-level open result.</td>
+        <td>The configured detector reproduced the expected alert for all three repetitions of this scenario.</td>
+        <td>Not a 100% detection-rate claim for attacks generally.</td>
+      </tr>
+      <tr>
+        <td>Benign outcome</td>
+        <td>The same narrow benign interaction was repeated three times and produced the expected application result with zero matching alerts.</td>
+        <td>No matching alert occurred in the tested benign control.</td>
+        <td>Not a zero false-positive rate or broad specificity estimate.</td>
+      </tr>
+      <tr>
+        <td>Client harness discrepancy</td>
+        <td>The client-side harness classified only one of three exploit responses as passing because of its response-matching expression, while application evidence, flag recovery and detector evidence were successful in all three runs.</td>
+        <td>Application/detector success and harness classification must be reported separately.</td>
+        <td>Do not conceal the harness mismatch or treat it as detector failure.</td>
+      </tr>
+      <tr>
+        <td>Filtered CPU result</td>
+        <td>With exact UID filtering, the monitor-container cgroup used a mean of 0.46% of one CPU core (SD 0.02 percentage points; run means 0.44-0.47%).</td>
+        <td>All three filtered run means were below the thesis's 5% monitor-cgroup gate in this workload.</td>
+        <td>Not total node, system-wide or eBPF overhead below 5%.</td>
+      </tr>
+      <tr>
+        <td>Unfiltered comparison</td>
+        <td>The same metric averaged 5.73% of one CPU core without the filter (SD 0.61; run means 5.28-6.43%). The rounded means imply an approximately 92.0% reduction.</td>
+        <td>Enabling the UID filter was associated with substantially lower monitor-cgroup CPU in the controlled profiles, consistently with early event rejection.</td>
+        <td>No universal reduction guarantee and no strong causal or production-overhead claim.</td>
+      </tr>
+      <tr>
+        <td>Memory observations</td>
+        <td>Maximum monitor-cgroup memory was 92.17 MiB filtered and 110.21 MiB unfiltered; maximum cgroup <code>total_rss</code> was 36.97 MiB and 41.24 MiB respectively.</td>
+        <td>These are descriptive maxima for the two profiles.</td>
+        <td>Do not equate total cgroup memory with process RSS or infer a general memory reduction.</td>
+      </tr>
+      <tr>
+        <td>Transport diagnostics</td>
+        <td>No matching perf-loss diagnostic and no restart delta were recorded during the reported repetitions.</td>
+        <td>No loss or restart was observed through the recorded indicators.</td>
+        <td>Not proof of loss-free transport or complete event delivery.</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="warning"><strong>Metric wording required in Chapter 7:</strong> always state that CPU is charged to the <em>monitor-container cgroup</em> and expressed as a percentage of <em>one CPU core</em>. Use the primary means, 0.46% and 5.73%, and describe the difference as approximately 92.0%. The reviewed sources contain a minor 91.97% versus 92.03% discrepancy caused by rounded versus unrounded inputs.</p>
+
+  <h2>5. Implemented Contribution versus Research Novelty</h2>
+  <p>The thesis can claim an implemented and evaluated engineering contribution: it combines selective eBPF collection, target-kernel compatibility, a typed Go event pipeline and configurable local detection in one coherent prototype. The reviewed literature already contains event-oriented collection, declarative rules, policy-driven tracing and runtime detection. The current related-work analysis and experiments do not establish that the architecture, policy/detector distinction or sequence-correlation model is independently novel.</p>
+  <p>Chapter 7 should therefore use formulations such as <em>the thesis implemented</em>, <em>the prototype integrates</em> and <em>the evaluation demonstrated in the tested scenario</em>. It should avoid <em>novel</em>, <em>first</em>, <em>unique</em> or equivalent priority claims unless a separate novelty argument is added.</p>
+
+  <h2>6. Rejected or Qualified Claims</h2>
+  <table>
+    <thead><tr><th>Claim to reject</th><th>Reason</th><th>Defensible replacement</th></tr></thead>
+    <tbody>
+      <tr><td>A novel runtime-security architecture or detector language.</td><td>Comparable separations and declarative mechanisms are established in related work.</td><td>A compact integration tailored to the stated target and research objective.</td></tr>
+      <tr><td>Complete attack detection or validated ATT&amp;CK coverage.</td><td>One configured attack path and one benign control were repeated three times.</td><td>The selected collective detector matched the tested exploit sequence.</td></tr>
+      <tr><td>Zero false positives or 100% detection accuracy.</td><td>The experiment does not provide the variety or sample size required for such rates.</td><td>Three of three attack repetitions alerted; three repetitions of the selected benign control did not.</td></tr>
+      <tr><td>Total overhead remained below 5%.</td><td>The measured denominator is monitor-container cgroup CPU as a percentage of one core.</td><td>The filtered monitor-cgroup run means remained below the 5% project gate.</td></tr>
+      <tr><td>The filter always reduces overhead by exactly 92%.</td><td>The value is scenario-specific and differs slightly according to rounding.</td><td>The filtered profile was associated with approximately 92.0% lower mean monitor-cgroup CPU in this experiment.</td></tr>
+      <tr><td>No events were lost.</td><td>Absence of a recorded loss diagnostic is not proof of complete delivery.</td><td>No matching loss diagnostic was observed.</td></tr>
+      <tr><td>Portable across Linux kernels.</td><td>CO-RE cannot supply missing hooks, helpers or attachment support; explicit target branches remain.</td><td>Implemented and validated for the identified Rocky Linux target.</td></tr>
+      <tr><td>Cluster-wide or Kubernetes-aware correlation.</td><td>Correlation keys are local kernel observations; the experiment is cross-Pod on one node.</td><td>Node-level observation across separate Pods sharing one node kernel.</td></tr>
+      <tr><td>Prevention or enforcement.</td><td>The prototype observes, filters and alerts but does not deny operations.</td><td>Runtime observation and deterministic detection prototype.</td></tr>
+      <tr><td>Production ready or least privilege.</td><td>The lab deployment uses broad privileges and lacks production lifecycle and deployment validation.</td><td>Research prototype evaluated in a controlled Minikube environment.</td></tr>
+      <tr><td>All correlation strategies are experimentally validated.</td><td>The final sequence uses the same-process branch; resource, cgroup, composite and parent-child behaviour are not all exercised there.</td><td>The engine implements these strategies; Chapter 6 validates only the stated scenario.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>7. Proposed Narrative for Section 7.1</h2>
+  <p><strong>Section 7.1, Summary of the Work, should contain four short paragraphs:</strong></p>
+  <ol class="compact">
+    <li>Restate the concrete objective and target boundary: a selective node-local monitor for the specified Rocky Linux environment, not a general anomaly or enforcement platform.</li>
+    <li>Summarise the kernel-space result at architectural level: complementary hooks, shared bounded records, logical-to-physical probe planning, early filtering and target-specific compatibility. Do not repeat the hook catalogue.</li>
+    <li>Summarise the Go pipeline: validated bootstrap, typed decoding, policy admission, deterministic point/collective detection, bounded local correlation and ATT&amp;CK classification. Do not repeat YAML fields or algorithms.</li>
+    <li>State the contribution category explicitly: an implemented and evaluated engineering integration of established mechanisms, with clearly delimited local scope.</li>
+  </ol>
+
+  <h2>8. Proposed Narrative for Section 7.2</h2>
+  <p><strong>Section 7.2, Main Results, should contain three evidence-led paragraphs:</strong></p>
+  <ol class="compact">
+    <li>Report the cross-Pod functional result: separate monitor, target and trigger Pods on one node; successful application outcome and one complete four-event alert in each of three exploit runs; no alert in three repetitions of the defined benign control.</li>
+    <li>Report the operational result with its denominator: 0.46% versus 5.73% mean monitor-container cgroup CPU as a percentage of one core, approximately 92.0% lower with exact UID filtering; all filtered means below the 5% project gate.</li>
+    <li>Interpret conservatively: the evidence demonstrates viability for this target and scenario, while sample size, workload, same-node topology and metric boundary prevent general claims about accuracy, total overhead or production readiness.</li>
+  </ol>
+
+  <h2>9. Smallest Supported Conclusion Set</h2>
+  <ol class="compact">
+    <li>The thesis objective was met at prototype scope: the system provides an end-to-end node-local path from selective eBPF observations to typed Go events and configurable deterministic alerts on the stated target.</li>
+    <li>The final same-node cross-Pod scenario demonstrated that the monitor could observe the target activity and complete the configured four-event sequence in all three attack repetitions, while the repeated defined benign control produced no matching alert.</li>
+    <li>In the measured workload, exact UID filtering was associated with mean monitor-cgroup CPU of 0.46% of one core compared with 5.73% unfiltered, an approximately 92.0% difference, and the filtered profile satisfied the thesis's narrow 5% gate.</li>
+    <li>These results support a research prototype, not claims of general detection accuracy, total-system overhead, enforcement, universal portability, cluster-wide correlation or production readiness.</li>
+  </ol>
+
+  <h2>10. Design Intentions and Future-Only Material</h2>
+  <ul class="compact">
+    <li>BPF ring-buffer transport; the implementation uses perf-event transport.</li>
+    <li>Cluster-wide aggregation, cross-node correlation and contextual anomaly analysis.</li>
+    <li>Operation blocking, response or other enforcement.</li>
+    <li>A least-privilege production Kubernetes deployment and a versioned orchestration package.</li>
+    <li>Strict rejection of unknown YAML fields and generation of the C/Go event contract from one source.</li>
+    <li>Generalisable accuracy, workload, kernel-version and total-system performance claims.</li>
+  </ul>
+
+  <h2>11. Unresolved Questions before Chapter 7 Writing</h2>
+  <ol class="compact">
+    <li><strong>Chapter 6 acceptance:</strong> its final review records outstanding presentation and metric-boundary corrections. Section 7.2 should use the audited values and qualified language above, even if Chapter 6 has not yet been fully revised.</li>
+    <li><strong>Experimental provenance:</strong> decide whether the final cross-Pod artefacts and evidence will be committed or archived with an immutable identifier before thesis submission. Until then, describe them as experimental material rather than a shipped deployment.</li>
+    <li><strong>Client result:</strong> ensure Chapter 6 and Chapter 7 consistently separate the harness's one-of-three classification from the application's and detector's three-of-three outcome.</li>
+    <li><strong>Percentage reduction:</strong> retain “approximately 92.0%” unless one canonical unrounded sample calculation is selected and documented.</li>
+    <li><strong>Novelty wording:</strong> confirm that the intended thesis claim is engineering contribution and target-specific integration. The current evidence does not support a stronger priority claim.</li>
+  </ol>
+
+  <p class="accept"><strong>Audit verdict.</strong> The thesis supports a concise and credible conclusion centred on an end-to-end node-local prototype, target-kernel compatibility, deterministic local detection, successful same-node cross-Pod observation and a narrowly defined filtered CPU result. Conclusions become unsupported when extended to broad accuracy, total overhead, enforcement, portability, cluster scope or production readiness.</p>
+
+  <footer>Prepared from the inspected thesis chapters, Chapter 6 synthesis and final review, and the current committed implementation plus explicitly identified uncommitted experimental artefacts.</footer>
+</main>
+</body>
+</html>

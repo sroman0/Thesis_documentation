@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chapter 7 Editorial Closure and Redundancy Audit</title>
+  <style>
+    :root{color-scheme:light;--ink:#17212b;--muted:#596674;--line:#cbd3db;--panel:#f5f7f9;--accent:#155e75;--soft:#e9f4f6;--ok:#23633d;--oksoft:#eaf6ee;--warn:#8a4b08;--warnsoft:#fff4df;--bad:#982f2f;--badsoft:#fff0f0}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);background:#fff;font:16px/1.58 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:1160px;margin:auto;padding:2.5rem 1.4rem 5rem}h1,h2,h3{line-height:1.2;letter-spacing:0}h1{margin-top:0}h2{margin-top:2.6rem;padding-bottom:.35rem;border-bottom:2px solid var(--line)}h3{margin-top:1.6rem}p,li{max-width:94ch}code{padding:.08rem .28rem;background:#edf0f3;overflow-wrap:anywhere}table{width:100%;margin:1rem 0 1.5rem;border-collapse:collapse;font-size:.92rem}th,td{padding:.62rem;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--panel)}.scroll{overflow-x:auto}.box{margin:1rem 0;padding:.85rem 1rem;border-left:5px solid var(--accent);background:var(--soft)}.ok{border-left-color:var(--ok);background:var(--oksoft)}.warn{border-left-color:var(--warn);background:var(--warnsoft)}.bad{border-left-color:var(--bad);background:var(--badsoft)}.muted{color:var(--muted)}.flow{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:.65rem;margin:1rem 0}.flow div{padding:.8rem;border:1px solid var(--line);background:var(--panel)}.flow strong{display:block;color:var(--accent);margin-bottom:.25rem}.accept li{margin:.35rem 0}@media(max-width:850px){.flow{grid-template-columns:1fr}.scroll{overflow-x:auto}}@media print{main{max-width:none;padding:0}.scroll{overflow:visible}}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Chapter 7 Editorial Closure and Redundancy Audit</h1>
+  <p class="muted">Scope: Chapters 1-6, the definitive outline, editorial rules, bibliography and glossary. This audit treats the thesis as one cumulative argument and does not verify implementation internals.</p>
+
+  <section>
+    <h2>Editorial Verdict</h2>
+    <div class="box ok"><strong>Chapter 7 should close the argument, not replay it.</strong> Its new contribution is an overall answer to the thesis objective, a hierarchy of what the evidence supports, and a prioritised path from current limitations to future work. Background, architecture, implementation mechanics, experimental procedure and the threats-to-validity taxonomy already have clear owners.</div>
+    <p>The strongest structure is three sections rather than the four canonical sections currently listed. <em>Summary of the Work</em> and <em>Main Results</em> should be merged into one evaluative synthesis. Keeping them separate would encourage a second version of Chapter 1's objective followed immediately by a second version of Chapter 6's evaluation summary.</p>
+  </section>
+
+  <section>
+    <h2>Redundancy Map</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Existing owner</th><th>Material already established</th><th>Chapter 7 must not repeat</th><th>What Chapter 7 should add</th></tr></thead>
+      <tbody>
+        <tr><td>Chapter 1</td><td>Motivation, problem statement, objective, policy/detector distinction and chapter roadmap.</td><td>The need for kernel visibility; a fresh definition of eBPF; the complete objective sentence; another chapter-by-chapter outline.</td><td>A direct judgement on whether the scoped objective was achieved and under which conditions.</td></tr>
+        <tr><td>Chapter 2</td><td>eBPF execution, verifier, loading, maps, transport, BTF/CO-RE, related tools and positioning.</td><td>Verifier theory, perf-buffer versus ring-buffer comparison, related-tool summaries, or renewed claims about architectural prior art.</td><td>At most one sentence locating the result as a compact, target-specific integration of established mechanisms.</td></tr>
+        <tr><td>Chapter 3</td><td>Requirements, kernel/user-space split, event lifecycle, logical events, filtering, policy and bounded detection design.</td><td>The architecture pipeline, requirements tables, policy semantics, correlation-key definitions or design trade-off exposition.</td><td>A concise assessment of which design choices mattered in the evaluation, especially evidence preservation and early admission.</td></tr>
+        <tr><td>Chapter 4</td><td>Kernel-space implementation, hook families, binary contract, UID filter, compatibility and verifier work.</td><td>Hook catalogues, request/mediation/outcome explanations, record layout, bounds, helpers or compatibility branches.</td><td>One compact implementation contribution: complementary kernel observations were converted into bounded, typed records on the target kernel.</td></tr>
+        <tr><td>Chapter 5</td><td>Go runtime, registry, decoder, admission, policy and detector engine, correlation, output and logging.</td><td>Package flow, YAML fields, sequence-state limits, deduplication keys, output channels or startup lifecycle.</td><td>State the achieved end-to-end capability: selected records became typed evidence and deterministic point or bounded collective alerts.</td></tr>
+        <tr><td>Chapter 6 results</td><td>Cross-Pod visibility, four-event detector validation, benign/exploit runs, filtered/unfiltered resource results.</td><td>Testbed topology, protocol, per-run tables, event-by-event sequence, sampler mechanics or all numerical values.</td><td>Select only the two strongest outcome statements and interpret their significance for the thesis objective.</td></tr>
+        <tr><td>Chapter 6 discussion and validity</td><td>Conditional value of UID filtering and internal, construct, external and conclusion validity.</td><td>The four validity headings, no-monitor timing detail, client defects, cgroup metric definitions or another exhaustive limitation inventory.</td><td>Collapse limitations into two or three strategic boundaries and connect each directly to future work.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Material Not to Repeat</h2>
+    <p>Chapter 7 should avoid both verbatim reuse and lightly paraphrased versions of the following explanations:</p>
+    <ul>
+      <li>“The objective of this thesis is to design, implement and evaluate...” followed by the full Chapter 1 formulation.</li>
+      <li>The statement that applications may omit activity which remains visible at the kernel boundary.</li>
+      <li>A definition of eBPF, verifier acceptance, JIT compilation, maps, BTF or CO-RE.</li>
+      <li>The complete kernel-space versus user-space responsibility split.</li>
+      <li>The definitions of event, policy, detector and alert, or the distinction between logical events and physical hooks.</li>
+      <li>The explanation that requests, security mediation, committed transitions and return outcomes expose different stages.</li>
+      <li>The 136-byte context, indexed argument stream, 32,000-byte workspace or perf-buffer mechanics.</li>
+      <li>Lists of hook families or captured fields.</li>
+      <li>Loader, registry, decoder, YAML, correlation-plan, state-pruning, deduplication or Zap details.</li>
+      <li>The Cross-Pod deployment procedure, AES-beta exploit sequence and four raw evidence records.</li>
+      <li>The full performance methodology, P95 definition, cgroup-v1 accounting and per-run measurements.</li>
+      <li>The exact Chapter 6 sentence “The experiment met its three scoped objectives” or a second three-objective enumeration.</li>
+      <li>The internal/construct/external/conclusion-validity taxonomy.</li>
+      <li>The already established disclaimers as a dense negative list: no enforcement, no cross-node correlation, no complete coverage, no total-overhead result and no production readiness.</li>
+    </ul>
+    <div class="box warn"><strong>Compression rule:</strong> a limitation may reappear only when it performs new work by motivating a specific priority. If it merely restates Chapter 6, remove it.</div>
+  </section>
+
+  <section>
+    <h2>Recommended Structure and Word Budget</h2>
+    <p><strong>Recommendation: use three sections.</strong> The definitive outline permits small section adjustments, and the Chapter 7 workflow explicitly allows the first two canonical sections to merge. A total of approximately 1,450-1,650 words should render naturally within 3-4 pages without visual material.</p>
+    <div class="scroll"><table>
+      <thead><tr><th>Recommended section</th><th>Words</th><th>Paragraphs</th><th>Narrative purpose</th></tr></thead>
+      <tbody>
+        <tr><td>7.1 Overall Conclusions and Main Results</td><td>650-750</td><td>5-6</td><td>Answer the thesis objective, synthesise the implemented contribution and select the strongest functional and performance conclusions.</td></tr>
+        <tr><td>7.2 Limitations and Scope of the Conclusions</td><td>300-350</td><td>2-3</td><td>State the boundaries that materially affect interpretation, without repeating the Chapter 6 validity taxonomy.</td></tr>
+        <tr><td>7.3 Prioritised Future Work</td><td>450-550</td><td>3-4 plus a short closing paragraph</td><td>Turn limitations into an ordered development and evaluation path, then close on the broader value of bounded kernel evidence.</td></tr>
+        <tr><th>Total</th><th>1,400-1,650</th><th>10-13</th><th>Within the workflow target of 1,400-1,800 words and 3-4 rendered pages.</th></tr>
+      </tbody>
+    </table></div>
+    <p>If the four canonical headings must be retained for institutional reasons, keep <em>Summary of the Work</em> below 300 words and let <em>Main Results</em> own all evaluation claims. The three-section option remains editorially stronger.</p>
+  </section>
+
+  <section>
+    <h2>Paragraph-Level Narrative Plan</h2>
+    <div class="flow">
+      <div><strong>Chapter 6</strong>Bounded evidence and explicit claim limits</div>
+      <div><strong>Overall answer</strong>What the thesis achieved and why the architecture mattered</div>
+      <div><strong>Limits to priorities</strong>What remains unresolved and what should happen first</div>
+      <div><strong>Final line</strong>Return to useful, bounded kernel evidence</div>
+    </div>
+    <ol>
+      <li><strong>Transition from Chapter 6.</strong> Begin from the evaluated outcome, not with “This chapter summarises...”. State that the controlled campaign provides enough evidence to judge the scoped objective while preserving explicit limits.</li>
+      <li><strong>Overall answer.</strong> Explain that the thesis produced an end-to-end host monitoring prototype for the specified Rocky Linux environment, joining kernel collection to typed user-space evidence and configurable local detection.</li>
+      <li><strong>Kernel-side contribution.</strong> Compress Chapter 4 into one consequence-oriented paragraph: complementary observation stages, a stable event contract, target compatibility and narrow early admission.</li>
+      <li><strong>User-space contribution.</strong> Compress Chapter 5 into one consequence-oriented paragraph: selective attachment, schema-directed decoding, policy scope, bounded deterministic detection and evidence-preserving alerts.</li>
+      <li><strong>Functional conclusion.</strong> Use one paragraph to state that the Cross-Pod campaign observed the required node-local activity and completed the configured collective sequence while the benign control did not. Do not replay the four events.</li>
+      <li><strong>Performance conclusion.</strong> Use one paragraph for the filtered mean of 0.46% of one core, the 5% project gate and the approximately 92% filtered/unfiltered difference. Keep “monitor-container cgroup CPU” attached to every quantitative conclusion.</li>
+      <li><strong>Scope boundary.</strong> Group technical limits: node-local deterministic detection, no enforcement, target-kernel compatibility and UID admission that is not workload identity.</li>
+      <li><strong>Evidence boundary.</strong> Group evaluation limits: one scenario, one node, three runs per profile, high utilisation and incomplete eBPF cost attribution. Do not reproduce four validity categories.</li>
+      <li><strong>Priority one.</strong> Strengthen evidence before feature breadth: repeat on quieter and varied nodes, improve kernel-cost attribution, add sustained-load and broader benign/offensive scenarios.</li>
+      <li><strong>Priority two.</strong> Harden deployment and identity: reduce privilege where feasible and replace narrow numeric UID assumptions with reliable workload-aware selection supplied by a wider platform.</li>
+      <li><strong>Priority three.</strong> Extend detection only after the first two priorities: additional event families, carefully bounded correlations and optional central aggregation for context unavailable to a node-local agent.</li>
+      <li><strong>Closing paragraph.</strong> Reconnect to the initial problem of turning heterogeneous kernel observations into useful security evidence under real compatibility and resource constraints.</li>
+    </ol>
+    <div class="box"><strong>Final-line direction:</strong> end with the durable lesson of the work: useful runtime monitoring depends not on collecting the largest event catalogue, but on preserving trustworthy evidence through explicit contracts and bounded interpretation. Do not end with a list of pending engineering tasks.</div>
+  </section>
+
+  <section>
+    <h2>Terminology and Language Checklist</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Area</th><th>Required treatment</th></tr></thead>
+      <tbody>
+        <tr><td>Tool name</td><td>Use <em>the proposed tool</em>, <em>the prototype</em>, <em>the monitoring agent</em> or <em>the proposed system</em>. Never introduce the internal name or an official product name.</td></tr>
+        <tr><td>Technology</td><td>Write <em>eBPF</em>; use <em>kernel space</em>/<em>kernel-space</em> and <em>user space</em>/<em>user-space</em> according to noun/adjective role.</td></tr>
+        <tr><td>Observation classes</td><td>The style guide says <em>point anomaly</em> and <em>collective anomaly</em>, but Chapters 1, 3, 5 and 6 predominantly use <em>point event</em>, <em>collective detector</em> and <em>short collective event pattern</em>. Chapter 7 should follow the established thesis prose and avoid abruptly relabelling deterministic detector matches as anomalies.</td></tr>
+        <tr><td>Policy chain</td><td>Preserve event, policy, detector and alert as distinct terms. Do not use hook and logical event as synonyms.</td></tr>
+        <tr><td>Transport</td><td>The implemented channel is the <em>perf buffer</em>. Mention the BPF ring buffer only as future work if it is explicitly prioritised, never as current behaviour.</td></tr>
+        <tr><td>Detection</td><td>Use <em>deterministic</em>, <em>bounded</em>, <em>local</em> and <em>evidence-preserving</em>. Do not imply learned baselines, statistical anomaly discovery or general complex-event processing.</td></tr>
+        <tr><td>ATT&amp;CK</td><td>Describe MITRE ATT&amp;CK tactics and techniques as alert classification metadata, not detector validation, coverage or novelty.</td></tr>
+        <tr><td>Performance</td><td>Use <em>monitor-container cgroup CPU</em>. Do not shorten the 0.46%, 5% or 92% statements to “overhead”.</td></tr>
+        <tr><td>Scope</td><td>Use <em>node-local</em> and <em>Cross-Pod on the same node</em>. Do not claim cluster-wide visibility or correlation.</td></tr>
+        <tr><td>British English</td><td>Continue forms already used: <em>normalised</em>, <em>behaviour</em>, <em>authorisation</em>, <em>organisation</em>, <em>centred</em>, <em>utilisation</em>. The audit found no obvious American spelling pattern in Chapters 1-6.</td></tr>
+        <tr><td>Tense</td><td>Present for the implemented architecture, past for completed experiments, conditional or future for unimplemented directions.</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Glossary:</strong> reuse <code>\gls{ebpf}</code>, <code>\gls{cpu}</code>, <code>\gls{uid}</code>, <code>\gls{attack}</code>, <code>\gls{ctf}</code> and <code>\gls{sd}</code> only if needed. A conclusion should not introduce unused acronyms from the glossary. No new glossary entry is required by the recommended plan.</p>
+  </section>
+
+  <section>
+    <h2>Citation Guidance</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Statement type</th><th>Citation treatment</th></tr></thead>
+      <tbody>
+        <tr><td>The thesis objective, architecture, implemented components or observed results</td><td>Normally no external citation. These are established by the preceding chapters. Refer to Chapter 6 only when a numerical boundary might otherwise be detached from its evidence.</td></tr>
+        <tr><td>0.46%, 5%, 5.73% or approximately 92%</td><td>No new external source. State the evaluated profile and cgroup attribution. A concise internal reference to Chapter 6 is optional.</td></tr>
+        <tr><td>eBPF, kernel, Kubernetes, ATT&amp;CK or related-tool facts already explained earlier</td><td>Do not teach them again merely to justify a citation. If a genuinely new external factual claim is essential, cite the existing verified bibliography entry.</td></tr>
+        <tr><td>Claims comparing originality or superiority with Tracee, Falco or Tetragon</td><td>Avoid in the conclusion. If retained, they require the related-work sources and careful wording consistent with Chapter 2.</td></tr>
+        <tr><td>Future technology capability, portability or expected performance</td><td>Cite only if the sentence makes a substantive external claim. Prefer framing it as a proposed investigation rather than predicting an outcome.</td></tr>
+      </tbody>
+    </table></div>
+    <div class="box ok"><strong>Recommended citation budget:</strong> zero new citations is acceptable and probably preferable. Chapter 7 synthesises evidence established earlier; it should not reopen the literature review.</div>
+  </section>
+
+  <section>
+    <h2>Promotional and Novelty Audit</h2>
+    <p>The current thesis is generally restrained. Chapter 2 explicitly states that the mechanisms are not claimed as novel in isolation and positions the work as a compact integration tailored to the selected enterprise kernel. Chapter 7 must preserve that boundary.</p>
+    <ul>
+      <li>Do not use <em>novel</em>, <em>innovative</em>, <em>unique</em>, <em>state of the art</em>, <em>first</em>, <em>comprehensive</em>, <em>robust</em>, <em>scalable</em> or <em>production-ready</em>.</li>
+      <li>Do not claim complete event coverage, ATT&amp;CK coverage, detection accuracy, portability, loss-free transport or low total overhead.</li>
+      <li>Do not claim that the experiment proves causality. Prefer <em>supports</em>, <em>shows under the evaluated conditions</em>, <em>was associated with</em> and <em>is consistent with</em>.</li>
+      <li>Use <em>implemented contribution</em> for the event framework, event contract, Go runtime and bounded detector pipeline. Do not convert integration work into research novelty without a separate comparative argument.</li>
+      <li>“Demonstrates” is acceptable only for a directly observed capability with its boundary in the same sentence; <em>supports</em> is safer in the final synthesis.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Presentation Budget</h2>
+    <table>
+      <tbody>
+        <tr><th>Figures</th><td>0</td></tr>
+        <tr><th>Tables</th><td>0 in the thesis chapter</td></tr>
+        <tr><th>Source listings, YAML, commands and equations</th><td>0</td></tr>
+        <tr><th>Section hierarchy</th><td>3 sections; no subsections or subsubsections</td></tr>
+        <tr><th>Itemised lists</th><td>Prefer 0. One short future-work list is tolerable only if prose becomes less clear, but prioritised paragraphs are stronger.</td></tr>
+        <tr><th>Numerical values</th><td>Keep only 0.46%, the 5% gate and approximately 92%; mention 5.73% only if needed to make the comparison self-contained. No per-run values.</td></tr>
+        <tr><th>Internal cross-references</th><td>At most 2-3, used only to anchor evidence or avoid repeating detail.</td></tr>
+        <tr><th>External citations</th><td>Target 0; add only for a genuinely new external factual claim.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Acceptance Checklist</h2>
+    <ul class="accept">
+      <li>The opening answers the thesis objective rather than announcing a summary.</li>
+      <li>The chapter is 1,400-1,800 words and approximately 3-4 rendered pages.</li>
+      <li>It contains no chapter-by-chapter recap.</li>
+      <li>It contains no figures, tables, listings, YAML, commands or experimental protocol.</li>
+      <li>Every implemented contribution is described by its consequence, not its source-level mechanism.</li>
+      <li>The functional result is node-local and Cross-Pod, not cross-node or cluster-wide.</li>
+      <li>The collective detector result remains scenario-specific and deterministic.</li>
+      <li>The 0.46%, 5% and approximately 92% values retain the monitor-container cgroup boundary.</li>
+      <li>No absence of a loss diagnostic is presented as proof of loss-free transport.</li>
+      <li>No client outcome or three benign controls are used to infer general detection accuracy.</li>
+      <li>Limitations are synthesised, not copied from the four Chapter 6 validity categories.</li>
+      <li>Each future-work priority resolves a stated limitation.</li>
+      <li>Future work is ordered by evidence quality and operational safety before feature breadth.</li>
+      <li>Current capabilities and future capabilities are grammatically and conceptually distinct.</li>
+      <li>No unsupported novelty, superiority, production-readiness or enforcement claim appears.</li>
+      <li>Terminology follows the established thesis usage and British English.</li>
+      <li>No new acronym or citation is introduced without need.</li>
+      <li>The final paragraph closes the original problem rather than ending on a task list.</li>
+      <li>All labels are unique, references resolve and the complete thesis builds without new warnings.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>
