@@ -217,7 +217,8 @@ Array di argomenti compatti (`ArgsArrT`):
 argomenti. Esempi:
 
 - `cap_capable`: `cap` come `INT_T`;
-- `sched_process_exec`: `filename` come `STR_T`;
+- `sched_process_exec`: `fileName` e `pathname` come `STR_T`, identita' del
+  file e del task come scalari, `argv` ed `envp` come `ARGS_ARR_T` compatti;
 - `execve`: `pathname` come `STR_T`, `argv` come `STR_ARR_T`;
 - `execveat`: `dirfd`, `pathname`, `flags`, `argv`;
 - `sched_process_exit`: `exit_code` come `LONG_T`, `group_dead` come `U8_T`;
@@ -229,6 +230,12 @@ argomenti. Esempi:
 Il limite massimo per le singole stringhe e' stato allineato al lato eBPF
 (`MAX_STRING_SIZE`, 4096 byte). Questo evita che path o argomenti validi
 scritti dal kernel vengano rifiutati artificialmente dal decoder Go.
+
+Gli array compatti usati da `sched_process_exec` hanno un limite separato di
+8 KiB e 1.024 valori riportati. Il decoder usa la lunghezza del payload e il
+conteggio serializzati dal collector per ricostruire le stringhe separate da
+NUL. Gli indici `argv` ed `envp` restano distinti nello schema anche quando uno
+dei due intervalli non puo' essere letto e il relativo argomento viene omesso.
 
 ## Runtime
 

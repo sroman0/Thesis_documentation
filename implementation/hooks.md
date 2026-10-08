@@ -68,10 +68,34 @@ raw_tracepoint/sched_process_exec
 
 Scopo:
 
-- intercettare exec;
-- leggere `linux_binprm->filename`;
-- inviare il path allo userspace;
-- rappresentare una exec riuscita.
+- confermare che il kernel ha installato la nuova immagine eseguibile;
+- conservare sia il nome usato per l'esecuzione sia l'identita' del file
+  risolto dal kernel;
+- descrivere gli argomenti e l'ambiente della nuova immagine;
+- associare l'evento a identita' locali stabili di processo, thread e parent.
+
+Campi emessi:
+
+- `fileName`: valore di `linux_binprm->filename`;
+- `pathname`, `dev`, `inode`, `ctime`: percorso risolto e identita' locale del
+  file installato;
+- `argc`, `argv`: conteggio originale e contenuto compatto degli argomenti;
+- `envc`, `envp`: conteggio originale e contenuto compatto dell'ambiente;
+- `real_uid`: real UID del task, distinto dall'effective UID gia' presente nel
+  contesto comune;
+- `process_unique_id`, `thread_unique_id`, `parent_unique_id`: hash locali
+  ottenuti combinando gli identificatori host con i rispettivi start time.
+
+`argv` ed `envp` vengono letti dal nuovo `mm_struct`, attraverso gli intervalli
+`arg_start`--`arg_end` ed `env_start`--`env_end`. Ogni payload compatto e'
+limitato a 8 KiB e a 1.024 valori rappresentati. `argc` ed `envc` mantengono i
+conteggi completi e permettono quindi di riconoscere una cattura parziale.
+
+La raccolta di `envp` e' attualmente attiva ogni volta che l'evento viene
+selezionato e non applica redazione. Poiche' l'ambiente puo' contenere token,
+credenziali e configurazione sensibile, i record devono essere trattati come
+dati sensibili. Il filtro UID lato kernel puo' ridurre il dominio osservato,
+ma resta un controllo specifico del contesto operativo.
 
 ### `execve`
 

@@ -246,10 +246,17 @@ controlli no-monitor non sono usati per inferire rallentamento del workload.
 
 ## Appendices
 
-### Appendix A - Event and Hook Catalogue
+### Appendix A - Selected eBPF Process-Monitoring Implementations
+
+- paired process-creation capture;
+- parent-child lifecycle evidence;
+- executable request, mediation, success and failure paths;
+- change-only UID transition capture.
+
+The appendix contains only selected, abridged source excerpts. Architectural
+interpretation remains in Chapter 4, and the complete hook catalogue remains
+in the implementation repository.
 
 ### Appendix B - Policy and Detector Examples
-
-### Appendix C - Reproducibility Commands
 
 Le appendici evitano che il corpo della tesi diventi un manuale operativo.

@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Falco Comparison on the AES-beta Workload</title>
+  <style>
+    :root{--ink:#172033;--muted:#5d6878;--line:#cfd7e2;--panel:#f6f8fb;--green:#176b43;--amber:#8a5a00;--blue:#2457a6}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);font:16px/1.58 system-ui,sans-serif;background:#fff}main{max-width:1080px;margin:auto;padding:42px 28px 72px}
+    h1,h2{line-height:1.22}h1{margin:0 0 8px}h2{margin-top:38px;border-bottom:1px solid var(--line);padding-bottom:7px}p,li{max-width:98ch}
+    .subtitle{color:var(--muted);margin-top:0}.box{padding:15px 18px;margin:18px 0;border-left:4px solid var(--blue);background:#f3f7fc}.pass{border-left-color:var(--green);background:#f0f8f4}.warn{border-left-color:var(--amber);background:#fff9ed}
+    code{font-family:Consolas,monospace;background:#eef1f5;padding:.08rem .25rem}pre{overflow:auto;padding:14px 16px;background:#172033;color:#f7f9fc;font:14px/1.5 Consolas,monospace}pre code{background:transparent;padding:0}
+    table{width:100%;border-collapse:collapse;margin:18px 0 28px}th,td{padding:9px 10px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:#eef2f7}.number{text-align:right;white-space:nowrap}a{color:#174f96}
+    @media(max-width:760px){main{padding:28px 18px 52px}table{font-size:13px;display:block;overflow-x:auto}}
+  </style>
+</head>
+<body><main>
+  <h1>Falco Comparison on the AES-beta Workload</h1>
+  <p class="subtitle">Functional and performance comparison performed on 11 September 2026</p>
+
+  <div class="box pass"><strong>RESULT: COMPLETE.</strong> All six official Falco runs completed the exploit, recovered the synthetic flag and exposed the required shell, <code>cat</code> and file-open evidence. No Pod restarted and no matching event-loss warning appeared in the retained intervals.</div>
+
+  <h2>Purpose</h2>
+  <p>This test adds an external reference point to the prototype evaluation. Falco was selected because it is an established runtime security tool with eBPF collection, a rule engine and container enrichment. The comparison reuses the same AES-beta target, trigger Pod, Minikube node and cgroup-v1 sampling method used for the prototype.</p>
+  <p>The comparison addresses two questions. The functional check asks whether Falco can expose the host observations associated with the successful exploit. The performance check measures CPU and memory charged to the Falco container during the same 1,793-worker workload.</p>
+
+  <h2>Environment and Versions</h2>
+  <table>
+    <tbody>
+      <tr><th>Host</th><td>Rocky Linux 8.10, x86-64</td></tr>
+      <tr><th>Kernel</th><td><code>4.18.0-553.137.1.el8_10.x86_64</code></td></tr>
+      <tr><th>Minikube</th><td>v1.38.1, Docker driver, one two-CPU node</td></tr>
+      <tr><th>Kubernetes</th><td>Server v1.30.0; client v1.36.3</td></tr>
+      <tr><th>Falco</th><td>v0.44.1, modern eBPF engine, BPF iterators disabled for compatibility</td></tr>
+      <tr><th>Falco image</th><td><code>sha256:d0cfe422d6ac0e0f20857798f46c7d7273210e1b064b22821e4e6e7f843cde6b</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Preparation</h2>
+  <p>The Falco image was pulled inside the Minikube node and its digest was recorded. A 30-second compatibility test confirmed that the modern eBPF engine could load on the target kernel. A separate smoke rule then observed a successful <code>/bin/cat /etc/hostname</code> execution under UID 10001 and attributed it to the AES-beta target Pod.</p>
+  <p>Three rules were created for the experiment:</p>
+  <ul>
+    <li>successful execution of a shell;</li>
+    <li>successful execution of <code>cat</code>;</li>
+    <li>successful opening of <code>/opt/aes-beta/flag</code>.</li>
+  </ul>
+  <p>Falco validated the rules before they were deployed. A functional exploit run then confirmed that all three observations were available. Falco produced separate rule alerts, while the prototype produced one collective alert containing four ordered records.</p>
+
+  <h2>Benchmark Profiles</h2>
+  <table>
+    <thead><tr><th>Profile</th><th>Configuration</th><th>Filtering point</th></tr></thead>
+    <tbody>
+      <tr><td>Falco filtered</td><td>Each rule includes <code>user.uid = 10001</code>.</td><td>Falco rule evaluation</td></tr>
+      <tr><td>Falco unfiltered</td><td>The same rules are used without the UID condition.</td><td>No UID restriction in the rules</td></tr>
+      <tr><td>Prototype filtered</td><td>Exact effective UID 10001 admission is enabled.</td><td>Common eBPF collection path, before transport</td></tr>
+      <tr><td>Prototype unfiltered</td><td>The kernel UID admission setting is disabled.</td><td>User-space policies and detectors remain active</td></tr>
+    </tbody>
+  </table>
+  <div class="box warn"><strong>Important distinction.</strong> The two filtered profiles express a similar selection criterion, but they apply it at different stages. Falco evaluates the UID condition as part of its rule processing. The prototype can discard other UIDs in eBPF before their records are transferred to user space.</div>
+
+  <h2>Execution Procedure</h2>
+  <ol>
+    <li>The original monitor DaemonSet was removed so that it could not affect the Falco measurements.</li>
+    <li>A Falco DaemonSet was created with one custom rules ConfigMap and the modern eBPF engine.</li>
+    <li>Before each run, the requested rules profile was applied and the Falco Pod was restarted to create a fresh container cgroup.</li>
+    <li>A ten-second warm-up preceded one execution of the AES-beta exploit.</li>
+    <li>An external sampler read Falco, target and node counters once per second for 75 seconds.</li>
+    <li>Only samples between the recorded exploit start and end times entered the run summary.</li>
+    <li>Three runs per profile were executed in alternating order: F--U, U--F and F--U.</li>
+  </ol>
+  <p>CPU is reported as a percentage of one core. Memory usage and <code>total_rss</code> come from the Falco container's cgroup-v1 counters. Every run also checked the exploit result, rule evidence, Pod restart delta and matching loss diagnostics.</p>
+
+  <h2>Calibration</h2>
+  <p>A filtered calibration run was used to verify the deployment, sampling and evidence checks before the official campaign. Its measurements are excluded from every table and aggregate reported below.</p>
+
+  <h2>Official Per-Run Results</h2>
+  <table>
+    <thead><tr><th>Round</th><th>Profile</th><th class="number">CPU mean</th><th class="number">CPU P95</th><th class="number">Memory peak</th><th class="number">RSS peak</th><th class="number">Duration</th><th>Functional result</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Filtered</td><td class="number">5.32%</td><td class="number">6.74%</td><td class="number">51.88 MiB</td><td class="number">35.92 MiB</td><td class="number">60.481 s</td><td>Pass; complete evidence</td></tr>
+      <tr><td>1</td><td>Unfiltered</td><td class="number">5.12%</td><td class="number">6.79%</td><td class="number">55.52 MiB</td><td class="number">39.54 MiB</td><td class="number">61.221 s</td><td>Pass; complete evidence</td></tr>
+      <tr><td>2</td><td>Unfiltered</td><td class="number">5.14%</td><td class="number">6.90%</td><td class="number">51.88 MiB</td><td class="number">35.92 MiB</td><td class="number">60.967 s</td><td>Pass; complete evidence</td></tr>
+      <tr><td>2</td><td>Filtered</td><td class="number">5.12%</td><td class="number">6.87%</td><td class="number">51.66 MiB</td><td class="number">36.41 MiB</td><td class="number">63.366 s</td><td>Pass; complete evidence</td></tr>
+      <tr><td>3</td><td>Filtered</td><td class="number">5.02%</td><td class="number">7.17%</td><td class="number">53.83 MiB</td><td class="number">38.35 MiB</td><td class="number">60.264 s</td><td>Pass; complete evidence</td></tr>
+      <tr><td>3</td><td>Unfiltered</td><td class="number">4.42%</td><td class="number">6.44%</td><td class="number">56.38 MiB</td><td class="number">38.34 MiB</td><td class="number">68.419 s</td><td>Pass; complete evidence</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Falco Aggregate Results</h2>
+  <table>
+    <thead><tr><th>Profile</th><th>Runs</th><th>CPU mean</th><th>Mean run P95</th><th>Maximum memory</th><th>Maximum RSS</th><th>Mean duration</th></tr></thead>
+    <tbody>
+      <tr><td>Filtered</td><td>3</td><td>5.15% (SD 0.15; range 5.02--5.32)</td><td>6.93%</td><td>53.83 MiB</td><td>38.35 MiB</td><td>61.37 s</td></tr>
+      <tr><td>Unfiltered</td><td>3</td><td>4.89% (SD 0.41; range 4.42--5.14)</td><td>6.71%</td><td>56.38 MiB</td><td>39.54 MiB</td><td>63.54 s</td></tr>
+    </tbody>
+  </table>
+  <p>The UID condition did not reduce measured Falco CPU. The filtered mean was 0.26 percentage points higher than the unfiltered mean. Three repetitions on a heavily utilised node do not support treating this small difference as an effect of filtering. The two profiles had similar CPU demand.</p>
+
+  <h2>Functional Observations</h2>
+  <p>Every official run recovered <code>openECSC{ebpf_cross_pod_evaluation}</code>. Falco attributed the valid shell, <code>cat</code> and flag-open alerts to UID 10001, the AES-beta target container and its Kubernetes Pod. The successful <code>open</code> returned file descriptor 2.</p>
+  <p>Each run also contained a second shell alert with an unreadable command-line suffix. It followed the valid exploit activity but did not contribute additional evidence of success. The unfiltered runs contained one additional <code>cat</code> alert from UID 1000 on the host. This was the benchmark helper reading its saved trigger output. The filtered rules excluded that host activity.</p>
+  <p>These observations illustrate the output difference between the systems. Falco reported each matching operation separately and supplied container and Kubernetes enrichment. The prototype joined shell execution, <code>cat</code> execution, the resolved LSM file observation and the successful syscall result into one ordered alert.</p>
+
+  <h2>Comparison with the Prototype</h2>
+  <table>
+    <thead><tr><th>System and profile</th><th>CPU mean</th><th>Mean run P95</th><th>Maximum memory</th><th>Maximum RSS</th><th>Security output</th></tr></thead>
+    <tbody>
+      <tr><td>Prototype, kernel UID filter</td><td>0.46%</td><td>1.00%</td><td>92.17 MiB</td><td>36.97 MiB</td><td>One correlated four-event alert</td></tr>
+      <tr><td>Prototype, no kernel UID filter</td><td>5.73%</td><td>8.38%</td><td>110.21 MiB</td><td>41.24 MiB</td><td>One correlated four-event alert</td></tr>
+      <tr><td>Falco, UID rule condition</td><td>5.15%</td><td>6.93%</td><td>53.83 MiB</td><td>38.35 MiB</td><td>Separate operation alerts</td></tr>
+      <tr><td>Falco, no UID rule condition</td><td>4.89%</td><td>6.71%</td><td>56.38 MiB</td><td>39.54 MiB</td><td>Separate operation alerts, including unrelated host <code>cat</code></td></tr>
+    </tbody>
+  </table>
+  <p>The prototype's kernel-filtered mean was about one eleventh of the Falco filtered mean. Once the prototype's early UID filter was disabled, Falco used 0.84 percentage points less CPU on average. Falco also reached lower maximum cgroup memory values, while maximum RSS was close across the two systems.</p>
+  <p>The result supports the value of early admission in this controlled case. It does not establish a general ranking between the tools. Falco and the prototype use different collection paths, event models and alert semantics. Falco provides mature rule processing and Kubernetes enrichment; the prototype's experiment uses an LSM observation and explicit short-sequence correlation. The prototype and Falco campaigns were also performed on different dates, although they used the same node configuration, target images and workload design.</p>
+
+  <h2>Validity Boundaries</h2>
+  <ul>
+    <li>Three runs per profile support a descriptive comparison only.</li>
+    <li>Mean node CPU remained between 93.30% and 97.45%, leaving little idle capacity.</li>
+    <li>The monitor metric covers CPU charged to the monitor container cgroup and excludes some kernel work caused by eBPF collection.</li>
+    <li>No matching loss warning was found; an independent event-completeness counter was not available.</li>
+    <li>The Falco UID condition and the prototype kernel UID filter operate at different stages.</li>
+    <li>The custom Falco rules reproduce the evidence needed by this scenario; they do not represent the complete Falco rules catalogue.</li>
+    <li>The experiment evaluates observation and alerting. Falco enforcement and the broader capabilities of either system were outside its scope.</li>
+  </ul>
+
+  <h2>Reproduction</h2>
+  <p>The scripts and configurations are stored under <code>demo_project/k8s/minikube-ctf-cross-pod-host/comparison/falco/</code>. The complete official campaign can be reproduced with:</p>
+  <pre><code>cd /home/simone/project/demo_project
+KUBECTL="kubectl --context cross-pod" \
+MINIKUBE="minikube -p cross-pod" \
+bash k8s/minikube-ctf-cross-pod-host/comparison/falco/run-six.sh</code></pre>
+
+  <h2>Evidence Inventory</h2>
+  <p>The official evidence is preserved at <code>demo_project/k8s/minikube-ctf-cross-pod-host/evidence/falco-performance-20260911T091729Z/</code>. It contains:</p>
+  <ul>
+    <li>the exact Falco image digest, versions and initial workload identities;</li>
+    <li>copies of the DaemonSet and both rule profiles;</li>
+    <li>one-second cgroup samples for each run;</li>
+    <li>Falco, target and trigger output;</li>
+    <li>Pod state before and after every run;</li>
+    <li><code>runs.tsv</code>, <code>aggregate.tsv</code> and <code>validation.txt</code>.</li>
+  </ul>
+  <p>The prototype performance results used in the comparison are preserved at <code>demo_project/k8s/minikube-ctf-cross-pod-host/evidence/cross-pod-performance-20260819T070557Z/</code>.</p>
+
+  <h2>Related Documentation</h2>
+  <ul>
+    <li><a href="minikube-ctf-cross-pod-performance-evaluation.html">Prototype performance evaluation</a></li>
+    <li><a href="minikube-ctf-cross-pod-functional-evaluation.html">Prototype functional evaluation</a></li>
+    <li><a href="minikube-ctf-cross-pod-final-report.html">Cross-Pod experiment final report</a></li>
+  </ul>
+</main></body>
+</html>
